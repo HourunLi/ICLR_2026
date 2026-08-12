@@ -17,16 +17,22 @@ The result is a reward model that is still small enough for Best-of-N sampling, 
 
 - `docs/proposal.md` - ICLR-style method draft with notation, losses, training plan, and ablations.
 - `src/consistency_localized_reward.py` - PyTorch module implementing the core reward, consistency, and localization losses.
-- `patches/swift_clir.patch` - SWIFT-compatible implementation patch for `aster2024/SWIFT`.
 
 ## SWIFT-Based Implementation
 
-The implementation is provided as a patch against `aster2024/SWIFT` so it can be applied directly to the original framework:
+A SWIFT-compatible implementation patch has been generated as a Codex output artifact: `outputs/swift_clir.patch`. It applies cleanly to `aster2024/SWIFT` and adds:
+
+- `CLIRRewardModel` on top of SWIFT's token reward/gating interface.
+- PRISM-style consistency loss over LLM rewrite metadata.
+- Token-level hallucination onset, path-level MIL, and negative-tail reward losses.
+- `--use_clir` training/scoring flags in SWIFT's `train/extract_train.py` and `eval/get_rewards.py`.
+
+Apply it to a SWIFT checkout with:
 
 ```bash
 git clone https://github.com/aster2024/SWIFT.git
 cd SWIFT
-git apply ../patches/swift_clir.patch
+git apply /path/to/outputs/swift_clir.patch
 ```
 
 After applying the patch, train and score with `--use_clir` to enable the CLIR reward head and auxiliary consistency/localization losses.
