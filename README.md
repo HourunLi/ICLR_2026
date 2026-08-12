@@ -59,12 +59,18 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 遇到的问题
 
-- 当前 Codex 环境没有安装 `torch` / `pytest`，所以本地只能做语法级检查，真实 forward、training smoke test 需要在完整 PyTorch 环境里跑。
 - 目前输入假设是已经抽取好的 frozen LLM hidden states；还没有实现从具体 LLM 自动抽 hidden states 的脚本。
 - LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
 - hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
 - `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
+
+本次复查已经在装有 `torch`（2.13, CPU）/ `pytest` 的环境里实测：`pytest tests/test_clir_smoke.py` 7/7 通过；`create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端跑通，无崩溃、无 NaN。复查中发现以下遗留问题，尚未修复：
+
+- **`SemanticGroupBatchSampler.__len__()` 会低估实际 batch 数**：当很多语义组的大小和 `batch_size` 不能整除时（例如 5 个大小为 2 的语义组、`batch_size=5`），`__iter__()` 会因为"不拆散同组 chunk"而提前 flush 出偏小的 batch，实测会产出 3 个 batch，但 `__len__()` 按 `ceil(N/batch_size)` 算出来是 2（已用脚本复现：`batches=[[0,1,2,3],[4,5,6,7],[8,9]]` vs `len(sampler)=2`）。当前 `train_clir.py` 没有用到 `len(loader)`，所以暂不影响训练本身；但如果之后加进度条或按 `len(loader)*epochs` 算 LR 总步数，会读到错误的步数。
+- **两个新的 `RewardConfig` 字段没有接到 CLI**：`condition_attention_temperature`、`progress_score_weight` 现在只能用 dataclass 默认值，`train_clir.py` 的 `make_config()` 没有像其它 loss 权重一样暴露对应的 `--xxx` 参数。
+- **`dual_prior_losses` 里 `distill` / `gate_prior` 的重新归一化在标签部分覆盖时会失真**：这两项用 `shared_prior_mask`（key 与 complete 标签都覆盖的 token）对 `key_prior`/`complete_prior`/`gates`/`fused_prior` 重新做 `normalize_attention`。标签是全覆盖（目前 toy 数据和 smoke test 都是）时没问题；但如果以后接入只标注部分 token 的真实弱监督数据，重新归一化会把"标注子集内的相对权重"当成比较对象，而不是这些 token 在完整轨迹注意力里的真实占比，可能夸大或掩盖 key/complete 之间的真实分歧。
+- **`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**：`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，只是训练时被动地推出一个隐式拆分，值得在接入真实数据后重新评估要不要拆开监督。
 
 ## 未来解决方向
 
@@ -88,6 +94,10 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
   - 用 query/context entailment 或 verifier score 生成 weak prior。
 - 加入 pairwise/listwise 训练 objective，并做 SWIFT 对齐实验。
 - 在带 GPU 和完整依赖的环境中跑 end-to-end toy training、small-scale training 和 Best-of-N evaluation。
+- 修 `SemanticGroupBatchSampler.__len__()` 的低估问题，让它和 `__iter__()` 实际产出的 batch 数一致。
+- 把 `condition_attention_temperature`、`progress_score_weight` 补成 `train_clir.py` 的 CLI 参数。
+- 评估 `dual_prior_losses` 在部分覆盖标签下的归一化方式是否需要改成"按完整轨迹 mask 归一化、只在 shared 子集上取 MSE"，而不是先按 shared 子集重新归一化。
+- real 数据接入后，重新评估 `token_values`（`token_rewards + progress_score_weight * progress`）是否需要拆分监督，或者给 `token_rewards`/`progress` 设计不重叠的目标。
 
 ## 运行代码
 
@@ -158,9 +168,7 @@ python score_clir.py \
 pytest tests/test_clir_smoke.py
 ```
 
-当前 Codex 环境缺少 `torch` / `pytest`，因此这一步需要在完整 PyTorch 环境中执行。
-
-当前已在 Codex 环境执行过语法检查：
+已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（7/7）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
 
 ```bash
 python -m py_compile \
