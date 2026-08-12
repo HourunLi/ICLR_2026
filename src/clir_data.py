@@ -20,12 +20,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+import random
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 from torch import Tensor
-from torch.utils.data import Dataset
+from torch.utils.data import BatchSampler, Dataset
 
 
 TEXT_ID_FIELDS = {
@@ -97,7 +98,7 @@ class CLIRTrajectoryDataset(Dataset):
         item: Dict[str, Any] = {
             "row_index": index,
             "id": row.get("id", str(index)),
-            "query_id": row.get("query_id", row.get("group_id", row.get("semantic_id", str(index)))),
+            "query_id": row.get("query_id", row.get("candidate_group_id", row.get("prompt_id", str(index)))),
             "hidden_states": hidden_states.float(),
         }
 
@@ -189,6 +190,10 @@ def extract_metadata(row: Dict[str, Any], time: int) -> Dict[str, Any]:
         if value is not None:
             item[output_key] = pad_or_trim_1d(value, time)
 
+    reconstruction_value = first_present(row, ("complete_reconstruction_target", "csr_target"))
+    if reconstruction_value is not None:
+        item["complete_reconstruction_target"] = torch.as_tensor(reconstruction_value, dtype=torch.float32).flatten()
+
     return item
 
 
@@ -246,10 +251,13 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 
     if any("condition_embedding" in item for item in batch):
         condition_embedding = torch.zeros(len(batch), hidden_dim, dtype=torch.float32)
+        condition_embedding_mask = torch.zeros(len(batch), dtype=torch.float32)
         for row, item in enumerate(batch):
             if "condition_embedding" in item:
                 condition_embedding[row] = item["condition_embedding"]
+                condition_embedding_mask[row] = 1.0
         output["condition_embedding"] = condition_embedding
+        output["condition_embedding_mask"] = condition_embedding_mask
 
     add_optional_float(output, batch, "correctness")
     add_encoded_ids(output, batch, "semantic_id", "semantic_ids", "consistency_mask_semantic")
@@ -263,6 +271,7 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     add_optional_sequence(output, batch, "progress_targets", max_time, mask_key="progress_mask")
     add_optional_sequence(output, batch, "key_prior_target", max_time, mask_key="key_prior_mask")
     add_optional_sequence(output, batch, "complete_prior_target", max_time, mask_key="complete_prior_mask")
+    add_optional_vector(output, batch, "complete_reconstruction_target", hidden_dim)
 
     output["query_ids"] = torch.tensor(encode_raw_ids(output["query_ids_raw"])[0], dtype=torch.long)
     return output
@@ -359,6 +368,124 @@ def add_optional_sequence(
         output[mask_key] = mask
 
 
+def add_optional_vector(
+    output: Dict[str, Any],
+    batch: Sequence[Dict[str, Any]],
+    key: str,
+    hidden_dim: int,
+) -> None:
+    values = torch.zeros(len(batch), hidden_dim, dtype=torch.float32)
+    mask = []
+    for row, item in enumerate(batch):
+        if key not in item:
+            mask.append(False)
+            continue
+        tensor = item[key].float().flatten()
+        if tensor.numel() != hidden_dim:
+            raise ValueError(f"{key} must have length {hidden_dim}, got {tensor.numel()}")
+        values[row] = tensor
+        mask.append(True)
+    if any(mask):
+        output[key] = values
+        output[f"{key}_mask"] = torch.tensor(mask, dtype=torch.bool)
+
+
+class SemanticGroupBatchSampler(BatchSampler):
+    """Batch sampler that keeps LLM rewrites from the same semantic id together.
+
+    Each batch packs small chunks from multiple semantic groups when possible.
+    This makes PRISM-style positive and negative pairs likely in real training,
+    instead of relying on random shuffle to place augmentations together.
+    """
+
+    def __init__(
+        self,
+        dataset: CLIRTrajectoryDataset,
+        batch_size: int,
+        shuffle: bool = True,
+        drop_last: bool = False,
+        seed: int = 0,
+        indices: Optional[Sequence[int]] = None,
+    ) -> None:
+        if batch_size < 2:
+            raise ValueError("SemanticGroupBatchSampler requires batch_size >= 2")
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.seed = seed
+        self.epoch = 0
+        self.indices = list(indices) if indices is not None else list(range(len(dataset.rows)))
+        self.groups: Dict[str, List[int]] = {}
+        for row_index in self.indices:
+            row = dataset.rows[row_index]
+            semantic_id = first_present(
+                row,
+                ("semantic_id", "semantic_ids", "augmentation_group", "augmentation_group_id", "group_id"),
+            )
+            key = repr(semantic_id) if semantic_id is not None else f"__row_{row_index}"
+            self.groups.setdefault(key, []).append(row_index)
+
+    def __iter__(self) -> Iterator[List[int]]:
+        rng = random.Random(self.seed + self.epoch)
+        self.epoch += 1
+        group_items = [list(indices) for indices in self.groups.values()]
+        if self.shuffle:
+            rng.shuffle(group_items)
+            for indices in group_items:
+                rng.shuffle(indices)
+
+        chunks: List[List[int]] = []
+        leftovers: List[int] = []
+        max_group_chunk = max(2, self.batch_size // 2)
+        for indices in group_items:
+            start = 0
+            while start < len(indices):
+                remaining = len(indices) - start
+                if remaining == 1:
+                    leftovers.append(indices[start])
+                    break
+                chunk = indices[start : start + min(max_group_chunk, remaining)]
+                start += len(chunk)
+                if len(chunk) >= 2:
+                    chunks.append(chunk)
+                else:
+                    leftovers.extend(chunk)
+
+        if self.shuffle:
+            rng.shuffle(chunks)
+            rng.shuffle(leftovers)
+
+        current: List[int] = []
+        for chunk in chunks:
+            if len(current) + len(chunk) > self.batch_size:
+                while len(current) < self.batch_size and leftovers:
+                    current.append(leftovers.pop())
+                if len(current) == self.batch_size or (current and not self.drop_last):
+                    yield current
+                current = []
+            if len(chunk) == self.batch_size:
+                yield chunk
+            else:
+                current.extend(chunk)
+
+        while len(current) < self.batch_size and leftovers:
+            current.append(leftovers.pop())
+        if len(current) == self.batch_size or (current and not self.drop_last):
+            yield current
+
+        while leftovers:
+            batch = leftovers[: self.batch_size]
+            leftovers = leftovers[self.batch_size :]
+            if len(batch) == self.batch_size or (batch and not self.drop_last):
+                yield batch
+
+    def __len__(self) -> int:
+        if self.drop_last:
+            return len(self.indices) // self.batch_size
+        return (len(self.indices) + self.batch_size - 1) // self.batch_size
+
+
 def move_batch_to_device(batch: Dict[str, Any], device: torch.device | str) -> Dict[str, Any]:
     moved: Dict[str, Any] = {}
     for key, value in batch.items():
@@ -368,6 +495,7 @@ def move_batch_to_device(batch: Dict[str, Any], device: torch.device | str) -> D
 
 __all__ = [
     "CLIRTrajectoryDataset",
+    "SemanticGroupBatchSampler",
     "clir_collate",
     "move_batch_to_device",
     "read_jsonl",

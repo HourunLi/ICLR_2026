@@ -32,15 +32,30 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - 已实现 smoke tests：`tests/test_clir_smoke.py`。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
-  - query/context conditional feature fusion；
+  - token-level query/context cross-attention conditional fusion；
+  - condition relevance 与 condition attention 输出，供定位诊断使用；
+  - gate-weighted `token_values` + trajectory residual 的最终 score logit；
   - PRISM-style semantic/style consistency loss；
+  - 按 `semantic_id` 分组的 batch sampler，默认让同语义不同风格 augmentation 落入同一 mini-batch；
   - hallucination onset token BCE；
   - path-level hallucination MIL；
   - pseudo-onset negative-tail reward；
   - token progress / advantage regression；
   - key prior / complete prior heads；
-  - dual-prior interactive distillation；
-  - reward gate 与 fused prior 的 regularization。
+  - 有外部 prior labels 时启用 dual-prior interactive distillation，且只在 key/complete 共同有监督覆盖的 token 上对齐；
+  - 有外部 `complete_reconstruction_target` 时启用 complete-prior reconstruction；
+  - reward gate 与 fused prior 的 regularization；
+  - 打分脚本输出 key/complete prior、gate attention、condition relevance 和 gate-prior alignment。
+
+本次同步修复了前一轮代码审查指出的关键问题：
+
+- 条件化不再是给所有 token 加同一个 query/context 偏置，而是每个 generated token 对 condition tokens 做 attention，再把 token-context match 特征送入后续 heads。
+- dual-prior loss 不再无标签常开；没有 `key_prior_target` / `complete_prior_target` / `complete_reconstruction_target` 时，对应 loss 为 0。
+- dual-prior 的 distillation / gate-prior regularization 只在 key 与 complete prior 都有标签的 token 上计算，避免半标注样本把 prior 拉向无意义一致。
+- dual-prior 支持 `joint`、`key`、`complete` 和 epoch-level `alternate` 训练模式，默认用 `alternate` 贴近 DPCL 的交替优化思路。
+- PRISM consistency 不再依赖普通随机 shuffle 碰运气；训练默认启用 `SemanticGroupBatchSampler`。
+- hallucination onset 越界会直接报错，不再静默当成无幻觉样本。
+- `query_id` 只用于 Best-of-N candidate 分组，不再默认 fallback 到 `semantic_id`，避免候选分组和 augmentation 分组混在一起。
 
 ## 遇到的问题
 
@@ -48,6 +63,7 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - 目前输入假设是已经抽取好的 frozen LLM hidden states；还没有实现从具体 LLM 自动抽 hidden states 的脚本。
 - LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
 - hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
+- `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
 
 ## 未来解决方向
@@ -102,8 +118,16 @@ python train_clir.py \
   --projection_dim 4 \
   --batch_size 4 \
   --epochs 3 \
-  --lr 1e-3
+  --lr 1e-3 \
+  --group_by_semantic_id \
+  --prior_phase_mode alternate
 ```
+
+说明：
+
+- `--group_by_semantic_id` 默认开启，用于保证同语义不同风格 rewrite 更容易进入同一 batch，从而触发 PRISM consistency。
+- `--prior_phase_mode alternate` 默认开启，奇数 epoch 训练 key-prior phase，偶数 epoch 训练 complete-prior phase；也可设为 `joint`、`key` 或 `complete`。
+- `query_id` 用于 Best-of-N candidate 分组；`semantic_id` 用于 rewrite/augmentation consistency 分组；`style_id` 或 `domain_id` 用于 spurious attribute 分组。
 
 ### 4. 用 CLIR reward model 打分
 
@@ -121,6 +145,11 @@ python score_clir.py \
 - `clir_path_hallucination_prob`
 - `clir_pseudo_onset`
 - `clir_mean_gate`
+- `clir_prior_gate_alignment`
+- `clir_condition_relevance`
+- `clir_gate_attention`
+- `clir_key_prior`
+- `clir_complete_prior`
 - `clir_selected_best_of_n`
 
 ### 5. 运行 smoke test
@@ -130,6 +159,18 @@ pytest tests/test_clir_smoke.py
 ```
 
 当前 Codex 环境缺少 `torch` / `pytest`，因此这一步需要在完整 PyTorch 环境中执行。
+
+当前已在 Codex 环境执行过语法检查：
+
+```bash
+python -m py_compile \
+  src/consistency_localized_reward.py \
+  src/clir_data.py \
+  train_clir.py \
+  score_clir.py \
+  examples/create_toy_clir_data.py \
+  tests/test_clir_smoke.py
+```
 
 ## Baseline
 

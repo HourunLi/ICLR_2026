@@ -10,7 +10,8 @@ It uses SWIFT as an architectural reference, not as a dependency:
 
 Inputs are pre-extracted hidden states with shape [batch, time, hidden_dim].
 Optional condition states can encode query/context and are fused into token
-features before reward and localization heads are applied.
+features through token-level attention before reward and localization heads are
+applied.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ class RewardConfig:
     negative_tail_margin: float = 0.5
     pseudo_onset_threshold: float = 0.5
     prior_fusion_alpha: float = 0.5
+    condition_attention_temperature: float = 1.0
+    progress_score_weight: float = 0.5
     eps: float = 1e-8
 
     final_weight: float = 1.0
@@ -56,10 +59,20 @@ class ConsistencyLocalizedReward(nn.Module):
     def __init__(self, config: RewardConfig) -> None:
         super().__init__()
         self.config = config
-        self.condition_adapter = nn.Linear(config.hidden_dim, config.hidden_dim)
+        self.condition_query = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
+        self.condition_key = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
+        self.condition_value = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
+        self.condition_fusion = nn.Sequential(
+            nn.LayerNorm(config.hidden_dim * 4 + 1),
+            nn.Linear(config.hidden_dim * 4 + 1, config.hidden_dim),
+            nn.GELU(),
+            nn.Linear(config.hidden_dim, config.hidden_dim),
+        )
+        self.feature_norm = nn.LayerNorm(config.hidden_dim)
         self.token_reward_head = nn.Linear(config.hidden_dim, 2)
         self.hallucination_head = nn.Linear(config.hidden_dim, 1)
         self.progress_head = nn.Linear(config.hidden_dim, 1)
+        self.final_score_head = nn.Linear(config.hidden_dim, 1)
         self.key_prior_head = nn.Linear(config.hidden_dim, 1)
         self.complete_prior_head = nn.Linear(config.hidden_dim, 1)
         self.complete_reconstructor = nn.Sequential(
@@ -79,6 +92,7 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_states: Optional[Tensor] = None,
         condition_mask: Optional[Tensor] = None,
         condition_embedding: Optional[Tensor] = None,
+        condition_embedding_mask: Optional[Tensor] = None,
     ) -> Dict[str, Tensor]:
         """Compute scalar reward, token rewards, hallucination, and priors."""
         if hidden_states.ndim != 3:
@@ -94,12 +108,13 @@ class ConsistencyLocalizedReward(nn.Module):
             mask = hidden_states.new_ones(batch, time)
         mask = mask.to(dtype=hidden_states.dtype, device=hidden_states.device)
 
-        token_features = self._condition_token_features(
+        token_features, condition_relevance, condition_attention = self._condition_token_features(
             hidden_states,
             mask,
             condition_states=condition_states,
             condition_mask=condition_mask,
             condition_embedding=condition_embedding,
+            condition_embedding_mask=condition_embedding_mask,
         )
 
         token_head = self.token_reward_head(token_features)
@@ -107,14 +122,17 @@ class ConsistencyLocalizedReward(nn.Module):
         token_rewards = token_head[..., 1]
         gates = torch.sigmoid(gate_logits) * mask
 
-        denom = gates.sum(dim=1).clamp_min(self.config.eps)
-        scores = (gates * token_rewards).sum(dim=1) / denom
-
-        pooled = masked_mean(token_features, mask)
-        representations = F.normalize(self.projector(pooled), dim=-1)
-
         hallucination_logits = self.hallucination_head(token_features).squeeze(-1)
         progress = self.progress_head(token_features).squeeze(-1)
+        token_values = token_rewards + self.config.progress_score_weight * progress
+
+        denom = gates.sum(dim=1).clamp_min(self.config.eps)
+        token_scores = (gates * token_values).sum(dim=1) / denom
+
+        pooled = masked_mean(token_features, mask)
+        score_residual = self.final_score_head(pooled).squeeze(-1)
+        scores = token_scores + score_residual
+        representations = F.normalize(self.projector(pooled), dim=-1)
 
         key_prior_logits = self.key_prior_head(token_features).squeeze(-1)
         complete_prior_logits = self.complete_prior_head(token_features).squeeze(-1)
@@ -133,10 +151,15 @@ class ConsistencyLocalizedReward(nn.Module):
         return {
             "scores": scores,
             "token_rewards": token_rewards,
+            "token_values": token_values,
+            "token_scores": token_scores,
+            "score_residual": score_residual,
             "gate_logits": gate_logits,
             "gates": gates,
             "hallucination_logits": hallucination_logits,
             "progress": progress,
+            "condition_relevance": condition_relevance,
+            "condition_attention": condition_attention,
             "representations": representations,
             "key_prior_logits": key_prior_logits,
             "complete_prior_logits": complete_prior_logits,
@@ -149,7 +172,11 @@ class ConsistencyLocalizedReward(nn.Module):
             "mask": mask,
         }
 
-    def training_step(self, batch: Dict[str, Tensor]) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
+    def training_step(
+        self,
+        batch: Dict[str, Tensor],
+        prior_phase: str = "joint",
+    ) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
         """Run forward and compute all configured losses for a batch."""
         outputs = self.forward(
             batch["hidden_states"],
@@ -157,11 +184,17 @@ class ConsistencyLocalizedReward(nn.Module):
             condition_states=batch.get("condition_states"),
             condition_mask=batch.get("condition_mask"),
             condition_embedding=batch.get("condition_embedding"),
+            condition_embedding_mask=batch.get("condition_embedding_mask"),
         )
-        losses = self.loss(outputs, batch)
+        losses = self.loss(outputs, batch, prior_phase=prior_phase)
         return outputs, losses
 
-    def loss(self, outputs: Dict[str, Tensor], batch: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    def loss(
+        self,
+        outputs: Dict[str, Tensor],
+        batch: Dict[str, Tensor],
+        prior_phase: str = "joint",
+    ) -> Dict[str, Tensor]:
         """Compute every available CLIR loss.
 
         Optional batch fields:
@@ -200,7 +233,7 @@ class ConsistencyLocalizedReward(nn.Module):
         if "hallucination_onset" in batch:
             loc_losses = hallucination_localization_losses(
                 outputs["hallucination_logits"],
-                outputs["token_rewards"],
+                outputs["token_values"],
                 outputs["mask"],
                 batch["hallucination_onset"],
                 onset_label_mask=batch.get("onset_label_mask"),
@@ -225,7 +258,7 @@ class ConsistencyLocalizedReward(nn.Module):
 
             pseudo_tail = pseudo_onset_tail_loss(
                 outputs["hallucination_logits"],
-                outputs["token_rewards"],
+                outputs["token_values"],
                 outputs["mask"],
                 batch["path_hallucinated"],
                 label_mask=batch.get("path_label_mask"),
@@ -254,6 +287,7 @@ class ConsistencyLocalizedReward(nn.Module):
             distill_weight=self.config.prior_distill_weight,
             gate_weight=self.config.gate_prior_weight,
             reconstruction_weight=self.config.reconstruction_weight,
+            phase=prior_phase,
         )
         losses.update({f"prior_{k}": v for k, v in prior.items()})
         total = total + self.config.prior_weight * prior["total"]
@@ -268,22 +302,69 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_states: Optional[Tensor],
         condition_mask: Optional[Tensor],
         condition_embedding: Optional[Tensor],
-    ) -> Tensor:
-        if condition_embedding is not None:
-            condition = condition_embedding.to(hidden_states)
-        elif condition_states is not None:
+        condition_embedding_mask: Optional[Tensor],
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        condition_parts = []
+        mask_parts = []
+        if condition_states is not None:
             if condition_states.ndim != 3:
                 raise ValueError("condition_states must have shape [batch, time, hidden_dim]")
+            if condition_states.shape[-1] != hidden_states.shape[-1]:
+                raise ValueError("condition_states hidden_dim must match hidden_states")
+            condition_parts.append(condition_states.to(hidden_states))
             if condition_mask is None:
                 condition_mask = condition_states.new_ones(condition_states.shape[:2])
-            condition = masked_mean(condition_states.to(hidden_states), condition_mask.to(hidden_states))
-        else:
-            return hidden_states
+            mask_parts.append(condition_mask.to(device=hidden_states.device, dtype=hidden_states.dtype))
 
-        if condition.shape != hidden_states.shape[:1] + hidden_states.shape[2:]:
-            raise ValueError("condition embedding must have shape [batch, hidden_dim]")
-        condition_delta = self.condition_adapter(condition).unsqueeze(1)
-        return hidden_states + condition_delta * mask.unsqueeze(-1)
+        if condition_embedding is not None:
+            condition_embedding = condition_embedding.to(hidden_states)
+            if condition_embedding.shape != hidden_states.shape[:1] + hidden_states.shape[2:]:
+                raise ValueError("condition embedding must have shape [batch, hidden_dim]")
+            condition_parts.append(condition_embedding.unsqueeze(1))
+            if condition_embedding_mask is None:
+                condition_embedding_mask = condition_embedding.new_ones(condition_embedding.shape[0])
+            mask_parts.append(condition_embedding_mask.to(device=hidden_states.device, dtype=hidden_states.dtype)[:, None])
+
+        if not condition_parts:
+            relevance = hidden_states.new_zeros(hidden_states.shape[:2])
+            attention = hidden_states.new_zeros(hidden_states.shape[0], hidden_states.shape[1], 0)
+            return hidden_states, relevance, attention
+
+        condition_tokens = torch.cat(condition_parts, dim=1)
+        combined_condition_mask = torch.cat(mask_parts, dim=1)
+        condition_bool = combined_condition_mask.to(device=hidden_states.device).bool()
+        has_condition = condition_bool.any(dim=1)
+
+        queries = F.normalize(self.condition_query(hidden_states), dim=-1)
+        keys = F.normalize(self.condition_key(condition_tokens), dim=-1)
+        values = self.condition_value(condition_tokens)
+
+        temperature = max(self.config.condition_attention_temperature, self.config.eps)
+        attention_logits = torch.matmul(queries, keys.transpose(1, 2)) / temperature
+        attention_logits = attention_logits.masked_fill(~condition_bool[:, None, :], -1e4)
+        attention = torch.softmax(attention_logits, dim=-1) * condition_bool[:, None, :].to(hidden_states.dtype)
+        attention = attention / attention.sum(dim=-1, keepdim=True).clamp_min(self.config.eps)
+
+        context = torch.matmul(attention, values)
+        matched_keys = torch.matmul(attention, keys)
+        relevance = (queries * matched_keys).sum(dim=-1) * mask * has_condition[:, None].to(hidden_states.dtype)
+
+        fusion_input = torch.cat(
+            [
+                hidden_states,
+                context,
+                hidden_states * context,
+                hidden_states - context,
+                relevance.unsqueeze(-1),
+            ],
+            dim=-1,
+        )
+        delta = self.condition_fusion(fusion_input)
+        active_rows = has_condition[:, None, None].to(hidden_states.dtype)
+        conditioned = self.feature_norm(hidden_states + delta * mask.unsqueeze(-1) * active_rows)
+        token_features = torch.where(has_condition[:, None, None], conditioned, hidden_states)
+        attention = attention * has_condition[:, None, None].to(hidden_states.dtype)
+        return token_features, relevance, attention
 
 
 def masked_mean(values: Tensor, mask: Tensor) -> Tensor:
@@ -411,6 +492,12 @@ def hallucination_localization_losses(
         onset_label_mask = onset_label_mask.to(device=device).bool()
 
     positions = torch.arange(hallucination_logits.shape[1], device=device)[None, :]
+    lengths = mask_bool.long().sum(dim=1)
+    invalid_onset = onset_label_mask & (onset >= lengths) & (onset >= 0)
+    if invalid_onset.any():
+        bad = torch.nonzero(invalid_onset, as_tuple=False).flatten().detach().cpu().tolist()
+        raise ValueError(f"hallucination_onset is outside the valid token range for rows {bad}")
+
     has_onset = onset_label_mask[:, None] & (onset[:, None] >= 0)
     tail = has_onset & (positions >= onset[:, None]) & mask_bool
     supervised_tokens = onset_label_mask[:, None] & mask_bool
@@ -525,35 +612,67 @@ def dual_prior_losses(
     distill_weight: float,
     gate_weight: float,
     reconstruction_weight: float,
+    phase: str = "joint",
 ) -> Dict[str, Tensor]:
     """DPCL-inspired key/complete prior collaboration losses."""
     mask = outputs["mask"]
     zero = outputs["scores"].new_zeros(())
+    has_key = "key_prior_target" in batch
+    has_complete = "complete_prior_target" in batch
+    if phase not in {"joint", "key", "complete"}:
+        raise ValueError("prior_phase must be one of: joint, key, complete")
 
     key = masked_bce_with_logits(
         outputs["key_prior_logits"],
         batch["key_prior_target"],
         mask,
         target_mask=batch.get("key_prior_mask"),
-    ) if "key_prior_target" in batch else zero
+    ) if has_key and phase in {"joint", "key"} else zero
 
     complete = masked_bce_with_logits(
         outputs["complete_prior_logits"],
         batch["complete_prior_target"],
         mask,
         target_mask=batch.get("complete_prior_mask"),
-    ) if "complete_prior_target" in batch else zero
+    ) if has_complete and phase in {"joint", "complete"} else zero
 
-    distill = attention_mse(outputs["key_prior"], outputs["complete_prior"].detach(), mask)
-    distill = distill + attention_mse(outputs["complete_prior"], outputs["key_prior"].detach(), mask)
+    shared_prior_mask = mask
+    if has_key and "key_prior_mask" in batch:
+        shared_prior_mask = shared_prior_mask * batch["key_prior_mask"].to(device=mask.device, dtype=mask.dtype)
+    if has_complete and "complete_prior_mask" in batch:
+        shared_prior_mask = shared_prior_mask * batch["complete_prior_mask"].to(device=mask.device, dtype=mask.dtype)
 
-    gate_attention = normalize_attention(outputs["gates"], mask)
-    gate_prior = attention_mse(gate_attention, outputs["fused_prior"].detach(), mask)
+    distill = zero
+    if has_key and has_complete:
+        if phase in {"joint", "key"}:
+            distill = distill + attention_mse(
+                normalize_attention(outputs["key_prior"], shared_prior_mask),
+                normalize_attention(outputs["complete_prior"].detach(), shared_prior_mask),
+                shared_prior_mask,
+            )
+        if phase in {"joint", "complete"}:
+            distill = distill + attention_mse(
+                normalize_attention(outputs["complete_prior"], shared_prior_mask),
+                normalize_attention(outputs["key_prior"].detach(), shared_prior_mask),
+                shared_prior_mask,
+            )
 
-    reconstruction = F.mse_loss(
-        outputs["complete_reconstruction"],
-        outputs["pooled_features"].detach(),
-    )
+    gate_attention = normalize_attention(outputs["gates"], shared_prior_mask)
+    fused_prior = normalize_attention(outputs["fused_prior"].detach(), shared_prior_mask)
+    gate_prior = attention_mse(gate_attention, fused_prior, shared_prior_mask) if has_key and has_complete else zero
+
+    reconstruction = zero
+    if "complete_reconstruction_target" in batch and phase in {"joint", "complete"}:
+        target = batch["complete_reconstruction_target"].to(outputs["complete_reconstruction"])
+        if "complete_reconstruction_target_mask" in batch:
+            reconstruction_mask = batch["complete_reconstruction_target_mask"].to(device=target.device).bool()
+            if reconstruction_mask.any():
+                reconstruction = F.mse_loss(
+                    outputs["complete_reconstruction"][reconstruction_mask],
+                    target[reconstruction_mask],
+                )
+        else:
+            reconstruction = F.mse_loss(outputs["complete_reconstruction"], target)
 
     total = (
         key_weight * key

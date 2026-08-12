@@ -15,6 +15,7 @@ from src.consistency_localized_reward import (
     RewardConfig,
     infer_pseudo_onsets,
     path_hallucination_probability,
+    select_best_of_n,
 )
 
 
@@ -58,7 +59,9 @@ def main() -> None:
     model = load_model(args.model, device)
 
     rows: List[Dict] = [dict(row) for row in dataset.rows]
-    best_by_query: Dict[str, tuple[int, float]] = {}
+    scored_row_indices: List[int] = []
+    scored_scores: List[float] = []
+    scored_query_ids: List[str] = []
 
     for batch in loader:
         row_indices = batch["row_index"].tolist()
@@ -70,6 +73,7 @@ def main() -> None:
             condition_states=batch.get("condition_states"),
             condition_mask=batch.get("condition_mask"),
             condition_embedding=batch.get("condition_embedding"),
+            condition_embedding_mask=batch.get("condition_embedding_mask"),
         )
         path_probs = path_hallucination_probability(outputs["hallucination_logits"], outputs["mask"])
         pseudo_onsets = infer_pseudo_onsets(
@@ -80,16 +84,41 @@ def main() -> None:
 
         for local_idx, row_index in enumerate(row_indices):
             row = rows[row_index]
+            valid_length = int(batch["mask"][local_idx].sum().detach().cpu())
             row["clir_score"] = float(outputs["scores"][local_idx].detach().cpu())
             row["clir_path_hallucination_prob"] = float(path_probs[local_idx].detach().cpu())
             row["clir_pseudo_onset"] = int(pseudo_onsets[local_idx].detach().cpu())
-            row["clir_mean_gate"] = float(outputs["gates"][local_idx].mean().detach().cpu())
-            query_id = query_ids_raw[local_idx]
-            previous = best_by_query.get(query_id)
-            if previous is None or row["clir_score"] > previous[1]:
-                best_by_query[query_id] = (row_index, row["clir_score"])
+            row["clir_mean_gate"] = float(outputs["gates"][local_idx, :valid_length].mean().detach().cpu())
+            gate_attention = outputs["gates"][local_idx] / outputs["gates"][local_idx].sum().clamp_min(1e-8)
+            prior_alignment = torch.sum(gate_attention * outputs["fused_prior"][local_idx])
+            row["clir_prior_gate_alignment"] = float(prior_alignment.detach().cpu())
+            row["clir_condition_relevance"] = [
+                float(x) for x in outputs["condition_relevance"][local_idx, :valid_length].detach().cpu().tolist()
+            ]
+            row["clir_gate_attention"] = [
+                float(x) for x in gate_attention[:valid_length].detach().cpu().tolist()
+            ]
+            row["clir_key_prior"] = [
+                float(x) for x in outputs["key_prior"][local_idx, :valid_length].detach().cpu().tolist()
+            ]
+            row["clir_complete_prior"] = [
+                float(x) for x in outputs["complete_prior"][local_idx, :valid_length].detach().cpu().tolist()
+            ]
+            scored_row_indices.append(row_index)
+            scored_scores.append(row["clir_score"])
+            scored_query_ids.append(str(query_ids_raw[local_idx]))
 
-    selected_indices = {row_index for row_index, _ in best_by_query.values()}
+    query_to_int: Dict[str, int] = {}
+    encoded_groups = []
+    for query_id in scored_query_ids:
+        query_to_int.setdefault(query_id, len(query_to_int))
+        encoded_groups.append(query_to_int[query_id])
+
+    best_local_indices = select_best_of_n(
+        torch.tensor(scored_scores, dtype=torch.float32),
+        torch.tensor(encoded_groups, dtype=torch.long),
+    )
+    selected_indices = {scored_row_indices[local_idx] for local_idx in best_local_indices.values()}
     for idx, row in enumerate(rows):
         row["clir_selected_best_of_n"] = idx in selected_indices
 

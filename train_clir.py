@@ -14,9 +14,14 @@ from typing import Dict
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset
 
-from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device
+from src.clir_data import (
+    CLIRTrajectoryDataset,
+    SemanticGroupBatchSampler,
+    clir_collate,
+    move_batch_to_device,
+)
 from src.consistency_localized_reward import ConsistencyLocalizedReward, RewardConfig
 
 
@@ -34,6 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_fraction", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
+    parser.add_argument("--group_by_semantic_id", action=argparse.BooleanOptionalAction, default=True,
+                        help="Keep LLM rewrites of the same semantic id in a batch for PRISM consistency.")
+    parser.add_argument("--prior_phase_mode", default="alternate", choices=["joint", "alternate", "key", "complete"],
+                        help="DPCL-style prior optimization mode.")
 
     parser.add_argument("--final_weight", type=float, default=1.0)
     parser.add_argument("--consistency_weight", type=float, default=1.0)
@@ -87,15 +96,46 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
     )
 
 
-def split_dataset(dataset: CLIRTrajectoryDataset, val_fraction: float, seed: int):
+def split_indices(dataset: CLIRTrajectoryDataset, val_fraction: float, seed: int):
+    indices = list(range(len(dataset)))
     if val_fraction <= 0.0:
-        return dataset, None
+        return indices, None
     val_size = max(1, int(len(dataset) * val_fraction))
     train_size = len(dataset) - val_size
     if train_size <= 0:
         raise ValueError("val_fraction leaves no training examples")
     generator = torch.Generator().manual_seed(seed)
-    return random_split(dataset, [train_size, val_size], generator=generator)
+    permutation = torch.randperm(len(dataset), generator=generator).tolist()
+    return permutation[:train_size], permutation[train_size:]
+
+
+def make_loader(
+    dataset: CLIRTrajectoryDataset,
+    batch_size: int,
+    indices: list[int],
+    shuffle: bool,
+    group_by_semantic_id: bool,
+    seed: int,
+) -> DataLoader:
+    if group_by_semantic_id and shuffle:
+        sampler = SemanticGroupBatchSampler(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=False,
+            seed=seed,
+            indices=indices,
+        )
+        return DataLoader(dataset, batch_sampler=sampler, collate_fn=clir_collate)
+
+    subset = Subset(dataset, indices)
+    return DataLoader(subset, batch_size=batch_size, shuffle=shuffle, collate_fn=clir_collate)
+
+
+def prior_phase_for_epoch(mode: str, epoch: int) -> str:
+    if mode == "alternate":
+        return "key" if epoch % 2 == 1 else "complete"
+    return mode
 
 
 def run_epoch(
@@ -103,6 +143,7 @@ def run_epoch(
     loader: DataLoader,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None,
+    prior_phase: str,
 ) -> Dict[str, float]:
     training = optimizer is not None
     model.train(training)
@@ -113,7 +154,7 @@ def run_epoch(
         batch = move_batch_to_device(batch, device)
         if training:
             optimizer.zero_grad(set_to_none=True)
-        _, losses = model.training_step(batch)
+        _, losses = model.training_step(batch, prior_phase=prior_phase)
         if training:
             losses["total"].backward()
             optimizer.step()
@@ -132,11 +173,25 @@ def main() -> None:
     device = resolve_device(args.device)
 
     dataset = CLIRTrajectoryDataset(args.train_jsonl, feature_root=args.feature_root)
-    train_dataset, val_dataset = split_dataset(dataset, args.val_fraction, args.seed)
-    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=clir_collate)
+    train_indices, val_indices = split_indices(dataset, args.val_fraction, args.seed)
+    train_loader = make_loader(
+        dataset,
+        args.batch_size,
+        train_indices,
+        shuffle=True,
+        group_by_semantic_id=args.group_by_semantic_id,
+        seed=args.seed,
+    )
     val_loader = (
-        DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, collate_fn=clir_collate)
-        if val_dataset is not None
+        make_loader(
+            dataset,
+            args.batch_size,
+            val_indices,
+            shuffle=False,
+            group_by_semantic_id=False,
+            seed=args.seed,
+        )
+        if val_indices is not None
         else None
     )
 
@@ -145,11 +200,12 @@ def main() -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     for epoch in range(1, args.epochs + 1):
-        train_metrics = run_epoch(model, train_loader, device, optimizer)
-        message = f"epoch={epoch} train_total={train_metrics.get('total', 0.0):.4f}"
+        prior_phase = prior_phase_for_epoch(args.prior_phase_mode, epoch)
+        train_metrics = run_epoch(model, train_loader, device, optimizer, prior_phase=prior_phase)
+        message = f"epoch={epoch} prior_phase={prior_phase} train_total={train_metrics.get('total', 0.0):.4f}"
         if val_loader is not None:
             with torch.no_grad():
-                val_metrics = run_epoch(model, val_loader, device, optimizer=None)
+                val_metrics = run_epoch(model, val_loader, device, optimizer=None, prior_phase="joint")
             message += f" val_total={val_metrics.get('total', 0.0):.4f}"
         print(message)
 

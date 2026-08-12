@@ -171,7 +171,17 @@ L_key = L_relevance + lambda_1 * MSE(A_key, stopgrad(A_complete))
 L_complete = L_reconstruction + lambda_2 * MSE(A_complete, stopgrad(A_key))
 ```
 
-The SWIFT-style gate `g_t` can then be regularized toward the fused prior. This encourages the reward model to focus on tokens that are both locally evidential and globally necessary. The current repository implements this in `src/consistency_localized_reward.py` with key/complete prior heads, mutual stop-gradient distillation, complete-prior reconstruction, and gate-prior regularization.
+The SWIFT-style gate `g_t` can then be regularized toward the fused prior. This encourages the reward model to focus on tokens that are both locally evidential and globally necessary.
+
+The current repository implements a guarded proxy of this idea in `src/consistency_localized_reward.py`:
+
+- key/complete prior heads are always predicted for inspection;
+- key/complete supervised losses are used only when external prior targets are present;
+- mutual stop-gradient distillation and gate-prior regularization are enabled only on tokens where both prior branches have label coverage;
+- complete-prior reconstruction is enabled only when an external `complete_reconstruction_target` is present;
+- `train_clir.py` supports `joint`, `key`, `complete`, and epoch-level `alternate` prior optimization.
+
+This avoids the degenerate self-reconstruction solution where a uniform complete prior can trivially reconstruct the average trajectory feature. A full paper implementation should replace the current target embedding with a stronger CSR-style target generated from masked supported-answer descriptions or verifier-derived evidence summaries.
 
 ## Full Objective
 
@@ -204,10 +214,10 @@ where `L_final` is the original SWIFT correctness BCE or a pairwise preference l
 
 The initial implementation in this repository is self-contained:
 
-- `src/consistency_localized_reward.py`: SWIFT-style reward/gate backbone, conditional query/context fusion, PRISM consistency, hallucination localization, MIL, pseudo-onset tail loss, and dual-prior localization.
-- `src/clir_data.py`: JSONL dataset and collate utilities for pre-extracted hidden states.
-- `train_clir.py`: single-trajectory BCE plus CLIR auxiliary losses.
-- `score_clir.py`: reward scoring, hallucination probability, pseudo-onset inference, and Best-of-N selection.
+- `src/consistency_localized_reward.py`: SWIFT-style reward/gate backbone, token-level query/context attention fusion, PRISM consistency, hallucination localization, MIL, pseudo-onset tail loss, and guarded dual-prior localization.
+- `src/clir_data.py`: JSONL dataset, collate utilities, and semantic-group batch sampler for pre-extracted hidden states.
+- `train_clir.py`: single-trajectory BCE plus CLIR auxiliary losses, semantic-group batching, and dual-prior phase scheduling.
+- `score_clir.py`: reward scoring, hallucination probability, pseudo-onset inference, prior diagnostics, and Best-of-N selection.
 - `examples/create_toy_clir_data.py`: synthetic hidden-state data for smoke testing.
 - `tests/test_clir_smoke.py`: forward/loss and dataset smoke tests.
 
