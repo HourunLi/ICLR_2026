@@ -6,6 +6,8 @@
 
 当前工作名：**CLIR**，即 **Consistency-Localized Intrinsic Rewards**。
 
+> **给新接手的人（人类或 AI）**：先看 `docs/handoff.md`。那份文档专门写给零上下文的人看，包含完整的架构讲解、数据 schema、bug 修复历史和下一步优先级排序；这份 README 更偏向 changelog，细节粒度不如那边。`docs/proposal.md` 是研究方法设计文档。
+
 ## 代码目标
 
 CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
@@ -69,12 +71,14 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - `token_values = token_rewards + progress_score_weight * progress` 目前仍把 reward head 和 progress head 合并后做 hallucination tail shaping；toy 数据里 `progress_targets` 和 `token_advantage` 相同，真实数据接入后需要重新评估两个 head 的分工和量纲。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
 
-本次复查已经在装有 `torch`（2.13, CPU）/ `pytest` 的环境里实测：`pytest tests/test_clir_smoke.py` 7/7 通过；`create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端跑通，无崩溃、无 NaN。复查中发现的问题已同步处理：
+这一轮的 sampler / prior-masking 修复是在没有 `torch` 的环境下做的静态检查，随后在有 `torch`（2.13, CPU）/ `pytest` 的环境里做了一遍复查实测：`pytest tests/test_clir_smoke.py` 10/10 通过（新增的 `test_dual_prior_partial_mask_preserves_full_attention_mass`、`test_semantic_group_batch_sampler_len_matches_iter_for_uneven_groups`、`test_train_cli_exposes_new_reward_config_fields` 均通过）；`create_toy_clir_data.py -> train_clir.py（含新增的 `--condition_attention_temperature`/`--progress_score_weight`）-> score_clir.py` 端到端跑通，checkpoint 里也确认存了这两个新配置值。另外针对 `SemanticGroupBatchSampler` 单独写了随机化压力测试（约 12 个组、组大小 1-6、`batch_size` 2-10，`shuffle`/`drop_last` 两两组合，300 组随机场景共 1200 次采样），确认 `__len__()` 与 `__iter__()` 实际产出的 batch 数在所有场景下一致，且每个样本都恰好出现一次、`drop_last` 语义正确。复查中发现的问题已同步处理：
 
-- **已修复：`SemanticGroupBatchSampler.__len__()` 低估实际 batch 数**。现在 `__len__()` 与 `__iter__()` 复用同一套 batch 构造逻辑，并补了 5 个大小为 2 的语义组、`batch_size=5` 的复现测试。
-- **已修复：两个新的 `RewardConfig` 字段没有接到 CLI**。`condition_attention_temperature`、`progress_score_weight` 已加入 `train_clir.py` 参数并传入 `make_config()`。
-- **已修复：`dual_prior_losses` 在标签部分覆盖时对子集重新归一化会失真**。现在 distill / gate-prior 保留完整轨迹 attention 分布的概率质量，只在 key 与 complete 都有标签覆盖的 token 上取 MSE。
-- **仍需观察：`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**。`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，真实数据接入后需要重新评估要不要拆开监督。
+- **已修复并复核：`SemanticGroupBatchSampler.__len__()` 低估实际 batch 数**。`__len__()` 与 `__iter__()` 复用同一套 `_build_batches()` 逻辑，`chunks.sort(key=len, reverse=True)` 让贪心装箱结果与是否 shuffle 无关，因此计数稳定；随机化压力测试没有发现反例。
+- **已修复并复核：两个新的 `RewardConfig` 字段没有接到 CLI**。`condition_attention_temperature`、`progress_score_weight` 已加入 `train_clir.py` 参数并传入 `make_config()`，端到端跑过一遍确认写进了 checkpoint。
+- **已修复并复核：`dual_prior_losses` 在标签部分覆盖时对子集重新归一化会失真**。现在 distill / gate-prior 保留完整轨迹 attention 分布的概率质量，只在 key 与 complete 都有标签覆盖的 token 上取 MSE；手工验算过 `test_dual_prior_partial_mask_preserves_full_attention_mass` 里的数值，和实现结果一致。
+- **仍需观察，本轮未改动：`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**。`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，真实数据接入后需要重新评估要不要拆开监督。这是设计取舍问题，不是逻辑 bug。
+
+本轮复查没有发现新的逻辑 bug。
 
 ## 未来解决方向
 
@@ -173,7 +177,7 @@ python score_clir.py \
 pytest tests/test_clir_smoke.py
 ```
 
-已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（7/7）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
+已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（10/10）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
 
 ```bash
 python -m py_compile \
@@ -211,3 +215,4 @@ CLIR 推荐按以下顺序与 SWIFT 做增量比较：
 - `遇到的问题`：记录当前阻塞点、环境问题、设计风险。
 - `未来解决方向`：把下一步任务按优先级写清楚。
 - `运行代码`：任何命令、参数、路径、依赖变化都要同步更新。
+- `docs/handoff.md`：如果改动大到影响架构、数据 schema、已知问题清单或优先级排序，同步更新这份交接文档，避免它过时后误导下一个接手的人。
