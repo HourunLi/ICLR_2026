@@ -6,6 +6,8 @@
 
 当前工作名：**CLIR**，即 **Consistency-Localized Intrinsic Rewards**。
 
+> **给新接手的人（人类或 AI）**：先看 `docs/handoff.md`。那份文档专门写给零上下文的人看，包含完整的架构讲解、数据 schema、bug 修复历史和下一步优先级排序；这份 README 更偏向 changelog，细节粒度不如那边。`docs/proposal.md` 是研究方法设计文档。
+
 ## 代码目标
 
 CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
@@ -213,3 +215,4 @@ CLIR 推荐按以下顺序与 SWIFT 做增量比较：
 - `遇到的问题`：记录当前阻塞点、环境问题、设计风险。
 - `未来解决方向`：把下一步任务按优先级写清楚。
 - `运行代码`：任何命令、参数、路径、依赖变化都要同步更新。
+- `docs/handoff.md`：如果改动大到影响架构、数据 schema、已知问题清单或优先级排序，同步更新这份交接文档，避免它过时后误导下一个接手的人。
