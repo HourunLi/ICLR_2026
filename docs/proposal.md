@@ -2,14 +2,16 @@
 
 ## Motivation
 
-The SWIFT baseline learns a lightweight reward model directly from LLM hidden states. For a generated trajectory, it computes token-level rewards and gates, then aggregates them into a scalar reward for Best-of-N selection. This is efficient, but the reward can still learn shortcuts: prompt style, domain wording, response length, reasoning format, or superficial context overlap.
+This is an ICLR 2027 project direction. The SWIFT baseline learns a lightweight reward model directly from LLM hidden states. For a generated trajectory, it computes token-level rewards and gates, then aggregates them into a scalar reward for Best-of-N selection. CLIR uses this as an architectural reference, but the code in this repository is self-contained rather than a wrapper around the SWIFT repository.
+
+The SWIFT-style reward is efficient, but it can still learn shortcuts: prompt style, domain wording, response length, reasoning format, or superficial context overlap.
 
 Two observations motivate CLIR:
 
 1. Different questions and domains may induce different hidden-state styles even when the underlying reasoning quality is the same. We can use LLM-guided rewrites to expose these spurious style factors and train the reward representation to ignore them.
 2. In grounded generation, a trajectory may be useful until the first unsupported claim. After that point, downstream reasoning is contaminated. The reward should become negative from the hallucination onset onward, not merely penalize the final answer.
 
-CLIR combines these into a hidden-state reward model with two auxiliary training signals: style/domain consistency and hallucination localization.
+CLIR combines these into a hidden-state reward model with three auxiliary training signals: style/domain consistency, hallucination localization, and dual-prior evidence localization.
 
 ## Paper Anchors
 
@@ -43,6 +45,8 @@ This recovers the SWIFT-style scalar reward. CLIR adds:
 z(H)       trajectory representation used for consistency
 p_t        hallucination probability at token t
 a_t        local progress / advantage estimate at token t
+A_key,t    key support prior
+A_comp,t   complete support prior
 ```
 
 ## LLM-Guided Augmentation
@@ -167,7 +171,7 @@ L_key = L_relevance + lambda_1 * MSE(A_key, stopgrad(A_complete))
 L_complete = L_reconstruction + lambda_2 * MSE(A_complete, stopgrad(A_key))
 ```
 
-The SWIFT gate `g_t` can then be regularized toward the fused prior. This encourages the reward model to focus on tokens that are both locally evidential and globally necessary.
+The SWIFT-style gate `g_t` can then be regularized toward the fused prior. This encourages the reward model to focus on tokens that are both locally evidential and globally necessary. The current repository implements this in `src/consistency_localized_reward.py` with key/complete prior heads, mutual stop-gradient distillation, complete-prior reconstruction, and gate-prior regularization.
 
 ## Full Objective
 
@@ -195,6 +199,17 @@ where `L_final` is the original SWIFT correctness BCE or a pairwise preference l
    - weak: path-level hallucination indicator.
 6. Train CLIR with final correctness, consistency, and localization losses.
 7. Select Best-of-N trajectories by `R(H)`.
+
+## Current Code Framework
+
+The initial implementation in this repository is self-contained:
+
+- `src/consistency_localized_reward.py`: SWIFT-style reward/gate backbone, conditional query/context fusion, PRISM consistency, hallucination localization, MIL, pseudo-onset tail loss, and dual-prior localization.
+- `src/clir_data.py`: JSONL dataset and collate utilities for pre-extracted hidden states.
+- `train_clir.py`: single-trajectory BCE plus CLIR auxiliary losses.
+- `score_clir.py`: reward scoring, hallucination probability, pseudo-onset inference, and Best-of-N selection.
+- `examples/create_toy_clir_data.py`: synthetic hidden-state data for smoke testing.
+- `tests/test_clir_smoke.py`: forward/loss and dataset smoke tests.
 
 ## Evaluation Plan
 

@@ -1,19 +1,22 @@
 """Consistency-localized intrinsic reward model.
 
-This module is a compact PyTorch scaffold for extending a SWIFT-style
-hidden-state reward head with two auxiliary signals:
+This module implements the first self-contained CLIR framework for this repo.
+It uses SWIFT as an architectural reference, not as a dependency:
 
-1. PRISM-style consistency across LLM-guided style/domain rewrites.
-2. Token-level hallucination localization with negative tail rewards.
+1. SWIFT-style token reward and gate heads over frozen LLM hidden states.
+2. PRISM-style consistency over LLM-guided style/domain rewrites.
+3. Hallucination onset localization with negative-tail token rewards.
+4. DPCL-inspired key/complete dual-prior localization for grounded reasoning.
 
-The expected input hidden states are already extracted from a frozen LLM and
-flattened or selected into shape [batch, time, hidden_dim].
+Inputs are pre-extracted hidden states with shape [batch, time, hidden_dim].
+Optional condition states can encode query/context and are fused into token
+features before reward and localization heads are applied.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
@@ -26,6 +29,8 @@ class RewardConfig:
     projection_dim: int = 256
     consistency_margin: float = 0.2
     negative_tail_margin: float = 0.5
+    pseudo_onset_threshold: float = 0.5
+    prior_fusion_alpha: float = 0.5
     eps: float = 1e-8
 
     final_weight: float = 1.0
@@ -35,39 +40,69 @@ class RewardConfig:
     mil_weight: float = 0.25
     token_reward_weight: float = 0.5
     tail_weight: float = 0.5
+    pseudo_tail_weight: float = 0.1
+    progress_weight: float = 0.25
+    prior_weight: float = 0.25
+    key_prior_weight: float = 1.0
+    complete_prior_weight: float = 1.0
+    prior_distill_weight: float = 0.25
+    gate_prior_weight: float = 0.25
+    reconstruction_weight: float = 0.1
 
 
 class ConsistencyLocalizedReward(nn.Module):
-    """SWIFT-style reward head plus consistency and localization losses."""
+    """SWIFT-style reward head plus consistency and localization objectives."""
 
     def __init__(self, config: RewardConfig) -> None:
         super().__init__()
         self.config = config
+        self.condition_adapter = nn.Linear(config.hidden_dim, config.hidden_dim)
         self.token_reward_head = nn.Linear(config.hidden_dim, 2)
         self.hallucination_head = nn.Linear(config.hidden_dim, 1)
         self.progress_head = nn.Linear(config.hidden_dim, 1)
+        self.key_prior_head = nn.Linear(config.hidden_dim, 1)
+        self.complete_prior_head = nn.Linear(config.hidden_dim, 1)
+        self.complete_reconstructor = nn.Sequential(
+            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.GELU(),
+            nn.Linear(config.hidden_dim, config.hidden_dim),
+        )
         self.projector = nn.Sequential(
             nn.LayerNorm(config.hidden_dim),
             nn.Linear(config.hidden_dim, config.projection_dim),
         )
 
-    def forward(self, hidden_states: Tensor, mask: Optional[Tensor] = None) -> Dict[str, Tensor]:
-        """Compute scalar and token-level reward outputs.
-
-        Args:
-            hidden_states: Tensor with shape [batch, time, hidden_dim].
-            mask: Optional tensor with shape [batch, time], where 1 marks valid
-                generated tokens.
-        """
+    def forward(
+        self,
+        hidden_states: Tensor,
+        mask: Optional[Tensor] = None,
+        condition_states: Optional[Tensor] = None,
+        condition_mask: Optional[Tensor] = None,
+        condition_embedding: Optional[Tensor] = None,
+    ) -> Dict[str, Tensor]:
+        """Compute scalar reward, token rewards, hallucination, and priors."""
         if hidden_states.ndim != 3:
             raise ValueError("hidden_states must have shape [batch, time, hidden_dim]")
 
-        batch, time, _ = hidden_states.shape
+        batch, time, hidden_dim = hidden_states.shape
+        if hidden_dim != self.config.hidden_dim:
+            raise ValueError(
+                f"hidden_dim mismatch: got {hidden_dim}, expected {self.config.hidden_dim}"
+            )
+
         if mask is None:
             mask = hidden_states.new_ones(batch, time)
         mask = mask.to(dtype=hidden_states.dtype, device=hidden_states.device)
 
-        token_head = self.token_reward_head(hidden_states)
+        token_features = self._condition_token_features(
+            hidden_states,
+            mask,
+            condition_states=condition_states,
+            condition_mask=condition_mask,
+            condition_embedding=condition_embedding,
+        )
+
+        token_head = self.token_reward_head(token_features)
         gate_logits = token_head[..., 0]
         token_rewards = token_head[..., 1]
         gates = torch.sigmoid(gate_logits) * mask
@@ -75,30 +110,70 @@ class ConsistencyLocalizedReward(nn.Module):
         denom = gates.sum(dim=1).clamp_min(self.config.eps)
         scores = (gates * token_rewards).sum(dim=1) / denom
 
-        pooled = masked_mean(hidden_states, mask)
+        pooled = masked_mean(token_features, mask)
         representations = F.normalize(self.projector(pooled), dim=-1)
+
+        hallucination_logits = self.hallucination_head(token_features).squeeze(-1)
+        progress = self.progress_head(token_features).squeeze(-1)
+
+        key_prior_logits = self.key_prior_head(token_features).squeeze(-1)
+        complete_prior_logits = self.complete_prior_head(token_features).squeeze(-1)
+        key_prior = masked_softmax(key_prior_logits, mask)
+        complete_prior = masked_softmax(complete_prior_logits, mask)
+        fused_prior = normalize_attention(
+            self.config.prior_fusion_alpha * key_prior
+            + (1.0 - self.config.prior_fusion_alpha) * complete_prior,
+            mask,
+            eps=self.config.eps,
+        )
+
+        complete_context = (complete_prior.unsqueeze(-1) * token_features).sum(dim=1)
+        complete_reconstruction = self.complete_reconstructor(complete_context)
 
         return {
             "scores": scores,
             "token_rewards": token_rewards,
             "gate_logits": gate_logits,
             "gates": gates,
-            "hallucination_logits": self.hallucination_head(hidden_states).squeeze(-1),
-            "progress": self.progress_head(hidden_states).squeeze(-1),
+            "hallucination_logits": hallucination_logits,
+            "progress": progress,
             "representations": representations,
+            "key_prior_logits": key_prior_logits,
+            "complete_prior_logits": complete_prior_logits,
+            "key_prior": key_prior,
+            "complete_prior": complete_prior,
+            "fused_prior": fused_prior,
+            "complete_reconstruction": complete_reconstruction,
+            "pooled_features": pooled,
+            "token_features": token_features,
             "mask": mask,
         }
 
-    def loss(self, outputs: Dict[str, Tensor], batch: Dict[str, Tensor]) -> Dict[str, Tensor]:
-        """Compute all available losses.
+    def training_step(self, batch: Dict[str, Tensor]) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
+        """Run forward and compute all configured losses for a batch."""
+        outputs = self.forward(
+            batch["hidden_states"],
+            mask=batch.get("mask"),
+            condition_states=batch.get("condition_states"),
+            condition_mask=batch.get("condition_mask"),
+            condition_embedding=batch.get("condition_embedding"),
+        )
+        losses = self.loss(outputs, batch)
+        return outputs, losses
 
-        Expected optional batch fields:
-            correctness: [batch] binary final correctness label.
-            semantic_ids: [batch] id shared by rewrites of the same trajectory.
-            style_ids: [batch] id for rewrite style/domain.
-            hallucination_onset: [batch] first hallucinated token, or -1.
-            path_hallucinated: [batch] binary path-level hallucination label.
-            token_advantage: [batch, time] optional progress target.
+    def loss(self, outputs: Dict[str, Tensor], batch: Dict[str, Tensor]) -> Dict[str, Tensor]:
+        """Compute every available CLIR loss.
+
+        Optional batch fields:
+            correctness: [batch] binary final correctness.
+            semantic_ids/style_ids: ids for PRISM-style consistency.
+            consistency_mask: [batch] marks rows with valid consistency ids.
+            hallucination_onset: [batch] first hallucinated token, -1 if none.
+            onset_label_mask: [batch] marks rows with explicit onset/non-onset labels.
+            path_hallucinated/path_label_mask: weak path-level hallucination labels.
+            token_advantage/token_advantage_mask: token progress/advantage targets.
+            progress_targets/progress_mask: direct progress-head supervision.
+            key_prior_target/complete_prior_target: DPCL-style prior maps.
         """
         losses: Dict[str, Tensor] = {}
         total = outputs["scores"].new_zeros(())
@@ -117,6 +192,7 @@ class ConsistencyLocalizedReward(nn.Module):
                 batch["style_ids"],
                 margin=self.config.consistency_margin,
                 score_weight=self.config.score_consistency_weight,
+                metadata_mask=batch.get("consistency_mask"),
             )
             losses.update({f"consistency_{k}": v for k, v in consistency.items()})
             total = total + self.config.consistency_weight * consistency["total"]
@@ -127,7 +203,9 @@ class ConsistencyLocalizedReward(nn.Module):
                 outputs["token_rewards"],
                 outputs["mask"],
                 batch["hallucination_onset"],
+                onset_label_mask=batch.get("onset_label_mask"),
                 token_advantage=batch.get("token_advantage"),
+                token_advantage_mask=batch.get("token_advantage_mask"),
                 negative_tail_margin=self.config.negative_tail_margin,
             )
             losses.update({f"localization_{k}": v for k, v in loc_losses.items()})
@@ -140,18 +218,123 @@ class ConsistencyLocalizedReward(nn.Module):
                 outputs["hallucination_logits"],
                 outputs["mask"],
                 batch["path_hallucinated"],
+                label_mask=batch.get("path_label_mask"),
             )
             losses["hallucination_mil"] = mil_loss
             total = total + self.config.mil_weight * mil_loss
 
+            pseudo_tail = pseudo_onset_tail_loss(
+                outputs["hallucination_logits"],
+                outputs["token_rewards"],
+                outputs["mask"],
+                batch["path_hallucinated"],
+                label_mask=batch.get("path_label_mask"),
+                onset_label_mask=batch.get("onset_label_mask"),
+                threshold=self.config.pseudo_onset_threshold,
+                negative_tail_margin=self.config.negative_tail_margin,
+            )
+            losses["pseudo_tail"] = pseudo_tail
+            total = total + self.config.pseudo_tail_weight * pseudo_tail
+
+        if "progress_targets" in batch:
+            progress = token_regression_loss(
+                outputs["progress"],
+                batch["progress_targets"],
+                outputs["mask"],
+                target_mask=batch.get("progress_mask"),
+            )
+            losses["progress"] = progress
+            total = total + self.config.progress_weight * progress
+
+        prior = dual_prior_losses(
+            outputs,
+            batch,
+            key_weight=self.config.key_prior_weight,
+            complete_weight=self.config.complete_prior_weight,
+            distill_weight=self.config.prior_distill_weight,
+            gate_weight=self.config.gate_prior_weight,
+            reconstruction_weight=self.config.reconstruction_weight,
+        )
+        losses.update({f"prior_{k}": v for k, v in prior.items()})
+        total = total + self.config.prior_weight * prior["total"]
+
         losses["total"] = total
         return losses
+
+    def _condition_token_features(
+        self,
+        hidden_states: Tensor,
+        mask: Tensor,
+        condition_states: Optional[Tensor],
+        condition_mask: Optional[Tensor],
+        condition_embedding: Optional[Tensor],
+    ) -> Tensor:
+        if condition_embedding is not None:
+            condition = condition_embedding.to(hidden_states)
+        elif condition_states is not None:
+            if condition_states.ndim != 3:
+                raise ValueError("condition_states must have shape [batch, time, hidden_dim]")
+            if condition_mask is None:
+                condition_mask = condition_states.new_ones(condition_states.shape[:2])
+            condition = masked_mean(condition_states.to(hidden_states), condition_mask.to(hidden_states))
+        else:
+            return hidden_states
+
+        if condition.shape != hidden_states.shape[:1] + hidden_states.shape[2:]:
+            raise ValueError("condition embedding must have shape [batch, hidden_dim]")
+        condition_delta = self.condition_adapter(condition).unsqueeze(1)
+        return hidden_states + condition_delta * mask.unsqueeze(-1)
 
 
 def masked_mean(values: Tensor, mask: Tensor) -> Tensor:
     mask = mask.to(dtype=values.dtype, device=values.device)
     denom = mask.sum(dim=1, keepdim=True).clamp_min(1.0)
     return (values * mask.unsqueeze(-1)).sum(dim=1) / denom
+
+
+def normalize_attention(attention: Tensor, mask: Tensor, eps: float = 1e-8) -> Tensor:
+    mask = mask.to(device=attention.device, dtype=attention.dtype)
+    attention = attention.clamp_min(0.0) * mask
+    denom = attention.sum(dim=1, keepdim=True).clamp_min(eps)
+    return attention / denom
+
+
+def masked_softmax(logits: Tensor, mask: Tensor) -> Tensor:
+    mask_bool = mask.to(device=logits.device).bool()
+    masked_logits = logits.masked_fill(~mask_bool, -1e4)
+    probs = torch.softmax(masked_logits, dim=1) * mask_bool.to(dtype=logits.dtype)
+    return normalize_attention(probs, mask_bool.to(dtype=logits.dtype))
+
+
+def masked_bce_with_logits(
+    logits: Tensor,
+    target: Tensor,
+    mask: Tensor,
+    target_mask: Optional[Tensor] = None,
+) -> Tensor:
+    mask_bool = mask.to(device=logits.device).bool()
+    if target_mask is not None:
+        mask_bool = mask_bool & target_mask.to(device=logits.device).bool()
+    if not mask_bool.any():
+        return logits.new_zeros(())
+    target = target.to(device=logits.device, dtype=logits.dtype)
+    raw = F.binary_cross_entropy_with_logits(logits, target, reduction="none")
+    return raw[mask_bool].mean()
+
+
+def token_regression_loss(
+    prediction: Tensor,
+    target: Tensor,
+    mask: Tensor,
+    target_mask: Optional[Tensor] = None,
+) -> Tensor:
+    mask_bool = mask.to(device=prediction.device).bool()
+    if target_mask is not None:
+        mask_bool = mask_bool & target_mask.to(device=prediction.device).bool()
+    if not mask_bool.any():
+        return prediction.new_zeros(())
+    target = target.to(device=prediction.device, dtype=prediction.dtype)
+    return F.mse_loss(prediction[mask_bool], target[mask_bool])
 
 
 def prism_style_consistency_loss(
@@ -161,11 +344,23 @@ def prism_style_consistency_loss(
     style_ids: Tensor,
     margin: float,
     score_weight: float,
+    metadata_mask: Optional[Tensor] = None,
 ) -> Dict[str, Tensor]:
-    """PRISM-like consistency loss over augmented reasoning trajectories."""
+    """PRISM-like consistency over augmented reasoning trajectories."""
     device = representations.device
-    semantic_ids = semantic_ids.to(device)
-    style_ids = style_ids.to(device)
+    if metadata_mask is None:
+        metadata_mask = torch.ones(representations.shape[0], dtype=torch.bool, device=device)
+    else:
+        metadata_mask = metadata_mask.to(device=device).bool()
+
+    if metadata_mask.sum() < 2:
+        zero = scores.new_zeros(())
+        return {"positive": zero, "negative": zero, "score": zero, "total": zero}
+
+    representations = representations[metadata_mask]
+    scores = scores[metadata_mask]
+    semantic_ids = semantic_ids.to(device=device)[metadata_mask]
+    style_ids = style_ids.to(device=device)[metadata_mask]
 
     sim = representations @ representations.T
     semantic_eq = semantic_ids[:, None] == semantic_ids[None, :]
@@ -189,12 +384,7 @@ def prism_style_consistency_loss(
         negative = zero
 
     total = positive + negative + score_weight * score_consistency
-    return {
-        "positive": positive,
-        "negative": negative,
-        "score": score_consistency,
-        "total": total,
-    }
+    return {"positive": positive, "negative": negative, "score": score_consistency, "total": total}
 
 
 def hallucination_localization_losses(
@@ -202,71 +392,219 @@ def hallucination_localization_losses(
     token_rewards: Tensor,
     mask: Tensor,
     onset: Tensor,
+    onset_label_mask: Optional[Tensor],
     token_advantage: Optional[Tensor],
+    token_advantage_mask: Optional[Tensor],
     negative_tail_margin: float,
 ) -> Dict[str, Tensor]:
     """Token-level onset supervision and negative-tail reward shaping.
 
-    onset is -1 for trajectories without a known hallucination.
+    onset is -1 for known non-hallucinated trajectories. onset_label_mask marks
+    rows with explicit onset/non-onset labels; unlabeled rows are ignored.
     """
     device = hallucination_logits.device
     mask_bool = mask.to(device=device).bool()
     onset = onset.to(device=device).long()
+    if onset_label_mask is None:
+        onset_label_mask = torch.ones(onset.shape, dtype=torch.bool, device=device)
+    else:
+        onset_label_mask = onset_label_mask.to(device=device).bool()
+
     positions = torch.arange(hallucination_logits.shape[1], device=device)[None, :]
-
-    has_onset = onset >= 0
-    tail = has_onset[:, None] & (positions >= onset[:, None]) & mask_bool
+    has_onset = onset_label_mask[:, None] & (onset[:, None] >= 0)
+    tail = has_onset & (positions >= onset[:, None]) & mask_bool
+    supervised_tokens = onset_label_mask[:, None] & mask_bool
     hallucination_target = tail.to(dtype=hallucination_logits.dtype)
+    zero = hallucination_logits.new_zeros(())
 
-    token_bce_raw = F.binary_cross_entropy_with_logits(
-        hallucination_logits,
-        hallucination_target,
-        reduction="none",
-    )
-    token_bce = token_bce_raw[mask_bool].mean() if mask_bool.any() else token_bce_raw.mean()
+    if supervised_tokens.any():
+        token_bce_raw = F.binary_cross_entropy_with_logits(
+            hallucination_logits,
+            hallucination_target,
+            reduction="none",
+        )
+        token_bce = token_bce_raw[supervised_tokens].mean()
+    else:
+        token_bce = zero
 
     if token_advantage is None:
         reward_target = torch.zeros_like(token_rewards)
         known_reward = tail
     else:
         reward_target = token_advantage.to(device=device, dtype=token_rewards.dtype).clone()
-        known_reward = mask_bool
+        if token_advantage_mask is None:
+            known_reward = mask_bool
+        else:
+            known_reward = token_advantage_mask.to(device=device).bool() & mask_bool
     reward_target = reward_target.masked_fill(tail, -negative_tail_margin)
+    reward_mask = known_reward | tail
 
-    if known_reward.any():
-        token_reward = F.mse_loss(token_rewards[known_reward], reward_target[known_reward])
+    if reward_mask.any():
+        token_reward = F.mse_loss(token_rewards[reward_mask], reward_target[reward_mask])
     else:
-        token_reward = token_rewards.new_zeros(())
+        token_reward = zero
 
     if tail.any():
         tail_margin = F.relu(token_rewards[tail] + negative_tail_margin).pow(2).mean()
     else:
-        tail_margin = token_rewards.new_zeros(())
+        tail_margin = zero
 
-    return {
-        "token_bce": token_bce,
-        "token_reward": token_reward,
-        "tail_margin": tail_margin,
-    }
+    return {"token_bce": token_bce, "token_reward": token_reward, "tail_margin": tail_margin}
 
 
 def path_level_hallucination_mil(
     hallucination_logits: Tensor,
     mask: Tensor,
     path_hallucinated: Tensor,
+    label_mask: Optional[Tensor] = None,
 ) -> Tensor:
     """Weak path-level hallucination loss using noisy-or over token probabilities."""
+    device = hallucination_logits.device
+    if label_mask is None:
+        label_mask = torch.ones(path_hallucinated.shape, dtype=torch.bool, device=device)
+    else:
+        label_mask = label_mask.to(device=device).bool()
+    if label_mask.sum() == 0:
+        return hallucination_logits.new_zeros(())
+
+    logits = hallucination_logits[label_mask]
+    row_mask = mask.to(device=device, dtype=logits.dtype)[label_mask]
+    labels = path_hallucinated.to(device=device, dtype=logits.dtype)[label_mask]
+    probs = torch.sigmoid(logits).clamp(1e-6, 1.0 - 1e-6) * row_mask
+    path_prob = 1.0 - torch.prod(1.0 - probs, dim=1)
+    return F.binary_cross_entropy(path_prob, labels)
+
+
+def pseudo_onset_tail_loss(
+    hallucination_logits: Tensor,
+    token_rewards: Tensor,
+    mask: Tensor,
+    path_hallucinated: Tensor,
+    label_mask: Optional[Tensor],
+    onset_label_mask: Optional[Tensor],
+    threshold: float,
+    negative_tail_margin: float,
+) -> Tensor:
+    """Apply a weak negative-tail loss after a predicted onset for positive paths."""
+    device = hallucination_logits.device
+    row_mask = mask.to(device=device).bool()
+    if label_mask is None:
+        label_mask = torch.ones(path_hallucinated.shape, dtype=torch.bool, device=device)
+    else:
+        label_mask = label_mask.to(device=device).bool()
+    if onset_label_mask is None:
+        onset_label_mask = torch.zeros(path_hallucinated.shape, dtype=torch.bool, device=device)
+    else:
+        onset_label_mask = onset_label_mask.to(device=device).bool()
+
+    path_positive = path_hallucinated.to(device=device).bool()
+    weak_rows = label_mask & path_positive & ~onset_label_mask
+    if weak_rows.sum() == 0:
+        return token_rewards.new_zeros(())
+
+    probs = torch.sigmoid(hallucination_logits)
+    crosses = (probs >= threshold) & row_mask
+    has_cross = crosses.any(dim=1)
+    pseudo_onset = torch.argmax(crosses.to(dtype=torch.long), dim=1)
+    valid_rows = weak_rows & has_cross
+    if valid_rows.sum() == 0:
+        return token_rewards.new_zeros(())
+
+    positions = torch.arange(token_rewards.shape[1], device=device)[None, :]
+    tail = valid_rows[:, None] & (positions >= pseudo_onset[:, None]) & row_mask
+    if not tail.any():
+        return token_rewards.new_zeros(())
+    return F.relu(token_rewards[tail] + negative_tail_margin).pow(2).mean()
+
+
+def dual_prior_losses(
+    outputs: Dict[str, Tensor],
+    batch: Dict[str, Tensor],
+    key_weight: float,
+    complete_weight: float,
+    distill_weight: float,
+    gate_weight: float,
+    reconstruction_weight: float,
+) -> Dict[str, Tensor]:
+    """DPCL-inspired key/complete prior collaboration losses."""
+    mask = outputs["mask"]
+    zero = outputs["scores"].new_zeros(())
+
+    key = masked_bce_with_logits(
+        outputs["key_prior_logits"],
+        batch["key_prior_target"],
+        mask,
+        target_mask=batch.get("key_prior_mask"),
+    ) if "key_prior_target" in batch else zero
+
+    complete = masked_bce_with_logits(
+        outputs["complete_prior_logits"],
+        batch["complete_prior_target"],
+        mask,
+        target_mask=batch.get("complete_prior_mask"),
+    ) if "complete_prior_target" in batch else zero
+
+    distill = attention_mse(outputs["key_prior"], outputs["complete_prior"].detach(), mask)
+    distill = distill + attention_mse(outputs["complete_prior"], outputs["key_prior"].detach(), mask)
+
+    gate_attention = normalize_attention(outputs["gates"], mask)
+    gate_prior = attention_mse(gate_attention, outputs["fused_prior"].detach(), mask)
+
+    reconstruction = F.mse_loss(
+        outputs["complete_reconstruction"],
+        outputs["pooled_features"].detach(),
+    )
+
+    total = (
+        key_weight * key
+        + complete_weight * complete
+        + distill_weight * distill
+        + gate_weight * gate_prior
+        + reconstruction_weight * reconstruction
+    )
+    return {
+        "key": key,
+        "complete": complete,
+        "distill": distill,
+        "gate": gate_prior,
+        "reconstruction": reconstruction,
+        "total": total,
+    }
+
+
+def attention_mse(prediction: Tensor, target: Tensor, mask: Tensor) -> Tensor:
+    mask_bool = mask.to(device=prediction.device).bool()
+    if not mask_bool.any():
+        return prediction.new_zeros(())
+    return F.mse_loss(prediction[mask_bool], target.to(prediction)[mask_bool])
+
+
+@torch.no_grad()
+def infer_pseudo_onsets(
+    hallucination_logits: Tensor,
+    mask: Tensor,
+    threshold: float = 0.5,
+) -> Tensor:
+    """Return first token with hallucination probability above threshold, else -1."""
+    probs = torch.sigmoid(hallucination_logits)
+    mask_bool = mask.to(device=probs.device).bool()
+    crosses = (probs >= threshold) & mask_bool
+    has_cross = crosses.any(dim=1)
+    onset = torch.argmax(crosses.to(dtype=torch.long), dim=1)
+    return torch.where(has_cross, onset, torch.full_like(onset, -1))
+
+
+@torch.no_grad()
+def path_hallucination_probability(hallucination_logits: Tensor, mask: Tensor) -> Tensor:
+    """Noisy-or probability that a whole trajectory contains hallucination."""
     probs = torch.sigmoid(hallucination_logits).clamp(1e-6, 1.0 - 1e-6)
     mask = mask.to(device=probs.device, dtype=probs.dtype)
-    probs = probs * mask
-    path_prob = 1.0 - torch.prod(1.0 - probs, dim=1)
-    target = path_hallucinated.to(device=probs.device, dtype=probs.dtype).view_as(path_prob)
-    return F.binary_cross_entropy(path_prob, target)
+    return 1.0 - torch.prod(1.0 - probs * mask, dim=1)
 
 
 @torch.no_grad()
 def select_best_of_n(scores: Tensor, group_ids: Tensor) -> Dict[int, int]:
-    """Return the index of the best candidate for each query/group id."""
+    """Return the row index of the best candidate for each query/group id."""
     best: Dict[int, int] = {}
     best_score: Dict[int, float] = {}
     for idx, group in enumerate(group_ids.detach().cpu().tolist()):
@@ -280,8 +618,13 @@ def select_best_of_n(scores: Tensor, group_ids: Tensor) -> Dict[int, int]:
 __all__ = [
     "ConsistencyLocalizedReward",
     "RewardConfig",
+    "dual_prior_losses",
     "hallucination_localization_losses",
+    "infer_pseudo_onsets",
+    "masked_mean",
+    "path_hallucination_probability",
     "path_level_hallucination_mil",
     "prism_style_consistency_loss",
+    "pseudo_onset_tail_loss",
     "select_best_of_n",
 ]
