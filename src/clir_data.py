@@ -429,8 +429,14 @@ class SemanticGroupBatchSampler(BatchSampler):
     def __iter__(self) -> Iterator[List[int]]:
         rng = random.Random(self.seed + self.epoch)
         self.epoch += 1
+        yield from self._build_batches(rng if self.shuffle else None)
+
+    def __len__(self) -> int:
+        return len(self._build_batches(None))
+
+    def _build_batches(self, rng: Optional[random.Random]) -> List[List[int]]:
         group_items = [list(indices) for indices in self.groups.values()]
-        if self.shuffle:
+        if rng is not None:
             rng.shuffle(group_items)
             for indices in group_items:
                 rng.shuffle(indices)
@@ -452,38 +458,38 @@ class SemanticGroupBatchSampler(BatchSampler):
                 else:
                     leftovers.extend(chunk)
 
-        if self.shuffle:
-            rng.shuffle(chunks)
+        chunks.sort(key=len, reverse=True)
+        if rng is not None:
             rng.shuffle(leftovers)
 
+        batches: List[List[int]] = []
         current: List[int] = []
         for chunk in chunks:
             if len(current) + len(chunk) > self.batch_size:
                 while len(current) < self.batch_size and leftovers:
                     current.append(leftovers.pop())
                 if len(current) == self.batch_size or (current and not self.drop_last):
-                    yield current
+                    batches.append(current)
                 current = []
             if len(chunk) == self.batch_size:
-                yield chunk
+                batches.append(chunk)
             else:
                 current.extend(chunk)
 
         while len(current) < self.batch_size and leftovers:
             current.append(leftovers.pop())
         if len(current) == self.batch_size or (current and not self.drop_last):
-            yield current
+            batches.append(current)
 
         while leftovers:
             batch = leftovers[: self.batch_size]
             leftovers = leftovers[self.batch_size :]
             if len(batch) == self.batch_size or (batch and not self.drop_last):
-                yield batch
+                batches.append(batch)
 
-    def __len__(self) -> int:
-        if self.drop_last:
-            return len(self.indices) // self.batch_size
-        return (len(self.indices) + self.batch_size - 1) // self.batch_size
+        if rng is not None:
+            rng.shuffle(batches)
+        return batches
 
 
 def move_batch_to_device(batch: Dict[str, Any], device: torch.device | str) -> Dict[str, Any]:

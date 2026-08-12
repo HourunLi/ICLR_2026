@@ -177,11 +177,13 @@ The current repository implements a guarded proxy of this idea in `src/consisten
 
 - key/complete prior heads are always predicted for inspection;
 - key/complete supervised losses are used only when external prior targets are present;
-- mutual stop-gradient distillation and gate-prior regularization are enabled only on tokens where both prior branches have label coverage;
+- mutual stop-gradient distillation and gate-prior regularization are evaluated only on tokens where both prior branches have label coverage, while preserving their probability mass from the full trajectory attention distribution;
 - complete-prior reconstruction is enabled only when an external `complete_reconstruction_target` is present;
 - `train_clir.py` supports `joint`, `key`, `complete`, and epoch-level `alternate` prior optimization.
 
 This avoids the degenerate self-reconstruction solution where a uniform complete prior can trivially reconstruct the average trajectory feature. A full paper implementation should replace the current target embedding with a stronger CSR-style target generated from masked supported-answer descriptions or verifier-derived evidence summaries.
+
+One open modeling choice is how much the progress head should contribute to the final token value. The current code uses `token_values = token_rewards + progress_score_weight * progress`, then applies hallucination-tail shaping to `token_values`. This keeps final scoring aligned with the localized penalty, but real annotations should test whether reward and progress need stronger separation.
 
 ## Full Objective
 

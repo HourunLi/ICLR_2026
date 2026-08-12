@@ -54,8 +54,11 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - dual-prior 的 distillation / gate-prior regularization 只在 key 与 complete prior 都有标签的 token 上计算，避免半标注样本把 prior 拉向无意义一致。
 - dual-prior 支持 `joint`、`key`、`complete` 和 epoch-level `alternate` 训练模式，默认用 `alternate` 贴近 DPCL 的交替优化思路。
 - PRISM consistency 不再依赖普通随机 shuffle 碰运气；训练默认启用 `SemanticGroupBatchSampler`。
+- `SemanticGroupBatchSampler.__len__()` 现在和 `__iter__()` 复用同一套 batch 构造逻辑，避免不拆 semantic chunk 时低估 batch 数。
 - hallucination onset 越界会直接报错，不再静默当成无幻觉样本。
 - `query_id` 只用于 Best-of-N candidate 分组，不再默认 fallback 到 `semantic_id`，避免候选分组和 augmentation 分组混在一起。
+- `condition_attention_temperature` 和 `progress_score_weight` 已接入 `train_clir.py` CLI。
+- dual-prior 在部分 token 有标签时不再对子集重新归一化，而是比较完整轨迹 attention 分布在已标注 token 上的原始概率质量。
 
 ## 遇到的问题
 
@@ -63,14 +66,15 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
 - hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
 - `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
+- `token_values = token_rewards + progress_score_weight * progress` 目前仍把 reward head 和 progress head 合并后做 hallucination tail shaping；toy 数据里 `progress_targets` 和 `token_advantage` 相同，真实数据接入后需要重新评估两个 head 的分工和量纲。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
 
-本次复查已经在装有 `torch`（2.13, CPU）/ `pytest` 的环境里实测：`pytest tests/test_clir_smoke.py` 7/7 通过；`create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端跑通，无崩溃、无 NaN。复查中发现以下遗留问题，尚未修复：
+本次复查已经在装有 `torch`（2.13, CPU）/ `pytest` 的环境里实测：`pytest tests/test_clir_smoke.py` 7/7 通过；`create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端跑通，无崩溃、无 NaN。复查中发现的问题已同步处理：
 
-- **`SemanticGroupBatchSampler.__len__()` 会低估实际 batch 数**：当很多语义组的大小和 `batch_size` 不能整除时（例如 5 个大小为 2 的语义组、`batch_size=5`），`__iter__()` 会因为"不拆散同组 chunk"而提前 flush 出偏小的 batch，实测会产出 3 个 batch，但 `__len__()` 按 `ceil(N/batch_size)` 算出来是 2（已用脚本复现：`batches=[[0,1,2,3],[4,5,6,7],[8,9]]` vs `len(sampler)=2`）。当前 `train_clir.py` 没有用到 `len(loader)`，所以暂不影响训练本身；但如果之后加进度条或按 `len(loader)*epochs` 算 LR 总步数，会读到错误的步数。
-- **两个新的 `RewardConfig` 字段没有接到 CLI**：`condition_attention_temperature`、`progress_score_weight` 现在只能用 dataclass 默认值，`train_clir.py` 的 `make_config()` 没有像其它 loss 权重一样暴露对应的 `--xxx` 参数。
-- **`dual_prior_losses` 里 `distill` / `gate_prior` 的重新归一化在标签部分覆盖时会失真**：这两项用 `shared_prior_mask`（key 与 complete 标签都覆盖的 token）对 `key_prior`/`complete_prior`/`gates`/`fused_prior` 重新做 `normalize_attention`。标签是全覆盖（目前 toy 数据和 smoke test 都是）时没问题；但如果以后接入只标注部分 token 的真实弱监督数据，重新归一化会把"标注子集内的相对权重"当成比较对象，而不是这些 token 在完整轨迹注意力里的真实占比，可能夸大或掩盖 key/complete 之间的真实分歧。
-- **`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**：`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，只是训练时被动地推出一个隐式拆分，值得在接入真实数据后重新评估要不要拆开监督。
+- **已修复：`SemanticGroupBatchSampler.__len__()` 低估实际 batch 数**。现在 `__len__()` 与 `__iter__()` 复用同一套 batch 构造逻辑，并补了 5 个大小为 2 的语义组、`batch_size=5` 的复现测试。
+- **已修复：两个新的 `RewardConfig` 字段没有接到 CLI**。`condition_attention_temperature`、`progress_score_weight` 已加入 `train_clir.py` 参数并传入 `make_config()`。
+- **已修复：`dual_prior_losses` 在标签部分覆盖时对子集重新归一化会失真**。现在 distill / gate-prior 保留完整轨迹 attention 分布的概率质量，只在 key 与 complete 都有标签覆盖的 token 上取 MSE。
+- **仍需观察：`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**。`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，真实数据接入后需要重新评估要不要拆开监督。
 
 ## 未来解决方向
 
@@ -94,9 +98,6 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
   - 用 query/context entailment 或 verifier score 生成 weak prior。
 - 加入 pairwise/listwise 训练 objective，并做 SWIFT 对齐实验。
 - 在带 GPU 和完整依赖的环境中跑 end-to-end toy training、small-scale training 和 Best-of-N evaluation。
-- 修 `SemanticGroupBatchSampler.__len__()` 的低估问题，让它和 `__iter__()` 实际产出的 batch 数一致。
-- 把 `condition_attention_temperature`、`progress_score_weight` 补成 `train_clir.py` 的 CLI 参数。
-- 评估 `dual_prior_losses` 在部分覆盖标签下的归一化方式是否需要改成"按完整轨迹 mask 归一化、只在 shared 子集上取 MSE"，而不是先按 shared 子集重新归一化。
 - real 数据接入后，重新评估 `token_values`（`token_rewards + progress_score_weight * progress`）是否需要拆分监督，或者给 `token_rewards`/`progress` 设计不重叠的目标。
 
 ## 运行代码
@@ -130,13 +131,17 @@ python train_clir.py \
   --epochs 3 \
   --lr 1e-3 \
   --group_by_semantic_id \
-  --prior_phase_mode alternate
+  --prior_phase_mode alternate \
+  --condition_attention_temperature 1.0 \
+  --progress_score_weight 0.5
 ```
 
 说明：
 
 - `--group_by_semantic_id` 默认开启，用于保证同语义不同风格 rewrite 更容易进入同一 batch，从而触发 PRISM consistency。
 - `--prior_phase_mode alternate` 默认开启，奇数 epoch 训练 key-prior phase，偶数 epoch 训练 complete-prior phase；也可设为 `joint`、`key` 或 `complete`。
+- `--condition_attention_temperature` 控制 generated-token 到 query/context condition tokens 的 attention sharpness。
+- `--progress_score_weight` 控制 progress head 进入最终 `token_values` 的权重。
 - `query_id` 用于 Best-of-N candidate 分组；`semantic_id` 用于 rewrite/augmentation consistency 分组；`style_id` 或 `domain_id` 用于 spurious attribute 分组。
 
 ### 4. 用 CLIR reward model 打分

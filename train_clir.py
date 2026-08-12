@@ -56,6 +56,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prior_weight", type=float, default=0.25)
     parser.add_argument("--negative_tail_margin", type=float, default=0.5)
     parser.add_argument("--pseudo_onset_threshold", type=float, default=0.5)
+    parser.add_argument("--condition_attention_temperature", type=float, default=1.0)
+    parser.add_argument("--progress_score_weight", type=float, default=0.5)
     return parser.parse_args()
 
 
@@ -93,6 +95,8 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         prior_weight=args.prior_weight,
         negative_tail_margin=args.negative_tail_margin,
         pseudo_onset_threshold=args.pseudo_onset_threshold,
+        condition_attention_temperature=args.condition_attention_temperature,
+        progress_score_weight=args.progress_score_weight,
     )
 
 

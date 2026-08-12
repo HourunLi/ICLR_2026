@@ -1,10 +1,12 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, SemanticGroupBatchSampler, clir_collate, write_jsonl
-from src.consistency_localized_reward import ConsistencyLocalizedReward, RewardConfig
+from src.consistency_localized_reward import ConsistencyLocalizedReward, RewardConfig, dual_prior_losses
+from train_clir import make_config, parse_args
 
 
 def test_clir_forward_and_loss():
@@ -67,6 +69,43 @@ def test_prior_loss_is_zero_without_external_targets():
 
     assert outputs["key_prior"].shape == (2, 4)
     assert losses["prior_total"].item() == 0.0
+
+
+def test_dual_prior_partial_mask_preserves_full_attention_mass():
+    scores = torch.zeros(1)
+    mask = torch.ones(1, 4)
+    outputs = {
+        "scores": scores,
+        "mask": mask,
+        "key_prior_logits": torch.zeros(1, 4),
+        "complete_prior_logits": torch.zeros(1, 4),
+        "key_prior": torch.tensor([[0.7, 0.1, 0.1, 0.1]]),
+        "complete_prior": torch.tensor([[0.2, 0.2, 0.3, 0.3]]),
+        "gates": torch.tensor([[0.7, 0.1, 0.1, 0.1]]),
+        "fused_prior": torch.tensor([[0.2, 0.2, 0.3, 0.3]]),
+        "complete_reconstruction": torch.zeros(1, 4),
+    }
+    batch = {
+        "key_prior_target": torch.zeros(1, 4),
+        "complete_prior_target": torch.zeros(1, 4),
+        "key_prior_mask": torch.tensor([[True, True, False, False]]),
+        "complete_prior_mask": torch.tensor([[True, True, False, False]]),
+    }
+
+    losses = dual_prior_losses(
+        outputs,
+        batch,
+        key_weight=0.0,
+        complete_weight=0.0,
+        distill_weight=1.0,
+        gate_weight=1.0,
+        reconstruction_weight=0.0,
+        phase="key",
+    )
+
+    expected = torch.tensor(((0.7 - 0.2) ** 2 + (0.1 - 0.2) ** 2) / 2)
+    assert torch.isclose(losses["distill"], expected)
+    assert torch.isclose(losses["gate"], expected)
 
 
 def test_invalid_hallucination_onset_raises():
@@ -176,3 +215,54 @@ def test_semantic_group_batch_sampler_packs_groups(tmp_path: Path):
 
     assert batches[0] == [0, 1, 3, 4]
     assert batches[1] == [2]
+
+
+def test_semantic_group_batch_sampler_len_matches_iter_for_uneven_groups(tmp_path: Path):
+    rows = []
+    feature_dir = tmp_path / "features"
+    feature_dir.mkdir()
+    for group_idx in range(5):
+        for sample_idx in range(2):
+            row_idx = len(rows)
+            path = feature_dir / f"sample_{row_idx}.pt"
+            torch.save(torch.randn(2, 8), path)
+            rows.append(
+                {
+                    "id": f"sample-{row_idx}",
+                    "query_id": f"q-{group_idx}",
+                    "hidden_states_path": str(path),
+                    "semantic_id": f"q-{group_idx}",
+                    "style_id": f"style-{sample_idx}",
+                }
+            )
+
+    jsonl_path = tmp_path / "uneven.jsonl"
+    write_jsonl(jsonl_path, rows)
+    dataset = CLIRTrajectoryDataset(jsonl_path)
+    sampler = SemanticGroupBatchSampler(dataset, batch_size=5, shuffle=False)
+    batches = list(iter(sampler))
+
+    assert batches == [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9]]
+    assert len(sampler) == len(batches)
+
+
+def test_train_cli_exposes_new_reward_config_fields():
+    argv = [
+        "train_clir.py",
+        "--train_jsonl",
+        "train.jsonl",
+        "--output_model",
+        "model.pt",
+        "--hidden_dim",
+        "8",
+        "--condition_attention_temperature",
+        "0.7",
+        "--progress_score_weight",
+        "0.25",
+    ]
+    with patch("sys.argv", argv):
+        args = parse_args()
+    config = make_config(args)
+
+    assert config.condition_attention_temperature == 0.7
+    assert config.progress_score_weight == 0.25

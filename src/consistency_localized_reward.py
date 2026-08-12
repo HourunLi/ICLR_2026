@@ -646,19 +646,19 @@ def dual_prior_losses(
     if has_key and has_complete:
         if phase in {"joint", "key"}:
             distill = distill + attention_mse(
-                normalize_attention(outputs["key_prior"], shared_prior_mask),
-                normalize_attention(outputs["complete_prior"].detach(), shared_prior_mask),
+                outputs["key_prior"],
+                outputs["complete_prior"].detach(),
                 shared_prior_mask,
             )
         if phase in {"joint", "complete"}:
             distill = distill + attention_mse(
-                normalize_attention(outputs["complete_prior"], shared_prior_mask),
-                normalize_attention(outputs["key_prior"].detach(), shared_prior_mask),
+                outputs["complete_prior"],
+                outputs["key_prior"].detach(),
                 shared_prior_mask,
             )
 
-    gate_attention = normalize_attention(outputs["gates"], shared_prior_mask)
-    fused_prior = normalize_attention(outputs["fused_prior"].detach(), shared_prior_mask)
+    gate_attention = normalize_attention(outputs["gates"], mask)
+    fused_prior = outputs["fused_prior"].detach()
     gate_prior = attention_mse(gate_attention, fused_prior, shared_prior_mask) if has_key and has_complete else zero
 
     reconstruction = zero
