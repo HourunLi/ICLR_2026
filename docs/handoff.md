@@ -48,6 +48,7 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 README.md                            项目状态滚动记录（changelog 风格）
 docs/proposal.md                     研究方法设计文档（公式、符号、评估计划）
 docs/handoff.md                      本文件：交接文档
+requirements.txt                     依赖版本（核心库对齐 SWIFT，见下方说明）
 src/consistency_localized_reward.py  模型定义 + 所有 loss（核心文件，750 行）
 src/clir_data.py                     JSONL 数据集、collate、SemanticGroupBatchSampler（509 行）
 train_clir.py                        训练入口（229 行）
@@ -56,7 +57,7 @@ examples/create_toy_clir_data.py     合成（随机）toy 数据生成脚本，
 tests/test_clir_smoke.py             全部测试（268 行，10 个 test）
 ```
 
-没有别的隐藏文件、没有 CI 配置、没有 `requirements.txt`（依赖只在 README 里用 `pip install torch numpy pytest` 这一行文字描述）。
+没有别的隐藏文件、没有 CI 配置。有一个 `requirements.txt`，`torch`/`numpy` 版本对齐了 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 pin，因为 CLIR 的架构是照着 SWIFT 参考实现的；`transformers`/`accelerate` 等要等第 6 节的 P0 任务（真实 hidden-state 抽取脚本）实现了再启用，细节和踩过的坑（SWIFT 自己的 `numpy`/`accelerate` 版本互相冲突）写在 `requirements.txt` 的注释和 `README.md` 的"运行代码"一节里，不重复贴一遍。
 
 ## 3. 模型架构详解（对着代码看）
 
@@ -207,11 +208,15 @@ scores = token_scores + score_residual
 
 **目前没有已知的、未修复的逻辑 bug。** 第 5 节列的是设计层面的开放问题，不是逻辑错误。
 
+### 7.1 依赖版本对齐 SWIFT（不是 bug，是基础设施补全）
+
+之前仓库没有 `requirements.txt`，只在 README 里写了一行 `pip install torch numpy pytest`，没有锁版本。因为 CLIR 的架构是照着 SWIFT 参考实现的，现在把 `torch`/`numpy` 的版本对齐到 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 `requirements.txt`，减少以后接真实 SWIFT-style hidden states 时的行为差异风险。核对过程中发现 SWIFT 自己的 `requirements.txt` 里 `numpy==2.2.6` 和 `accelerate==0.32.1` 两个 pin 互相冲突（`accelerate==0.32.1` 要求 `numpy<2.0.0`），照抄会直接装不上；本仓库的 `requirements.txt` 把 `accelerate` 换成了 `>=1.0.0` 来绕开这个冲突，其余核心版本不变。完整版本列表、哪些包现在用得上/哪些要等第 6 节 P0 任务做完才用得上，见仓库根目录 `requirements.txt` 的注释，这里不重复贴。
+
 ## 8. 怎么跑起来（最小验证闭环）
 
 ```bash
-# 1. 装依赖（本仓库没有 requirements.txt，就这三个包）
-pip install torch numpy pytest
+# 1. 装依赖（torch/numpy 版本对齐 SWIFT，见 requirements.txt 注释）
+pip install -r requirements.txt
 
 # 2. 跑测试，确认环境没问题
 pytest tests/test_clir_smoke.py    # 应该 10/10 通过

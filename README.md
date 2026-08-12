@@ -32,6 +32,7 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - 已实现打分和 Best-of-N 选择入口：`score_clir.py`。
 - 已实现 toy 数据生成脚本：`examples/create_toy_clir_data.py`。
 - 已实现 smoke tests：`tests/test_clir_smoke.py`。
+- 已添加 `requirements.txt`，核心库版本对齐 SWIFT 官方仓库的 pin（细节见"运行代码"一节）。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
   - token-level query/context cross-attention conditional fusion；
@@ -109,10 +110,12 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 ### 1. 准备环境
 
 ```bash
-pip install torch numpy pytest
+pip install -r requirements.txt
 ```
 
-真实实验还需要安装用于抽取 hidden states 的 LLM 依赖，例如 `transformers`、`accelerate` 等。
+`requirements.txt` 里 `torch`/`numpy` 的版本对齐了 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 `requirements.txt`，因为 CLIR 的架构是参照 SWIFT 实现的，对齐核心数值库版本能减少"未来接真实 hidden states 时行为对不上"的风险。SWIFT 仓库里其余的包（`transformers`/`accelerate` 用于加载 LLM 抽 hidden states；`vllm` 只在它的 rollout 生成脚本里用；`flash_attn`/`cuml`/`cupy`/`tuned_lens`/`peft`/`loralib`/`wandb` 只在它拿来对比的大型 baseline reward model 微调脚本里用）目前本仓库的代码都还没用到，`requirements.txt` 里注释掉了，等 `docs/handoff.md` 第 6 节的 P0 任务（真实 hidden-state 抽取脚本）实现了再打开对应的包。
+
+**踩过的坑**：SWIFT 自己的 `requirements.txt` 把 `numpy==2.2.6` 和 `accelerate==0.32.1` 一起固定版本，但 `accelerate==0.32.1` 要求 `numpy<2.0.0`，两者互相冲突——照抄它的 `requirements.txt` 直接 `pip install -r` 会报 `ResolutionImpossible`。本仓库的 `requirements.txt` 把 `accelerate` 换成了 `>=1.0.0`（更早的版本就开始支持 numpy 2.x 了），已经用 `pip install --dry-run` 验证过能正常解析，其余版本不变。
 
 ### 2. 生成 toy 数据
 
