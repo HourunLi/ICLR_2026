@@ -28,6 +28,8 @@ import torch
 from torch import Tensor
 from torch.utils.data import BatchSampler, Dataset
 
+from .clir_real_data import validate_extracted_row
+
 
 TEXT_ID_FIELDS = {
     "id",
@@ -107,6 +109,12 @@ class CLIRTrajectoryDataset(Dataset):
             if condition_states.ndim != 2:
                 raise ValueError("condition_states must have shape [condition_time, hidden_dim]")
             item["condition_states"] = condition_states.float()
+
+        # Real-data manifests carry the exact generated token ids.  Their
+        # presence switches on the strict contract before legacy toy padding
+        # or trimming can hide a token/feature mismatch.
+        if "output_token_ids" in row:
+            validate_extracted_row(row, hidden_states, condition_states)
 
         condition_embedding = maybe_load_tensor_field(
             row,

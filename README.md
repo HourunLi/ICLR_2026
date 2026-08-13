@@ -1,6 +1,6 @@
 # ICLR 2027: Consistency-Localized Intrinsic Rewards
 
-最后更新：2026-08-12
+最后更新：2026-08-13
 
 本仓库是 ICLR 2027 方向的初步代码框架。我们参考 **SWIFT** (*Mining Intrinsic Rewards from LLM Hidden States for Efficient Best-of-N Sampling*) 的 hidden-state token reward / gate 设计，但不依赖、不调用 SWIFT 仓库代码；CLIR 的模型、数据读取、训练和打分脚本都在本仓库内自包含实现。
 
@@ -31,8 +31,24 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - 已实现训练入口：`train_clir.py`。
 - 已实现打分和 Best-of-N 选择入口：`score_clir.py`。
 - 已实现 toy 数据生成脚本：`examples/create_toy_clir_data.py`。
-- 已实现 smoke tests：`tests/test_clir_smoke.py`。
-- 已添加 `requirements.txt`，核心库版本对齐 SWIFT 官方仓库的 pin（细节见"运行代码"一节）。
+- 已冻结第一阶段真实实验协议：`docs/pilot_protocol.md`，机器可读配置为
+  `configs/phi35_gsm8k_pilot_v1.json`。
+- 已实现保留原始 prompt/output token IDs 的 GSM8K/vLLM 生成入口：
+  `scripts/generate_gsm8k_rollouts.py`。
+- 已实现 exact-token-ID teacher forcing、embedding + 全部 Transformer block 拼接的
+  hidden-state 提取入口：`scripts/extract_hidden_states.py`。
+- 真实 manifest 一旦带有 `output_token_ids`，数据加载器会在任何 pad/trim 之前严格检查
+  `len(output_token_ids) == hidden_states.shape[0] == token-label length`。
+- 已实现 smoke tests：`tests/test_clir_smoke.py` 和 `tests/test_clir_real_data.py`。
+- 已添加可安装的真实生成/提取依赖；由于 SWIFT 官方的 NumPy pin 与 vLLM 冲突，采用
+  `numpy==1.26.4` + `vllm==0.5.3.post1` 的解析后组合。
+- Stage 1 单题真实对齐 gate 已实际通过：生成 16 个候选，并对前两条候选完成 exact-ID
+  全层提取；两条 trajectory 为 `[162,101376]` / `[250,101376]`，共享的 prompt-only
+  condition 为 `[113,101376]`，全部 finite、bfloat16。
+- 已实现 checker 单位后缀归一化与 SWIFT parity 审计入口：
+  `scripts/audit_swift_checker_parity.py`。17 个 query / 272 条候选上，CLIR v2 与固定
+  SWIFT checker 一致 260 条（95.59%）；12 个差异全是官方 checker 的单位/尾随文本
+  假阴性。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
   - token-level query/context cross-attention conditional fusion；
@@ -65,14 +81,32 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 遇到的问题
 
-- 目前输入假设是已经抽取好的 frozen LLM hidden states；还没有实现从具体 LLM 自动抽 hidden states 的脚本。
+- Stage 1 真实 artifact 已通过工程验收，但还没有训练 SWIFT/CLIR，更没有 Best-of-N 效果
+  结果；不能把 gate 或 15 个测试通过表述成方法有效。
+- 当前 `ConsistencyLocalizedReward` 把输入宽度同时当作内部模型宽度；若把全层拼接后的
+  `D=101376` 直接接入 condition Q/K/V、fusion 和 reconstruction 的 `Linear(D,D)`，模型
+  会膨胀到约 1028 亿参数。严格 SWIFT 的 `Linear(D,2)` 不受此问题影响；真实 CLIR 训练前
+  必须先实现一个使用全部 33 层、位于所有 `D^2` 模块之前的低维编码器。该编码器尚未实现。
+- 全层 feature 的实测宽度为 101,376，每 token bfloat16 tensor 为 202,752 bytes。按首题
+  平均长度粗略外推，6000×8 train acquisition 约 2.25 TB，因此正式扩大前必须实现
+  query-sharded manifest、流式提取/加载和断点续跑；这不是把主路径降为最后 4 层的理由。
+- vLLM `candidate.text` 在当前版本会比按原始 IDs decode 的文本多一个前导空格；272/272
+  条都只差这个空格。`output_token_ids` 和由它 decode 的 `response` 仍是事实来源。
+- SWIFT 官方 `evaluate_math` 未覆盖 `bolts`、`downloads` 等单位或某些尾随文本；共享审计
+  272 条中产生 12 个假阴性。主标签使用冻结的 `clir_gsm8k_numeric_v2`，同时保留官方
+  checker parity 数字，避免把修正后的标签冒充官方原样口径。
 - LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
 - hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
 - `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
 - `token_values = token_rewards + progress_score_weight * progress` 目前仍把 reward head 和 progress head 合并后做 hallucination tail shaping；toy 数据里 `progress_targets` 和 `token_advantage` 相同，真实数据接入后需要重新评估两个 head 的分工和量纲。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
 
-这一轮的 sampler / prior-masking 修复是在没有 `torch` 的环境下做的静态检查，随后在有 `torch`（2.13, CPU）/ `pytest` 的环境里做了一遍复查实测：`pytest tests/test_clir_smoke.py` 10/10 通过（新增的 `test_dual_prior_partial_mask_preserves_full_attention_mass`、`test_semantic_group_batch_sampler_len_matches_iter_for_uneven_groups`、`test_train_cli_exposes_new_reward_config_fields` 均通过）；`create_toy_clir_data.py -> train_clir.py（含新增的 `--condition_attention_temperature`/`--progress_score_weight`）-> score_clir.py` 端到端跑通，checkpoint 里也确认存了这两个新配置值。另外针对 `SemanticGroupBatchSampler` 单独写了随机化压力测试（约 12 个组、组大小 1-6、`batch_size` 2-10，`shuffle`/`drop_last` 两两组合，300 组随机场景共 1200 次采样），确认 `__len__()` 与 `__iter__()` 实际产出的 batch 数在所有场景下一致，且每个样本都恰好出现一次、`drop_last` 语义正确。复查中发现的问题已同步处理：
+当前 `SWIFT` 环境是 `torch==2.3.1+cu121`，两套 pytest 共 15/15 通过；
+`create_toy_clir_data.py -> train_clir.py（含 --condition_attention_temperature /
+--progress_score_weight）-> score_clir.py` 端到端跑通，checkpoint 里也确认存了新增配置。
+另外针对 `SemanticGroupBatchSampler` 做过 300 组随机场景、共 1200 次采样的压力测试，
+确认 `__len__()` 与 `__iter__()` 实际 batch 数一致，样本覆盖和 `drop_last` 语义正确。
+复查中发现的问题已同步处理：
 
 - **已修复并复核：`SemanticGroupBatchSampler.__len__()` 低估实际 batch 数**。`__len__()` 与 `__iter__()` 复用同一套 `_build_batches()` 逻辑，`chunks.sort(key=len, reverse=True)` 让贪心装箱结果与是否 shuffle 无关，因此计数稳定；随机化压力测试没有发现反例。
 - **已修复并复核：两个新的 `RewardConfig` 字段没有接到 CLI**。`condition_attention_temperature`、`progress_score_weight` 已加入 `train_clir.py` 参数并传入 `make_config()`，端到端跑过一遍确认写进了 checkpoint。
@@ -83,10 +117,14 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 未来解决方向
 
-- 增加 hidden-state extraction 脚本：
-  - 输入 query、context、trajectory；
-  - 输出 generated-token hidden states；
-  - 可选择保存 query/context condition hidden states。
+- 实现并门控一个全层感知的低维编码器；保留严格 SWIFT 的原始高维线性头，同时增加
+  “共享编码器 + SWIFT head”对照，区分编码器收益与 CLIR 模块收益。
+- 冻结 train/validation/pilot query-ID 清单，先做 32-query development acquisition，验证
+  首题外推的长度分布、吞吐和容量是否稳定。
+- 实现 query-sharded manifest、原子写入、断点续跑和流式 Dataset；condition 每 query 只
+  forward/存储一次，trajectory 按候选分片。
+- 在完全共享的 candidates/features/splits 上跑严格 SWIFT baseline，再跑本仓库的
+  SWIFT-style backbone，报告 BoN@1/2/4/8/16、random、oracle 和 checker parity。
 - 补充 augmentation 生成脚本：
   - 改写题干风格；
   - 改写 reasoning trajectory 长度；
@@ -113,9 +151,11 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 pip install -r requirements.txt
 ```
 
-`requirements.txt` 里 `torch`/`numpy` 的版本对齐了 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 `requirements.txt`，因为 CLIR 的架构是参照 SWIFT 实现的，对齐核心数值库版本能减少"未来接真实 hidden states 时行为对不上"的风险。SWIFT 仓库里其余的包（`transformers`/`accelerate` 用于加载 LLM 抽 hidden states；`vllm` 只在它的 rollout 生成脚本里用；`flash_attn`/`cuml`/`cupy`/`tuned_lens`/`peft`/`loralib`/`wandb` 只在它拿来对比的大型 baseline reward model 微调脚本里用）目前本仓库的代码都还没用到，`requirements.txt` 里注释掉了，等 `docs/handoff.md` 第 6 节的 P0 任务（真实 hidden-state 抽取脚本）实现了再打开对应的包。
-
-**踩过的坑**：SWIFT 自己的 `requirements.txt` 把 `numpy==2.2.6` 和 `accelerate==0.32.1` 一起固定版本，但 `accelerate==0.32.1` 要求 `numpy<2.0.0`，两者互相冲突——照抄它的 `requirements.txt` 直接 `pip install -r` 会报 `ResolutionImpossible`。本仓库的 `requirements.txt` 把 `accelerate` 换成了 `>=1.0.0`（更早的版本就开始支持 numpy 2.x 了），已经用 `pip install --dry-run` 验证过能正常解析，其余版本不变。
+`requirements.txt` 现在包含真实数据阶段需要的 `transformers`、`datasets`、
+`accelerate` 和 `vllm`。SWIFT 官方文件同时固定 `numpy==2.2.6` 和
+`vllm==0.5.3.post1`，但后者要求 `numpy==1.26.4`；本仓库使用可解析、也与本地 SWIFT
+复现报告一致的 `numpy==1.26.4`。大型外部 reward-model 微调才需要的
+`cuml/cupy/peft/wandb` 等仍不安装。
 
 ### 2. 生成 toy 数据
 
@@ -177,20 +217,33 @@ python score_clir.py \
 ### 5. 运行 smoke test
 
 ```bash
-pytest tests/test_clir_smoke.py
+python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py
 ```
 
-已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（10/10）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
+当前两套测试共 15 个：原有 toy/model smoke tests 10 个，真实数据契约测试 5 个。
+后者验证 exact token slicing、全层拼接、正式 manifest 拒绝错位、GSM8K checker 和冻结
+协议字段。它们证明管线逻辑，不证明 Phi/CLIR 的研究效果。
 
 ```bash
 python -m py_compile \
   src/consistency_localized_reward.py \
+  src/clir_real_data.py \
   src/clir_data.py \
   train_clir.py \
   score_clir.py \
+  scripts/generate_gsm8k_rollouts.py \
+  scripts/extract_hidden_states.py \
+  scripts/audit_swift_checker_parity.py \
   examples/create_toy_clir_data.py \
-  tests/test_clir_smoke.py
+  tests/test_clir_smoke.py \
+  tests/test_clir_real_data.py
 ```
+
+### 6. 复跑第一条真实对齐 gate
+
+完整协议和命令见 `docs/pilot_protocol.md` 与 `docs/runbook_zh.md`。第一轮必须保持
+`--max-queries 1`。本仓库已有验收 artifact；复跑时使用新输出目录或显式
+`--overwrite`，不能跳过该 gate 直接生成大规模数据。
 
 ## Baseline
 

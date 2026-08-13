@@ -31,6 +31,20 @@ H = (h_1, ..., h_T), h_t in R^D
 
 where `D` may be a concatenation of selected layer hidden states, logits, or another accessible internal representation.
 
+### Frozen first-stage representation
+
+For the first real pipeline pilot, the representation is no longer left open: the generator is
+`microsoft/Phi-3.5-mini-instruct` on GSM8K, and `D` concatenates the embedding output and every
+Transformer-block output with no additional final normalization. The pilot uses the exact token IDs
+returned during generation; a later teacher-forced pass receives
+`prompt_token_ids + output_token_ids` directly and slices the trajectory at the saved prompt length.
+The query condition is acquired by a separate prompt-only forward once per query and shared by all
+of that query's candidates; this avoids sequence-length-dependent GPU numerical drift in deep prompt
+states. The pipeline must not reconstruct model input from heuristic reasoning-step splits. This keeps
+every token-localized CLIR target indexed to the same generated sequence. The full frozen protocol,
+checkpoint/data revisions, generation settings, and terminal-token policy are recorded in
+`docs/pilot_protocol.md` and `configs/phi35_gsm8k_pilot_v1.json`.
+
 The reward model outputs:
 
 ```text
@@ -227,7 +241,12 @@ The initial implementation in this repository is self-contained:
 
 Primary metrics:
 
-- Best-of-N task accuracy.
+- Reward-selected Best-of-N task accuracy. For each query, use the first `k` candidates in generation
+  order, select the candidate with maximum reward, then average selected-candidate correctness over
+  queries. This is not classical pass@k.
+- The Phi/GSM8K pilot predeclares BoN@16 as its primary task metric and reports
+  `k = 1, 2, 4, 8, 16`; final SWIFT parity expands to BoN@64 and also reports `32, 64`.
+- BoN@1, random selection, SWIFT, and the oracle candidate-pool ceiling on the identical query groups.
 - Hallucination rate among selected trajectories.
 - Worst-augmentation accuracy across style/domain rewrites.
 - Score variance across rewrites of the same trajectory.

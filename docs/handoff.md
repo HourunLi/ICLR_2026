@@ -1,6 +1,6 @@
 # CLIR 项目交接文档（写给下一个接手的人 / AI）
 
-最后更新：2026-08-12（对应 commit `be0dc7f`，分支 `claude/code-review-logic-bugs-nmc2ea`，基于已合并进 `main` 的 `d948d40`）
+最后更新：2026-08-13（分支 `panzhixin`，基于 `main` commit `1f826ec`）
 
 这份文档是专门写给**完全没有上下文**的下一个开发者或 AI 看的。目标是让你不用重新翻一遍 commit history、不用重新做一遍代码审查，就能知道：现在做到哪一步了、为什么是这样设计的、踩过哪些坑、接下来该做什么。
 
@@ -26,19 +26,33 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：能跑，但只能跑在合成（随机）数据上
+## 2. 现在的状态：单题真实 gate 已通过，下一门是可训练输入编码器 + SWIFT baseline
 
 这是最重要的一句话，必须先说清楚：
 
-> **目前仓库里没有任何真实数据。** `examples/create_toy_clir_data.py` 生成的是 `torch.randn` 随机向量，不是从任何 LLM 抽取的真实 hidden states。所有的正确性验证目前都停留在"代码逻辑对不对、张量形状对不对、loss 会不会变成 NaN"这个层面，**完全没有验证过"这套方法真的能学出更好的 reward model"这个研究问题本身**。
+> **Stage 1 单题真实数据 gate 已验收，但目前仍没有 SWIFT/CLIR 训练或 Best-of-N 效果
+> 结果。** `scripts/generate_gsm8k_rollouts.py` 保存 vLLM 实际返回的 prompt/output IDs，
+> `scripts/extract_hidden_states.py` 对 exact `prompt + output` 做 trajectory teacher forcing，
+> 并对 prompt 单独 forward 一次作为每个 query 共享的 canonical condition。Phi-3.5-mini
+> 已实际生成第一题 16 条候选并提取前两条的全层特征。
 
-也就是说：软件工程层面（模型代码、数据管线、训练脚本）已经比较扎实了，但 research 层面（这个方法到底有没有效）一步都还没开始。下一个人接手，最大的任务不是继续抠代码细节，而是**把真实数据接进来，跑第一次真正的实验**。
+验收数值：trajectory 为 `[162,101376]` / `[250,101376]`，condition 为
+`[113,101376]`，`101376 = 33 * 3072`；全部 finite、bfloat16，两条候选共享同一 condition
+文件。两条 trajectory 加 condition 实际为 106,450,149 bytes。research 层面仍未产生
+SWIFT/CLIR 效果证据，不能把 gate 或 15 个测试通过表述成方法有效。
+
+checker 另审计了 17 个 query / 272 条候选：冻结 v2 checker 给出 196 positive、75
+numeric negative、1 non-numeric negative。和 SWIFT commit `41f7c9f` 的官方
+`evaluate_math` 一致 260/272；12 个分歧全部是官方 checker 对单位/尾随文本的假阴性。
+脚本是 `scripts/audit_swift_checker_parity.py`，正式报告必须同时保留该 parity 数字。
 
 ### 2.1 已经实现、且验证过能跑通的部分
 
-以下内容我在装有 `torch`（2.13, CPU）/ `pytest` 的环境里实际跑过（不是只看代码）：
+以下内容已在当前 `SWIFT` 环境（`torch==2.3.1+cu121`，CUDA 可用）实际跑过：
 
 - `pytest tests/test_clir_smoke.py`：10/10 通过。
+- `pytest tests/test_clir_real_data.py`：5/5 通过，覆盖 exact IDs、全层拼接、严格长度检查、
+  GSM8K checker 和冻结协议。
 - 端到端流程：`examples/create_toy_clir_data.py` → `train_clir.py`（带全部 CLI 参数）→ `score_clir.py`，全程无崩溃、无 NaN。
 - 针对 `SemanticGroupBatchSampler` 单独做过 300 组随机场景（组数 1-12、组大小 1-6、`batch_size` 2-10、`shuffle`/`drop_last` 全组合）共 1200 次采样的压力测试，确认 `__len__()` 与 `__iter__()` 实际产出的 batch 数一致，且每个样本在非 `drop_last` 模式下恰好被覆盖一次。
 
@@ -48,16 +62,25 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 README.md                            项目状态滚动记录（changelog 风格）
 docs/proposal.md                     研究方法设计文档（公式、符号、评估计划）
 docs/handoff.md                      本文件：交接文档
+docs/pilot_protocol.md               Phi-3.5-mini + GSM8K 第一阶段冻结协议
+configs/phi35_gsm8k_pilot_v1.json   协议的机器可读副本
 requirements.txt                     依赖版本（核心库对齐 SWIFT，见下方说明）
 src/consistency_localized_reward.py  模型定义 + 所有 loss（核心文件，750 行）
 src/clir_data.py                     JSONL 数据集、collate、SemanticGroupBatchSampler（509 行）
+src/clir_real_data.py                原始 token-ID 契约、GSM8K checker、全层对齐提取
 train_clir.py                        训练入口（229 行）
 score_clir.py                        打分 + Best-of-N 选择入口（130 行）
+scripts/generate_gsm8k_rollouts.py  保留原始 IDs 的 vLLM 候选生成
+scripts/extract_hidden_states.py    exact-ID teacher-forced 全层特征提取
+scripts/audit_swift_checker_parity.py  对固定 SWIFT checkout 复跑 checker parity
 examples/create_toy_clir_data.py     合成（随机）toy 数据生成脚本，仅用于 smoke test
-tests/test_clir_smoke.py             全部测试（268 行，10 个 test）
+tests/test_clir_smoke.py             模型/toy 测试（10 个）
+tests/test_clir_real_data.py         真实数据契约测试（5 个）
 ```
 
-没有别的隐藏文件、没有 CI 配置。有一个 `requirements.txt`，`torch`/`numpy` 版本对齐了 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 pin，因为 CLIR 的架构是照着 SWIFT 参考实现的；`transformers`/`accelerate` 等要等第 6 节的 P0 任务（真实 hidden-state 抽取脚本）实现了再启用，细节和踩过的坑（SWIFT 自己的 `numpy`/`accelerate` 版本互相冲突）写在 `requirements.txt` 的注释和 `README.md` 的"运行代码"一节里，不重复贴一遍。
+没有 CI 配置。`requirements.txt` 已包含真实生成、提取以及 SWIFT checker parity 所需的
+依赖；因为 SWIFT 官方文件把 `vllm==0.5.3.post1` 与不兼容的 `numpy==2.2.6` 同时固定，
+本仓库使用已实测可解析的 `numpy==1.26.4`。环境安装后必须跑 `pip check` 与两套 pytest。
 
 ## 3. 模型架构详解（对着代码看）
 
@@ -150,6 +173,9 @@ scores = token_scores + score_residual
 |---|---|---|---|
 | `id` | - | 行的唯一标识 | 输出结果 |
 | `query_id` | `candidate_group_id`、`prompt_id` | **Best-of-N 候选分组**：同一个原始问题的多条候选轨迹共享同一个 `query_id` | `score_clir.py` 选 Best-of-N |
+| `prompt_token_ids` | - | 实际传给生成器的 chat-template prompt IDs；真实数据必须保存 | teacher-forced 提取与 condition 对齐 |
+| `output_token_ids` | - | 生成后端实际返回的候选 IDs；所有 token-level 标签的唯一索引坐标 | trajectory 对齐与严格校验 |
+| `response` | - | 由 `output_token_ids` decode 的可读文本；checker 使用，但不能反向决定特征 token | correctness / 审计 |
 | `hidden_states` / `hidden_states_path` | - | `[time, hidden_dim]`，二选一，支持 `.pt`/`.npy`/`.json` | 模型主输入 |
 | `condition_states`/`condition_states_path`、`condition_embedding`/`condition_embedding_path` | - | query/context 条件输入，见 3.2 | 条件化模块 |
 | `correctness` | `label`、`final_correct` | 0/1，整条轨迹最终答案对不对 | SWIFT-style BCE |
@@ -165,19 +191,38 @@ scores = token_scores + score_residual
 
 **重要**：`query_id`（Best-of-N 分组）和 `semantic_id`（一致性增强分组）是两个不同粒度的概念，之前踩过混用的坑（`query_id` 曾经会 fallback 到 `semantic_id`），现在已经拆开，`query_id` 只 fallback 到 `candidate_group_id`/`prompt_id`。真实数据构造时不要把这两个字段填成一样的值，除非它们本来就该一样（toy 数据里刚好一样，容易造成误解）。
 
+真实 manifest 只要出现 `output_token_ids`，`CLIRTrajectoryDataset` 就会在旧的 sequence
+pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和所有已提供 token 标签
+长度必须完全一致。`steps` 是展示/标注视图，禁止用它重新拼文本再 tokenize。完整契约见
+`docs/pilot_protocol.md`。
+
 ## 5. 已知的开放问题（不是 bug，是要做研究判断的地方）
 
 1. **`token_values` 把 `token_rewards` 和 `progress` 合并后做幻觉监督，但 `progress` 又被单独回归**（3.5/3.3 节已详述）。等真实数据接入、`progress_targets` 和 `token_advantage` 真正不同之后需要重新设计。
 2. **`_condition_token_features` 里"有 condition 的行过 LayerNorm、没 condition 的行不过"造成的轻微分布不一致**（3.2 节）。如果真实数据里"有没有 condition"本身有意义，需要评估这个不一致有没有影响。
 3. **`gate`/`reconstruction` 两项 dual-prior loss 不跟随 `prior_phase` 交替**（3.6 节），是否需要让它们也分 phase，目前没有定论。
 4. Best-of-N 选择目前是纯 pointwise：训练目标只有单条轨迹的 BCE + 各种辅助 loss，没有 pairwise/listwise 目标。SWIFT 原论文里 pairwise/DPO/InfoNCA/NCA 都试过，效果和 BCE 接近但没有明显更好，所以优先级不高，但如果要和 SWIFT 做严格对齐实验，这块需要补。
+5. **真实全层输入不能直接接入当前 CLIR 内部宽度。** Phi-3.5-mini 的全层拼接宽度为
+   `101376 = 33 * 3072`。当前 condition Q/K/V、fusion 和 complete reconstructor 在降维前
+   使用多个 `Linear(D,D)`，按真实 `D` 会产生约 1028 亿参数。严格 SWIFT 只使用
+   `Linear(D,2)`，不存在平方爆炸。下一步需要在所有 `D^2` 模块之前加入使用全部 33 层的
+   低维编码器，并保留“严格 SWIFT / 共享编码器 SWIFT / 共享编码器 CLIR”三组比较。该改造
+   尚未实现，不能用 toy `hidden_dim=8` 的成功实例化推断真实模型可训练。
 
-## 6. 目前完全没做、下一步必须做的事（按优先级）
+## 6. 下一步必须做的事（按优先级）
 
-**P0（不做这个，后面所有实验都是空中楼阁）**
+**P0（单题 gate 已完成，当前工作）**
 
-1. **写一个从真实 LLM 抽取 hidden states 的脚本。** 输入 query/context/trajectory，跑一遍生成模型（teacher forcing 或真实生成），把 SWIFT 用的那种"每层 hidden state 拼起来"的 per-token 向量存下来，同时可选地存 query/context 的 condition hidden states。可以参照 SWIFT 论文 4.2 节的做法（`h_t = [h_t^1; ...; h_t^L]`，拼接所有层）。目前 `create_toy_clir_data.py` 完全是随机数占位，这一步做完才有真实数据可用。
-2. **接一个 correctness/verifier 标注流程**，给每条 trajectory 打 `correctness` 标签（答案对不对，可以用规则化的 answer checker，比如 MATH/GSM8K 那种数值比对）。这是 SWIFT baseline 复现的最低要求，不需要幻觉/一致性这些 CLIR 独有的标签也能先把 SWIFT-only baseline 跑起来。
+1. 实现全层感知的低维输入编码器，并在已有两条真实 trajectory 上完成参数量、
+   forward/backward 和峰值显存 gate；严格 SWIFT 原始高维线性头保持不变。
+2. 冻结 train/validation/pilot 的 query-ID 清单，先跑 32-query development acquisition，
+   重新测量长度、吞吐和容量分布。
+3. 实现 query-sharded manifest、原子写入、断点续跑和流式加载。全层 bfloat16 每 token
+   实测为 202,752 bytes；按首题平均长度外推，6000×8 train acquisition 约 2.25 TB。
+4. 在完全共享的 candidates/features/splits 上复现严格 SWIFT baseline，并跑本仓库的
+   SWIFT-style backbone；先报告 BoN@1/2/4/8/16、random 与 oracle。
+5. checker 主标签固定为 `clir_gsm8k_numeric_v2`，同时运行官方 `evaluate_math` parity；
+   不允许把修正口径写成官方原样口径，也不能因为存储压力把主路径降成最后 4 层。
 
 **P1（跑通 SWIFT baseline 之后，逐步加 CLIR 的三个模块）**
 
@@ -205,12 +250,21 @@ scores = token_scores + score_residual
 | 6 | `SemanticGroupBatchSampler.__len__()` 低估实际 batch 数 | `__len__` 用 `ceil(N/batch_size)` 估算，`__iter__` 的贪心装箱在特定组大小/batch_size 组合下会产出更多、更碎的 batch | `__len__`/`__iter__` 复用同一套构造逻辑 + 排序让计数与 shuffle 无关（3.7 节） | 手工回归测试 + 我做的 1200 次随机压力测试，全部一致 |
 | 7 | 两个新 `RewardConfig` 字段（`condition_attention_temperature`/`progress_score_weight`）没接到训练 CLI | 加字段时漏了改 `train_clir.py` | 补上 `--condition_attention_temperature`/`--progress_score_weight` 参数 | `test_train_cli_exposes_new_reward_config_fields` + 我端到端跑过确认写进了 checkpoint |
 | 8 | dual-prior 的 distill/gate-prior 在标签部分覆盖时，对标签子集重新做 softmax 归一化，会人为放大子集内的相对权重，失真 | 用 `normalize_attention(x, shared_prior_mask)` 而不是直接比较完整轨迹归一化后的值 | 直接用 `outputs["key_prior"]`/`outputs["complete_prior"]`/`outputs["fused_prior"]`（已经是完整轨迹归一化过的），只在 `attention_mse` 内部做子集选择，不重新归一化 | `test_dual_prior_partial_mask_preserves_full_attention_mass`，我手工验算过数值 + 复核过 |
+| 9 | 直接运行 `examples/*.py` / `scripts/*.py` 会报 `No module named src` | Python 把脚本目录而不是项目根加入 `sys.path` | 所有直接入口根据 `__file__` 注入项目根；仍推荐从项目根用 `python -m pytest` | 已从 `/tmp` 直接调用各脚本的 `--help` 验证 |
+| 10 | prompt/trajectory 切片各自落盘时，每个文件都携带完整 prompt+output storage，空间翻倍 | `.contiguous()` 对已经连续的 view 不会分配独立 storage | 两个切片在 CPU 上独立 `.clone()`，并检查 storage bytes | 有 storage-size 回归断言；真实两文件总量从 111.52 MB 降到 55.76 MB（单候选口径） |
+| 11 | 从不同长度的 `prompt+output` forward 切出的同一 prompt 深层状态不一致 | GPU kernel 随总序列长度选择不同数值路径，误差逐层累积，最大绝对差达到 4.0 | condition 定义改成每 query 做一次 prompt-only forward 并缓存，所有候选共享 | 两候选真实提取通过且引用同一 condition 文件；配置固定 `prompt_only_once_per_query` |
+| 12 | boxed answer 带单位时被错误判负，如 `3 bolts` 对 `3` | checker 只尝试把完整 boxed 内容解析为数字 | 保留完整 answer 审计，同时取最后数值表达式比较；版本固定为 `clir_gsm8k_numeric_v2` | 单元测试覆盖有/无单位的正负样本；272 条与 SWIFT checker parity 已实测 |
 
 **目前没有已知的、未修复的逻辑 bug。** 第 5 节列的是设计层面的开放问题，不是逻辑错误。
 
 ### 7.1 依赖版本对齐 SWIFT（不是 bug，是基础设施补全）
 
-之前仓库没有 `requirements.txt`，只在 README 里写了一行 `pip install torch numpy pytest`，没有锁版本。因为 CLIR 的架构是照着 SWIFT 参考实现的，现在把 `torch`/`numpy` 的版本对齐到 SWIFT 官方仓库（[aster2024/SWIFT](https://github.com/aster2024/SWIFT)）的 `requirements.txt`，减少以后接真实 SWIFT-style hidden states 时的行为差异风险。核对过程中发现 SWIFT 自己的 `requirements.txt` 里 `numpy==2.2.6` 和 `accelerate==0.32.1` 两个 pin 互相冲突（`accelerate==0.32.1` 要求 `numpy<2.0.0`），照抄会直接装不上；本仓库的 `requirements.txt` 把 `accelerate` 换成了 `>=1.0.0` 来绕开这个冲突，其余核心版本不变。完整版本列表、哪些包现在用得上/哪些要等第 6 节 P0 任务做完才用得上，见仓库根目录 `requirements.txt` 的注释，这里不重复贴。
+真实数据入口启用后，`requirements.txt` 已加入 `transformers==4.51.2`、
+`datasets==3.6.0`、`accelerate>=1,<2`、`huggingface_hub==0.30.2` 和 SWIFT rollout
+所用的 `vllm==0.5.3.post1`，以及官方 checker parity 所需的 `pylatexenc` / `latex2sympy2`。
+vLLM 明确要求 `numpy==1.26.4`，因此项目不再沿用
+SWIFT 文件里与 vLLM 冲突的 `numpy==2.2.6`；这也与本地 SWIFT 复现报告中的环境修正
+一致。依赖变更后必须运行 `python -m pip check` 和两套 pytest。
 
 ## 8. 怎么跑起来（最小验证闭环）
 
@@ -219,7 +273,7 @@ scores = token_scores + score_residual
 pip install -r requirements.txt
 
 # 2. 跑测试，确认环境没问题
-pytest tests/test_clir_smoke.py    # 应该 10/10 通过
+python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py  # 应该 15/15 通过
 
 # 3. 生成 toy 数据（纯随机数，只用来验证管线通不通，不能用来判断方法有没有效）
 python examples/create_toy_clir_data.py \
@@ -250,4 +304,5 @@ python score_clir.py \
 - 不要重新审查已经在第 7 节列表里的问题，除非你怀疑修复本身不彻底——可以直接去看对应的测试是不是还在、还过不过。
 - 改 `src/consistency_localized_reward.py` 或 `src/clir_data.py` 之前，先跑一遍 `pytest tests/test_clir_smoke.py`，改完再跑一遍，别指望"看起来对"就是真的对（第 6 项 bug 就是一个纯静态阅读很难发现、必须实际跑数据才能验证的例子）。
 - 按"维护规则"（`README.md` 最后一节），改完代码要同步更新 `README.md` 的对应章节；如果改动大到影响这份交接文档里描述的架构/状态，也请同步更新这份 `docs/handoff.md`，不要让它过时——过时的交接文档比没有更糟。
-- 第 6 节的 P0 任务（真实 hidden state 抽取 + correctness 标注）是当前最大的阻塞点，建议下一步直接从这里开始，而不是继续打磨模型代码细节。
+- 第 6 节当前 P0（分片/断点续跑、冻结 query split、严格 SWIFT baseline）是最大阻塞点；
+  单题 gate 已经通过，不要反复重跑它来代替正式 baseline，也不要先继续打磨 CLIR 辅助头。
