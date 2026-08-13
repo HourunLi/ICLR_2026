@@ -11,6 +11,7 @@ from src.clir_stage_a import (
     atomic_write_jsonl,
     build_gsm8k_split_manifest,
     build_payload_record,
+    git_state,
     membership_entries,
     publish_completion_marker,
     query_shard_dir,
@@ -297,3 +298,19 @@ def test_generation_resume_exits_before_heavy_dependencies_and_does_not_rewrite(
     assert '"status": "all_complete"' in result.stdout
     assert '"skipped_queries": 1' in result.stdout
     assert marker_path.stat().st_mtime_ns == before
+
+
+def test_git_state_ignores_untracked_artifacts_but_detects_tracked_changes(tmp_path: Path):
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "CLIR Test"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.email", "clir-test@example.com"], cwd=tmp_path, check=True)
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("v1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=tmp_path, check=True)
+
+    (tmp_path / "artifact.pt").write_bytes(b"generated")
+    assert git_state(tmp_path)["dirty"] is False
+
+    tracked.write_text("v2\n", encoding="utf-8")
+    assert git_state(tmp_path)["dirty"] is True

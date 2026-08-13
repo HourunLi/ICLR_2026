@@ -1,0 +1,105 @@
+{
+  "schema_version": "clir-stage1-small-scale-v1",
+  "evidence_tier": "small-scale real",
+  "purpose": "correctness-only shared-pool baseline before any CLIR auxiliary-label pipeline",
+  "provenance_hash_algorithm": "canonical_json_sha256",
+  "protocol_config": "configs/phi35_gsm8k_pilot_v1.json",
+  "protocol_sha256": "d687e86a29bb296bd0026b478ea161c14a8dd398d08b49f6121685b02578ffdb",
+  "split_manifest": "configs/splits/gsm8k_phi35_v1.json",
+  "split_manifest_sha256": "cb7f23e3da36c253d3fe7d3a33675db2e43eafb05685bf55d65511e35f553186",
+  "selection_policy": "first_k_in_frozen_membership_order",
+  "acquisition": {
+    "train": {
+      "membership": "train_primary",
+      "max_queries": 512,
+      "candidates_per_query": 8,
+      "source_split": "train"
+    },
+    "validation": {
+      "membership": "validation",
+      "max_queries": 128,
+      "candidates_per_query": 16,
+      "source_split": "train"
+    },
+    "num_shards": 8,
+    "feature_dtype": "bfloat16",
+    "feature_layers": 33,
+    "per_layer_dim": 3072,
+    "feature_dim": 101376,
+    "estimated_feature_bytes": 353759553792,
+    "storage_safety_cap_bytes": 536870912000
+  },
+  "label_coverage_gate_before_extraction": {
+    "minimum_train_correct_candidates": 128,
+    "minimum_train_incorrect_candidates": 128,
+    "minimum_validation_mixed_queries": 32,
+    "failure_policy": "stop_before_extraction_and_freeze_a_versioned_larger_prefix; never cherry-pick queries"
+  },
+  "models": {
+    "variants": [
+      "strict_swift",
+      "encoded_swift",
+      "clir"
+    ],
+    "shared_encoder_for_encoded_swift_and_clir": {
+      "encoder_type": "layer_transformer",
+      "model_dim": 768,
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "projection_dim": 256,
+      "encoder_dropout": 0.0
+    }
+  },
+  "training": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "epochs": 5,
+    "checkpoint_selection": "final_epoch",
+    "early_stopping": false,
+    "batch_size": 2,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "amp_dtype": "bfloat16",
+    "group_by_semantic_id": false,
+    "class_reweighting": false,
+    "objective": "pointwise_correctness_bce",
+    "prior_phase_mode": "joint",
+    "auxiliary_target_policy": "all absent CLIR auxiliary targets remain masked with zero applicable count"
+  },
+  "evaluation": {
+    "membership": "validation",
+    "k": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "primary_metric": "reward_bon_accuracy@16",
+    "required_baselines": [
+      "random_expected",
+      "random_seeded",
+      "oracle",
+      "strict_swift",
+      "encoded_swift",
+      "clir"
+    ],
+    "candidate_subset": "first_k_in_generation_order",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 2000,
+    "confidence_level": 0.95,
+    "comparison_attribution": {
+      "strict_swift_to_encoded_swift": "full-layer encoder effect",
+      "encoded_swift_to_clir": "correctness-only CLIR backbone effect"
+    }
+  },
+  "test_policy": "do not acquire or inspect pilot_test until the validation protocol and conclusion are locked",
+  "status": "frozen_before_acquisition"
+}

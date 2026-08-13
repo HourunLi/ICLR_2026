@@ -7,7 +7,6 @@ import argparse
 import importlib.metadata
 import json
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any, Dict, Mapping, Sequence
 
@@ -32,6 +31,7 @@ from src.clir_stage_a import (
     atomic_write_json,
     atomic_write_jsonl,
     build_payload_record,
+    git_state,
     load_split_manifest,
     membership_entries,
     publish_completion_marker,
@@ -72,19 +72,6 @@ def _version(package: str) -> str:
         return importlib.metadata.version(package)
     except importlib.metadata.PackageNotFoundError:
         return "missing"
-
-
-def _git_state() -> Dict[str, Any]:
-    try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-        dirty_output = subprocess.check_output(
-            ["git", "status", "--porcelain"], cwd=PROJECT_ROOT, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-        return {"commit": commit, "dirty": bool(dirty_output)}
-    except (OSError, subprocess.CalledProcessError):
-        return {"commit": None, "dirty": None}
 
 
 def _atomic_torch_save(value: Any, path: Path) -> None:
@@ -428,7 +415,7 @@ def main() -> None:
                 "candidate_count": len(extracted_rows),
                 "payloads": payloads,
                 "stats": stats,
-                "code": _git_state(),
+                "code": git_state(PROJECT_ROOT),
             }
             publish_completion_marker(query_dir, "_EXTRACTION_SUCCESS.json", marker)
             aggregate_stats.append(stats)
@@ -476,7 +463,7 @@ def main() -> None:
             "transformers": _version("transformers"),
             "accelerate": _version("accelerate"),
         },
-        "code": _git_state(),
+        "code": git_state(PROJECT_ROOT),
     }
     atomic_write_json(extraction_manifest_path, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))

@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import random
+import subprocess
 from typing import Any, Callable, Dict, Iterable, Mapping, Sequence
 
 from .clir_real_data import artifact_stem, canonical_json_sha256, file_sha256
@@ -38,6 +39,27 @@ def read_json(path: str | Path) -> Dict[str, Any]:
 
 def sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def git_state(project_root: str | Path) -> Dict[str, Any]:
+    """Return code provenance while ignoring generated/untracked artifacts."""
+    root = Path(project_root).resolve()
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        tracked_changes = subprocess.check_output(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=root,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        return {"commit": commit, "dirty": bool(tracked_changes)}
+    except (OSError, subprocess.CalledProcessError):
+        return {"commit": None, "dirty": None}
 
 
 def stable_query_id(split: str, source_index: int) -> str:
@@ -299,6 +321,7 @@ __all__ = [
     "atomic_write_text",
     "build_gsm8k_split_manifest",
     "build_payload_record",
+    "git_state",
     "load_split_manifest",
     "membership_entries",
     "publish_completion_marker",

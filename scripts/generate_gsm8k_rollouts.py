@@ -7,7 +7,6 @@ import argparse
 import importlib.metadata
 import json
 from pathlib import Path
-import subprocess
 import sys
 from typing import Any, Dict
 
@@ -29,6 +28,7 @@ from src.clir_real_data import (
 from src.clir_stage_a import (
     atomic_write_jsonl,
     build_payload_record,
+    git_state,
     load_split_manifest,
     membership_entries,
     publish_completion_marker,
@@ -73,21 +73,6 @@ def _version(package: str) -> str:
         return importlib.metadata.version(package)
     except importlib.metadata.PackageNotFoundError:
         return "missing"
-
-
-def _git_state() -> Dict[str, Any]:
-    try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True, stderr=subprocess.DEVNULL
-        ).strip()
-        dirty = bool(
-            subprocess.check_output(
-                ["git", "status", "--porcelain"], cwd=PROJECT_ROOT, text=True, stderr=subprocess.DEVNULL
-            ).strip()
-        )
-        return {"commit": commit, "dirty": dirty}
-    except (OSError, subprocess.CalledProcessError):
-        return {"commit": None, "dirty": None}
 
 
 def main() -> None:
@@ -292,7 +277,7 @@ def main() -> None:
             "transformers": _version("transformers"),
             "datasets": _version("datasets"),
         },
-        "code": _git_state(),
+        "code": git_state(PROJECT_ROOT),
     }
     if shard_mode:
         common_provenance["split_manifest_sha256"] = split_manifest_hash
@@ -370,7 +355,7 @@ def main() -> None:
                     ),
                     "output_tokens": sum(len(row["output_token_ids"]) for row in query_rows),
                 },
-                "code": _git_state(),
+                "code": git_state(PROJECT_ROOT),
             }
             publish_completion_marker(query_dir, "_ROLLOUT_SUCCESS.json", marker)
     else:

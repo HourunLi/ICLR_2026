@@ -7,7 +7,6 @@ from contextlib import nullcontext
 import json
 from pathlib import Path
 import random
-import subprocess
 from typing import Any, Dict, Mapping
 
 import numpy as np
@@ -21,7 +20,7 @@ from src.clir_data import (
     move_batch_to_device,
 )
 from src.clir_real_data import file_sha256
-from src.clir_stage_a import atomic_write_json, atomic_write_jsonl
+from src.clir_stage_a import atomic_write_json, atomic_write_jsonl, git_state
 from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
@@ -307,15 +306,6 @@ def _atomic_torch_save(value: Any, path: Path) -> None:
     temporary.replace(path)
 
 
-def _git_state() -> Dict[str, Any]:
-    try:
-        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL).strip()
-        dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], text=True, stderr=subprocess.DEVNULL).strip())
-        return {"commit": commit, "dirty": dirty}
-    except (OSError, subprocess.CalledProcessError):
-        return {"commit": None, "dirty": None}
-
-
 def main() -> None:
     args = parse_args()
     if args.val_jsonl and args.val_fraction > 0:
@@ -418,7 +408,7 @@ def main() -> None:
         "model_dim": config.model_dim,
         "trainable_parameters": count_trainable_parameters(model),
         "data_state": data_state,
-        "code": _git_state(),
+        "code": git_state(Path(__file__).resolve().parent),
     }
     atomic_write_json(run_path, run_record)
     print(
@@ -456,7 +446,7 @@ def main() -> None:
                 "data_state": data_state,
                 "training_args": vars(args),
                 "metrics": metric_rows,
-                "code": _git_state(),
+                "code": git_state(Path(__file__).resolve().parent),
             }
             _atomic_torch_save(checkpoint, output)
             run_record["completed_epoch"] = epoch
