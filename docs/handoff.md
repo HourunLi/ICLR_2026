@@ -8,7 +8,8 @@
 
 - `README.md`：项目状态的滚动记录（每次改代码都会同步更新"当前进展/遇到的问题/未来解决方向"），信息和这份文档有重叠，但更新粒度更细、更像 changelog。
 - `docs/proposal.md`：研究方法设计文档，公式、符号定义、论文对照关系写得比这里详细。
-- `tests/test_clir_smoke.py`：目前所有行为契约都在这里，比文字描述更权威。
+- `tests/test_clir_smoke.py`、`tests/test_clir_real_data.py`、
+  `tests/test_clir_model_variants.py`：可执行行为契约，比文字描述更权威。
 
 ## 1. 这个项目在做什么（30 秒版本）
 
@@ -26,7 +27,7 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：单题真实 gate 已通过，下一门是可训练输入编码器 + SWIFT baseline
+## 2. 现在的状态：真实输入与 reward 架构 gate 已通过，下一门是多 query baseline
 
 这是最重要的一句话，必须先说清楚：
 
@@ -38,8 +39,14 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 验收数值：trajectory 为 `[162,101376]` / `[250,101376]`，condition 为
 `[113,101376]`，`101376 = 33 * 3072`；全部 finite、bfloat16，两条候选共享同一 condition
-文件。两条 trajectory 加 condition 实际为 106,450,149 bytes。research 层面仍未产生
-SWIFT/CLIR 效果证据，不能把 gate 或 15 个测试通过表述成方法有效。
+文件。两条 trajectory 加 condition 实际为 106,450,149 bytes。
+
+维度爆炸也已经解决：模型把 raw `input_dim=101376` 和内部 `model_dim=768` 分开，在任何
+平方复杂度模块之前对每个 token 的 `[33,3072]` 做共享投影、层轴 Transformer 和
+learned-query pooling。`strict_swift` / `encoded_swift` / `clir` 三个显式变体已在上述两条
+真实轨迹上完成 correctness-only forward/backward；参数量分别为 202,754 / 3,435,266 /
+9,547,273，全部 score、loss、gradient finite，CLIR 峰值 allocated 显存约 1.28 GB。
+research 层面仍未产生效果证据，不能把这些 gate 或测试通过表述成方法有效。
 
 checker 另审计了 17 个 query / 272 条候选：冻结 v2 checker 给出 196 positive、75
 numeric negative、1 non-numeric negative。和 SWIFT commit `41f7c9f` 的官方
@@ -53,6 +60,8 @@ numeric negative、1 non-numeric negative。和 SWIFT commit `41f7c9f` 的官方
 - `pytest tests/test_clir_smoke.py`：10/10 通过。
 - `pytest tests/test_clir_real_data.py`：5/5 通过，覆盖 exact IDs、全层拼接、严格长度检查、
   GSM8K checker 和冻结协议。
+- `pytest tests/test_clir_model_variants.py`：13/13 通过，覆盖三种变体、真实参数规模、所有层
+  的梯度、重建 target 契约和 checkpoint round-trip。
 - 端到端流程：`examples/create_toy_clir_data.py` → `train_clir.py`（带全部 CLI 参数）→ `score_clir.py`，全程无崩溃、无 NaN。
 - 针对 `SemanticGroupBatchSampler` 单独做过 300 组随机场景（组数 1-12、组大小 1-6、`batch_size` 2-10、`shuffle`/`drop_last` 全组合）共 1200 次采样的压力测试，确认 `__len__()` 与 `__iter__()` 实际产出的 batch 数一致，且每个样本在非 `drop_last` 模式下恰好被覆盖一次。
 
@@ -73,27 +82,42 @@ score_clir.py                        打分 + Best-of-N 选择入口（130 行�
 scripts/generate_gsm8k_rollouts.py  保留原始 IDs 的 vLLM 候选生成
 scripts/extract_hidden_states.py    exact-ID teacher-forced 全层特征提取
 scripts/audit_swift_checker_parity.py  对固定 SWIFT checkout 复跑 checker parity
+scripts/gate_reward_architecture.py    三种 reward 变体的真实维度前向/反向 gate
 examples/create_toy_clir_data.py     合成（随机）toy 数据生成脚本，仅用于 smoke test
 tests/test_clir_smoke.py             模型/toy 测试（10 个）
 tests/test_clir_real_data.py         真实数据契约测试（5 个）
+tests/test_clir_model_variants.py    编码器/三变体/重建目标测试（13 个）
 ```
 
 没有 CI 配置。`requirements.txt` 已包含真实生成、提取以及 SWIFT checker parity 所需的
 依赖；因为 SWIFT 官方文件把 `vllm==0.5.3.post1` 与不兼容的 `numpy==2.2.6` 同时固定，
-本仓库使用已实测可解析的 `numpy==1.26.4`。环境安装后必须跑 `pip check` 与两套 pytest。
+本仓库使用已实测可解析的 `numpy==1.26.4`。环境安装后必须跑 `pip check` 与三套 pytest。
 
 ## 3. 模型架构详解（对着代码看）
 
 入口：`ConsistencyLocalizedReward.forward()`，`src/consistency_localized_reward.py:88-173`。
 
-### 3.1 输入
+### 3.1 输入与全层编码器
 
-- `hidden_states: [batch, time, hidden_dim]`：**假设已经是抽取好的 frozen LLM hidden states**（哪几层、要不要 concat、要不要拼 logits，都是调用方决定，模型本身不关心）。
+- `hidden_states: [batch, time, input_dim]`：已经抽取好的 frozen LLM hidden states。真实协议
+  固定为 `input_dim=101376=33×3072`，而不是继续把层选择留给调用方。
 - `mask: [batch, time]`：有效 token 的 0/1 mask。
 - 可选的 query/context 条件输入，二选一或都给：
   - `condition_states/condition_mask: [batch, C, hidden_dim]`：变长的 condition token 序列（比如 query+context 拼起来的所有 token）。
-  - `condition_embedding/condition_embedding_mask: [batch, hidden_dim]`：单个已经池化好的 condition 向量。
-  - 两者都不给：模型退化成纯 SWIFT（`token_features = hidden_states` 原样传下去），这是刻意保留的 fallback，不是 bug。
+  - `condition_embedding/condition_embedding_mask: [batch, input_dim]`：单个已经池化好的 condition 向量。
+  - 两者都不给：CLIR 跳过 condition fusion；这不是严格 SWIFT，因为 CLIR 的 residual、
+    hallucination、progress 和 prior heads 仍然存在。
+
+真实主编码器将每个 token reshape 为 `[33,3072]`，使用共享 `3072→256` 投影、可学习层
+位置、2 层 8 头 Transformer、4 个 learned pooling queries，最后映射到
+`model_dim=768`。trajectory 与 condition 严格共享同一个 encoder。之后所有 Q/K/V、fusion、
+reconstructor 才在 768 维工作，因此不存在原始 `101376²` 权重。三种实验变体为：
+
+- `strict_swift`：原始输入直接 `Linear(101376,2)`；
+- `encoded_swift`：共享编码器 + SWIFT head；
+- `clir`：共享编码器 + condition fusion + CLIR heads。
+
+比较时必须三者同 candidates/features/splits。flat linear encoder 只作消融。
 
 ### 3.2 Query/Context 条件化（`_condition_token_features`，298-367 行）
 
@@ -152,8 +176,8 @@ scores = token_scores + score_residual
 
 - `key`/`complete`：有外部 `key_prior_target`/`complete_prior_target`（0/1 或 soft 标签）时才算，纯 BCE。**没有标签时这两项严格是 0**（不是"接近 0"，是精确的 0，`test_prior_loss_is_zero_without_external_targets` 验证过）——早期版本这里是无标签也常开、用自己重构自己的方式退化成"complete_prior 学成均匀分布就能拿到 0 loss"的平凡解，已经改掉了。
 - `distill`：key/complete 互相用 stop-gradient MSE 拉近（对应论文里 KSM/CSR 的交替蒸馏）。**只在 key 与 complete 都有标签覆盖的 token 上算**（`shared_prior_mask`），且比较的是"完整轨迹归一化后的原始概率"，不会对标签子集重新做一次 softmax/归一化（这也是踩过的坑，第二版实现曾经对子集重新归一化，导致标签只覆盖一小部分 token 时会人为放大那部分的权重，已经改掉）。
-- `gate`：`token_reward_head` 的 gate 被正则化去贴近 `fused_prior = α·key_prior + (1-α)·complete_prior`（`prior_fusion_alpha`，默认 0.5），这一项不需要标签也会算（只要 key 和 complete 都存在，即 head 存在，不要求有 target），但 `fused_prior` 是 `.detach()` 过的，梯度只流向 gate，不会反过来污染两个 prior head。
-- `reconstruction`：`complete_prior` 加权池化 token 特征后过一个小 MLP，回归一个**外部提供**的 `complete_reconstruction_target`（一个 `[hidden_dim]` 的向量，代表"这条轨迹该有的完整支持证据的某种摘要表示"，目前生成方式还没实现，见第 4 节）。早期版本这里没有外部 target，是拿 `complete_prior` 去重构自己池化出来的均值特征——这是一个平凡解陷阱：只要 `complete_prior` 学成均匀分布，`complete_prior` 加权池化就精确等于均值池化，reconstruction loss 直接归零，完全不需要学到任何有意义的定位。已经改成必须有外部 target 才会算这项 loss。
+- `gate`：`token_reward_head` 的 gate 被正则化去贴近 `fused_prior = α·key_prior + (1-α)·complete_prior`（`prior_fusion_alpha`，默认 0.5）。只有 key/complete target 都存在时才计算，`fused_prior` 是 `.detach()` 过的，梯度只流向 gate。
+- `reconstruction`：`complete_prior` 加权池化 token 特征后过一个小 MLP，回归一个**独立生成、固定不回传梯度**的 `complete_reconstruction_target`。真实架构中它是 `[model_dim]=[768]`，代表完整支持证据/答案摘要，不是 correctness，也不能由当前候选自己的 mean/pool 特征生成。第一阶段 target 尚不存在，因此该 loss 严格为 0。早期的自重构会让均匀 prior 平凡地重构均值，已经禁止。
 
 `phase` 参数（`joint`/`key`/`complete`）控制 DPCL 论文里"交替训练"的思路：`key`/`complete` 各自的 BCE 只在对应 phase 里算，`distill` 的两个方向也各自绑定到对应 phase，`gate`/`reconstruction` 目前不跟随 phase 切换（`gate` 靠 `.detach()` 天然不参与交替，`reconstruction` 绑定在 `complete` phase）。`train_clir.py` 默认用 `--prior_phase_mode alternate`：奇数 epoch 是 `key` phase，偶数 epoch 是 `complete` phase。
 
@@ -187,7 +211,7 @@ scores = token_scores + score_residual
 | `progress_targets` | `progress`、`progress_target` | 逐 token 的 progress head 目标值 | progress head 回归（注意和 `token_advantage` 目前语义重叠，见 3.5） |
 | `key_prior_target` | `key_prior` | 逐 token 0/1 或 soft 标签，最关键证据 | dual-prior key BCE |
 | `complete_prior_target` | `complete_prior` | 逐 token 0/1 或 soft 标签，完整支持证据 | dual-prior complete BCE |
-| `complete_reconstruction_target` | `csr_target` | `[hidden_dim]` 向量，完整支持证据的摘要表示 | dual-prior reconstruction（3.6 节提到的"必须外部提供"） |
+| `complete_reconstruction_target` | `csr_target` | `[model_dim]` 独立固定向量，完整支持证据/答案的摘要表示；第一阶段缺失 | dual-prior reconstruction（3.6 节） |
 
 **重要**：`query_id`（Best-of-N 分组）和 `semantic_id`（一致性增强分组）是两个不同粒度的概念，之前踩过混用的坑（`query_id` 曾经会 fallback 到 `semantic_id`），现在已经拆开，`query_id` 只 fallback 到 `candidate_group_id`/`prompt_id`。真实数据构造时不要把这两个字段填成一样的值，除非它们本来就该一样（toy 数据里刚好一样，容易造成误解）。
 
@@ -202,39 +226,34 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 2. **`_condition_token_features` 里"有 condition 的行过 LayerNorm、没 condition 的行不过"造成的轻微分布不一致**（3.2 节）。如果真实数据里"有没有 condition"本身有意义，需要评估这个不一致有没有影响。
 3. **`gate`/`reconstruction` 两项 dual-prior loss 不跟随 `prior_phase` 交替**（3.6 节），是否需要让它们也分 phase，目前没有定论。
 4. Best-of-N 选择目前是纯 pointwise：训练目标只有单条轨迹的 BCE + 各种辅助 loss，没有 pairwise/listwise 目标。SWIFT 原论文里 pairwise/DPO/InfoNCA/NCA 都试过，效果和 BCE 接近但没有明显更好，所以优先级不高，但如果要和 SWIFT 做严格对齐实验，这块需要补。
-5. **真实全层输入不能直接接入当前 CLIR 内部宽度。** Phi-3.5-mini 的全层拼接宽度为
-   `101376 = 33 * 3072`。当前 condition Q/K/V、fusion 和 complete reconstructor 在降维前
-   使用多个 `Linear(D,D)`，按真实 `D` 会产生约 1028 亿参数。严格 SWIFT 只使用
-   `Linear(D,2)`，不存在平方爆炸。下一步需要在所有 `D^2` 模块之前加入使用全部 33 层的
-   低维编码器，并保留“严格 SWIFT / 共享编码器 SWIFT / 共享编码器 CLIR”三组比较。该改造
-   尚未实现，不能用 toy `hidden_dim=8` 的成功实例化推断真实模型可训练。
+5. **全层编码器虽然通过两条样本的工程 gate，但效果尚未验证。** 下一步必须在多 query
+   validation 上同时比较 strict SWIFT、encoded SWIFT 和 CLIR，并监控 learned layer
+   attention；不能把编码器带来的增益归因于 CLIR，也不能用两条全正例样本估计效果。
 
 ## 6. 下一步必须做的事（按优先级）
 
 **P0（单题 gate 已完成，当前工作）**
 
-1. 实现全层感知的低维输入编码器，并在已有两条真实 trajectory 上完成参数量、
-   forward/backward 和峰值显存 gate；严格 SWIFT 原始高维线性头保持不变。
-2. 冻结 train/validation/pilot 的 query-ID 清单，先跑 32-query development acquisition，
+1. 冻结 train/validation/pilot 的 query-ID 清单，先跑 32-query development acquisition，
    重新测量长度、吞吐和容量分布。
-3. 实现 query-sharded manifest、原子写入、断点续跑和流式加载。全层 bfloat16 每 token
+2. 实现 query-sharded manifest、原子写入、断点续跑和流式加载。全层 bfloat16 每 token
    实测为 202,752 bytes；按首题平均长度外推，6000×8 train acquisition 约 2.25 TB。
-4. 在完全共享的 candidates/features/splits 上复现严格 SWIFT baseline，并跑本仓库的
-   SWIFT-style backbone；先报告 BoN@1/2/4/8/16、random 与 oracle。
-5. checker 主标签固定为 `clir_gsm8k_numeric_v2`，同时运行官方 `evaluate_math` parity；
+3. 在完全共享的 candidates/features/splits 上训练 `strict_swift`、`encoded_swift`、`clir`
+   correctness-only baseline；先报告 BoN@1/2/4/8/16、random 与 oracle。
+4. checker 主标签固定为 `clir_gsm8k_numeric_v2`，同时运行官方 `evaluate_math` parity；
    不允许把修正口径写成官方原样口径，也不能因为存储压力把主路径降成最后 4 层。
 
 **P1（跑通 SWIFT baseline 之后，逐步加 CLIR 的三个模块）**
 
-3. **LLM rewrite augmentation 流水线**：给每条原始 trajectory 生成 K 个"改写题干风格/长度/context 顺序/domain 表面形式"的版本，用 verifier 过滤掉改变了答案或证据关系的改写，产出 `semantic_id`/`style_id`/`domain_id` 元数据。做完这一步才能真正测试 PRISM 一致性 loss 有没有用。
-4. **幻觉标注流水线**：至少要有 path-level 的 `path_hallucinated`（弱监督），有条件的话再加 token-level 的 `hallucination_onset`（强监督）。可以用 verifier/LLM judge 对着 query+context 检查每一步 claim 有没有支持依据。
-5. **dual-prior target 生成**：`key_prior_target`/`complete_prior_target`/`complete_reconstruction_target` 目前都要外部提供，需要设计怎么从 query/context entailment 或 verifier score 生成弱 prior（可以参考 `docs/proposal.md` 里 Dual-Prior Localization View 一节的思路）。
+5. **LLM rewrite augmentation 流水线**：给每条原始 trajectory 生成 K 个"改写题干风格/长度/context 顺序/domain 表面形式"的版本，用 verifier 过滤掉改变了答案或证据关系的改写，产出 `semantic_id`/`style_id`/`domain_id` 元数据。做完这一步才能真正测试 PRISM 一致性 loss 有没有用。
+6. **幻觉标注流水线**：至少要有 path-level 的 `path_hallucinated`（弱监督），有条件的话再加 token-level 的 `hallucination_onset`（强监督）。可以用 verifier/LLM judge 对着 query+context 检查每一步 claim 有没有支持依据。
+7. **dual-prior target 生成**：`key_prior_target`/`complete_prior_target`/`complete_reconstruction_target` 目前都要外部提供，需要设计怎么从 query/context entailment 或 verifier score 生成弱 prior（可以参考 `docs/proposal.md` 里 Dual-Prior Localization View 一节的思路）。
 
 **P2（跑完第一轮实验之后再看）**
 
-6. 把训练目标从纯 pointwise BCE 扩展成 pairwise/listwise（DPO/InfoNCA/NCA），和 SWIFT 论文附录 E.1 的消融对齐。
-7. 在真 GPU + 完整依赖环境跑一遍 end-to-end small-scale training，看这套方法在 Best-of-N accuracy / 幻觉率 / worst-augmentation accuracy 上到底有没有比 SWIFT-only backbone 好（`docs/proposal.md` 的 Evaluation Plan 一节已经定义好了要看哪些指标、哪些消融）。
-8. 解决第 5 节列的开放问题（token_values 拆分、condition LayerNorm 不一致、gate/reconstruction 要不要分 phase）。
+8. 把训练目标从纯 pointwise BCE 扩展成 pairwise/listwise（DPO/InfoNCA/NCA），和 SWIFT 论文附录 E.1 的消融对齐。
+9. 在真 GPU + 完整依赖环境跑一遍 end-to-end small-scale training，看这套方法在 Best-of-N accuracy / 幻觉率 / worst-augmentation accuracy 上到底有没有比 SWIFT-only backbone 好（`docs/proposal.md` 的 Evaluation Plan 一节已经定义好了要看哪些指标、哪些消融）。
+10. 解决第 5 节列的开放问题（token_values 拆分、condition LayerNorm 不一致、gate/reconstruction 要不要分 phase）。
 
 ## 7. Bug 修复历史（给想知道"为什么现在长这样"的人）
 
@@ -264,7 +283,7 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 所用的 `vllm==0.5.3.post1`，以及官方 checker parity 所需的 `pylatexenc` / `latex2sympy2`。
 vLLM 明确要求 `numpy==1.26.4`，因此项目不再沿用
 SWIFT 文件里与 vLLM 冲突的 `numpy==2.2.6`；这也与本地 SWIFT 复现报告中的环境修正
-一致。依赖变更后必须运行 `python -m pip check` 和两套 pytest。
+一致。依赖变更后必须运行 `python -m pip check` 和三套 pytest。
 
 ## 8. 怎么跑起来（最小验证闭环）
 
@@ -273,7 +292,7 @@ SWIFT 文件里与 vLLM 冲突的 `numpy==2.2.6`；这也与本地 SWIFT 复现�
 pip install -r requirements.txt
 
 # 2. 跑测试，确认环境没问题
-python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py  # 应该 15/15 通过
+python -m pytest -q  # 应该 28/28 通过
 
 # 3. 生成 toy 数据（纯随机数，只用来验证管线通不通，不能用来判断方法有没有效）
 python examples/create_toy_clir_data.py \
@@ -304,5 +323,6 @@ python score_clir.py \
 - 不要重新审查已经在第 7 节列表里的问题，除非你怀疑修复本身不彻底——可以直接去看对应的测试是不是还在、还过不过。
 - 改 `src/consistency_localized_reward.py` 或 `src/clir_data.py` 之前，先跑一遍 `pytest tests/test_clir_smoke.py`，改完再跑一遍，别指望"看起来对"就是真的对（第 6 项 bug 就是一个纯静态阅读很难发现、必须实际跑数据才能验证的例子）。
 - 按"维护规则"（`README.md` 最后一节），改完代码要同步更新 `README.md` 的对应章节；如果改动大到影响这份交接文档里描述的架构/状态，也请同步更新这份 `docs/handoff.md`，不要让它过时——过时的交接文档比没有更糟。
-- 第 6 节当前 P0（分片/断点续跑、冻结 query split、严格 SWIFT baseline）是最大阻塞点；
-  单题 gate 已经通过，不要反复重跑它来代替正式 baseline，也不要先继续打磨 CLIR 辅助头。
+- 第 6 节当前 P0（冻结 query split、分片/断点续跑、三变体 baseline）是最大阻塞点；
+  两条真实轨迹 gate 已经通过，不要反复重跑它来代替正式 baseline，也不要先继续打磨
+  CLIR 辅助头。

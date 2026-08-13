@@ -114,6 +114,34 @@ len(output_token_ids)
 
 加载器不得通过静默 pad/trim 把正式数据的错位隐藏掉。
 
+### Reward 输入编码与三种强制对照
+
+原始特征仍完整保留 33 组状态，即每个 token 的输入为
+`D_raw = 33 × 3072 = 101376`。但 CLIR 内部不得把 `D_raw` 当作 attention、fusion 或
+reconstruction 的工作宽度，因为 `Linear(D_raw,D_raw)` 会产生约 102.8B 参数。主编码器
+在任何平方复杂度操作之前执行：
+
+1. 将每个 token reshape 为 `[33,3072]`，不丢弃任何层；
+2. 对每层使用共享的 `3072 → 256` 投影并加入可学习层位置；
+3. 使用 2 层、8 头的 layer-axis Transformer 建模层间关系；
+4. 使用 4 个可学习 query 对 33 层做 attention pooling；
+5. 将结果映射为 `model_dim=768`，后续 CLIR 模块只在 768 维工作。
+
+必须在完全相同的 candidates、features、correctness 和 split 上训练三种显式变体：
+
+- `strict_swift`：原始 101376 维直接接官方形式的 `Linear(D_raw,2)`，不使用编码器；
+- `encoded_swift`：共享上述编码器，只接 SWIFT gate/reward head；
+- `clir`：共享同一个编码器，再接 condition fusion 与 CLIR auxiliary heads。
+
+这样 `strict_swift → encoded_swift` 测量编码器影响，`encoded_swift → clir` 才测量 CLIR
+方法模块的增量。`flat_linear` 只允许作为开发/消融变体，不能替代主编码器。
+
+`complete_reconstruction_target` 不是 correctness 标量，也不是当前候选 trajectory 自己的
+均值。它必须是独立生成、固定不回传梯度的完整证据/答案摘要向量，宽度等于
+`model_dim=768`。第一阶段真实数据还没有这种外部目标，所以字段缺失时 reconstruction
+loss 必须严格等于 0；禁止用当前候选自身池化特征伪造 target。这个缺失不阻塞
+strict/encoded SWIFT 或 correctness-only CLIR baseline。
+
 ## 5. Correctness 与 Best-of-N
 
 - correctness checker 使用原始 response，而不是重建的 steps。
@@ -137,7 +165,8 @@ query 做 paired bootstrap confidence interval，并跨多个训练 seed 报告�
 
 ## 6. 阶段门与尚未冻结的事项
 
-当前最早阻塞门是 Stage 1 的真实数据与严格对齐提取。扩大数据前必须通过：
+Stage 1 的真实数据与严格对齐提取、以及 reward architecture gate 均已通过。扩大数据前
+仍必须保持以下验收条件：
 
 1. 原始 token IDs decode 后能恢复保存的 response；
 2. `[T,D]` 的 `T` 与 output IDs 严格一致；
@@ -168,6 +197,11 @@ Stage 1 单题 gate 已通过，但这只是工程验收，不是 SWIFT/CLIR 效
   同时披露该 parity diagnostic。
 - 模型已缓存时，单题 16 candidates 的 vLLM 初始化加生成约半分钟，2 条全层提取约
   20--25 秒；首次约 7.6 GB 权重下载耗时约 5 分钟。吞吐需在分片提取实现后重新测量。
+- 同一两条真实 trajectory/condition 上，三种 reward 变体均完成 correctness-only
+  forward/backward，scores、loss 和 gradients 全部 finite。`strict_swift`、
+  `encoded_swift`、`clir` 的可训练参数分别为 202,754、3,435,266、9,547,273；CLIR 最大
+  参数矩阵为 `[768,3073]`，不含原始宽度平方矩阵。L20Z 上三者峰值 allocated 显存分别约
+  0.22/0.98/1.28 GB。该结果只证明架构和数据链路可运行，不证明 reward 有效。
 
 尚未冻结、不能由实现者自行假定的研究选择：
 

@@ -295,7 +295,7 @@ python score_clir.py \
 python -c "import json, pathlib; p=pathlib.Path('$RUN_DIR/clir_toy_scores.jsonl'); rows=[json.loads(line) for line in p.read_text().splitlines()]; print('rows:', len(rows)); print('scored:', sum('clir_score' in row for row in rows)); print('selected:', sum(row['clir_selected_best_of_n'] for row in rows))"
 ```
 
-本手册中的 toy 闭环已在 `SWIFT` 环境中实际验证：15 个测试全部通过，成功生成 6 条
+本手册中的 toy 闭环已在 `SWIFT` 环境中实际验证；当前全仓库 28 个测试全部通过，成功生成 6 条
 toy 数据，训练 3 个 epoch，完成 6 条打分，并为 3 个 query 各选出 1 条候选。
 
 ## 9. 第一条 Phi-3.5-mini + GSM8K 真实对齐 gate
@@ -373,6 +373,50 @@ python -c "from src.clir_data import CLIRTrajectoryDataset; d=CLIRTrajectoryData
 不要被生成摘要里的 `decode_mismatches` 误导：当前 vLLM 的 `candidate.text` 统一比按原始
 IDs decode 的 `response` 多一个前导空格，272/272 条的正文均完全一致。协议规定原始 IDs
 及其 decode 结果是事实来源。
+
+### 在真实特征上验收 reward 架构
+
+下面的 gate 读取同一个 manifest，依次运行 strict SWIFT、encoded SWIFT 和 CLIR。它只用
+correctness BCE，不会在缺少外部 target 时偷偷启用 reconstruction：
+
+```bash
+python scripts/gate_reward_architecture.py \
+  --manifest "$PROJECT_ROOT/run_artifacts/phi35_gsm8k_gate/extracted.jsonl" \
+  --output_json "$PROJECT_ROOT/run_artifacts/phi35_gsm8k_gate/reward_architecture_gate.json" \
+  --rows 2 \
+  --device cuda:0 \
+  --input_dtype bfloat16
+```
+
+2026-08-13 的已验收结果：
+
+| variant | encoder | 参数量 | 最大参数矩阵 | peak allocated |
+|---|---:|---:|---:|---:|
+| `strict_swift` | identity | 202,754 | `[2,101376]` | 0.22 GB |
+| `encoded_swift` | layer Transformer | 3,435,266 | `[256,3072]` | 0.98 GB |
+| `clir` | layer Transformer | 9,547,273 | `[768,3073]` | 1.28 GB |
+
+三者的 score、loss 和梯度全部 finite；layer pooling attention 对 33 层的概率和误差不超过
+`1.2e-7`。这证明维度与反向链路成立，不证明训练后能改善 Best-of-N。
+
+正式训练时三个命令必须明确写出不同的 `--model_variant`。`strict_swift` 使用默认 identity；
+另外两个至少写出以下共同编码器参数：
+
+```bash
+--encoder_type layer_transformer \
+--hidden_dim 101376 \
+--model_dim 768 \
+--num_feature_layers 33 \
+--per_layer_dim 3072 \
+--layer_encoder_dim 256 \
+--layer_encoder_blocks 2 \
+--layer_encoder_heads 8 \
+--layer_pool_queries 4
+```
+
+第一阶段 manifest 没有 `complete_reconstruction_target` 是预期状态：它必须来自独立生成的
+固定证据/答案摘要，形状为 `[768]`，不能拿当前候选自己的 mean/pool 特征代替。缺失时
+`prior_reconstruction` 必须为 0，correctness-only baseline 仍可正常训练。
 
 ## 10. Checker 审计与 SWIFT parity
 

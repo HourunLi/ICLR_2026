@@ -254,7 +254,25 @@ def test_train_cli_exposes_new_reward_config_fields():
         "--output_model",
         "model.pt",
         "--hidden_dim",
+        "24",
+        "--model_variant",
+        "encoded_swift",
+        "--encoder_type",
+        "layer_transformer",
+        "--model_dim",
+        "12",
+        "--num_feature_layers",
+        "3",
+        "--per_layer_dim",
         "8",
+        "--layer_encoder_dim",
+        "8",
+        "--layer_encoder_blocks",
+        "1",
+        "--layer_encoder_heads",
+        "2",
+        "--layer_pool_queries",
+        "2",
         "--condition_attention_temperature",
         "0.7",
         "--progress_score_weight",
@@ -266,3 +284,8 @@ def test_train_cli_exposes_new_reward_config_fields():
 
     assert config.condition_attention_temperature == 0.7
     assert config.progress_score_weight == 0.25
+    assert config.model_variant == "encoded_swift"
+    assert config.encoder_type == "layer_transformer"
+    assert config.model_dim == 12
+    assert config.num_feature_layers == 3
+    assert config.per_layer_dim == 8

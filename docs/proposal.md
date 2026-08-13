@@ -45,6 +45,25 @@ every token-localized CLIR target indexed to the same generated sequence. The fu
 checkpoint/data revisions, generation settings, and terminal-token policy are recorded in
 `docs/pilot_protocol.md` and `configs/phi35_gsm8k_pilot_v1.json`.
 
+### Full-layer encoder and controlled baselines
+
+For Phi-3.5-mini, the raw per-token width is `D_raw = 33 * 3072 = 101376`. CLIR cannot apply
+dense `D_raw -> D_raw` condition attention or fusion because that makes parameter complexity
+quadratic in the raw concatenation. The primary encoder therefore reshapes every token to
+`[33, 3072]`, applies one shared `3072 -> 256` layer projection, models the 33 layer vectors with
+a two-block layer-axis Transformer, pools them with four learned attention queries, and projects
+the result to `D_model = 768`. No layer is discarded, and all CLIR quadratic modules operate only
+after this compression. The returned layer-pooling attention is retained as a diagnostic.
+
+The experiment must separate three model variants on identical frozen features:
+
+- `strict_swift`: raw all-layer features followed directly by `Linear(D_raw, 2)`;
+- `encoded_swift`: the shared full-layer encoder followed only by the SWIFT gate/reward head;
+- `clir`: the same encoder followed by condition fusion and all CLIR objectives.
+
+The first contrast measures the encoder's effect; only the second contrast isolates the increment
+from CLIR. A flat `D_raw -> D_model` projection is retained only as an encoder ablation.
+
 The reward model outputs:
 
 ```text
@@ -192,10 +211,11 @@ The current repository implements a guarded proxy of this idea in `src/consisten
 - key/complete prior heads are always predicted for inspection;
 - key/complete supervised losses are used only when external prior targets are present;
 - mutual stop-gradient distillation and gate-prior regularization are evaluated only on tokens where both prior branches have label coverage, while preserving their probability mass from the full trajectory attention distribution;
-- complete-prior reconstruction is enabled only when an external `complete_reconstruction_target` is present;
+- complete-prior reconstruction is enabled only when an independently generated, fixed
+  `complete_reconstruction_target` of width `D_model` is present;
 - `train_clir.py` supports `joint`, `key`, `complete`, and epoch-level `alternate` prior optimization.
 
-This avoids the degenerate self-reconstruction solution where a uniform complete prior can trivially reconstruct the average trajectory feature. A full paper implementation should replace the current target embedding with a stronger CSR-style target generated from masked supported-answer descriptions or verifier-derived evidence summaries.
+This avoids the degenerate self-reconstruction solution where a uniform complete prior can trivially reconstruct the average trajectory feature. Stage 1 has no such real target, so this loss is exactly zero rather than being trained on a self-derived proxy. A full paper implementation should generate the target independently from masked supported-answer descriptions or verifier-derived evidence summaries, freeze it, and map it to `D_model` before training the reward model.
 
 One open modeling choice is how much the progress head should contribute to the final token value. The current code uses `token_values = token_rewards + progress_score_weight * progress`, then applies hallucination-tail shaping to `token_values`. This keeps final scoring aligned with the localized penalty, but real annotations should test whether reward and progress need stronger separation.
 

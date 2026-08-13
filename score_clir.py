@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device, write_jsonl
 from src.consistency_localized_reward import (
-    ConsistencyLocalizedReward,
     RewardConfig,
+    build_reward_model,
     infer_pseudo_onsets,
     path_hallucination_probability,
     select_best_of_n,
@@ -41,10 +41,10 @@ def resolve_device(name: str) -> torch.device:
     return torch.device(name)
 
 
-def load_model(path: str | Path, device: torch.device) -> ConsistencyLocalizedReward:
+def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
     checkpoint = torch.load(path, map_location=device)
     config = RewardConfig(**checkpoint["config"])
-    model = ConsistencyLocalizedReward(config).to(device)
+    model = build_reward_model(config).to(device)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
     return model
@@ -57,6 +57,7 @@ def main() -> None:
     dataset = CLIRTrajectoryDataset(args.input_jsonl, feature_root=args.feature_root)
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=clir_collate)
     model = load_model(args.model, device)
+    model_variant = model.config.model_variant
 
     rows: List[Dict] = [dict(row) for row in dataset.rows]
     scored_row_indices: List[int] = []
@@ -75,37 +76,54 @@ def main() -> None:
             condition_embedding=batch.get("condition_embedding"),
             condition_embedding_mask=batch.get("condition_embedding_mask"),
         )
-        path_probs = path_hallucination_probability(outputs["hallucination_logits"], outputs["mask"])
-        pseudo_onsets = infer_pseudo_onsets(
-            outputs["hallucination_logits"],
-            outputs["mask"],
-            threshold=args.onset_threshold,
-        )
+        path_probs = None
+        pseudo_onsets = None
+        if "hallucination_logits" in outputs:
+            path_probs = path_hallucination_probability(outputs["hallucination_logits"], outputs["mask"])
+            pseudo_onsets = infer_pseudo_onsets(
+                outputs["hallucination_logits"],
+                outputs["mask"],
+                threshold=args.onset_threshold,
+            )
 
         for local_idx, row_index in enumerate(row_indices):
             row = rows[row_index]
             valid_length = int(batch["mask"][local_idx].sum().detach().cpu())
-            row["clir_score"] = float(outputs["scores"][local_idx].detach().cpu())
-            row["clir_path_hallucination_prob"] = float(path_probs[local_idx].detach().cpu())
-            row["clir_pseudo_onset"] = int(pseudo_onsets[local_idx].detach().cpu())
-            row["clir_mean_gate"] = float(outputs["gates"][local_idx, :valid_length].mean().detach().cpu())
+            row["reward_model_variant"] = model_variant
+            row["reward_score"] = float(outputs["scores"][local_idx].detach().cpu())
+            row["reward_mean_gate"] = float(
+                outputs["gates"][local_idx, :valid_length].mean().detach().cpu()
+            )
+            if model_variant == "clir":
+                row["clir_score"] = row["reward_score"]
+                row["clir_mean_gate"] = row["reward_mean_gate"]
+            else:
+                row["swift_score"] = row["reward_score"]
             gate_attention = outputs["gates"][local_idx] / outputs["gates"][local_idx].sum().clamp_min(1e-8)
-            prior_alignment = torch.sum(gate_attention * outputs["fused_prior"][local_idx])
-            row["clir_prior_gate_alignment"] = float(prior_alignment.detach().cpu())
-            row["clir_condition_relevance"] = [
-                float(x) for x in outputs["condition_relevance"][local_idx, :valid_length].detach().cpu().tolist()
-            ]
-            row["clir_gate_attention"] = [
+            row["reward_gate_attention"] = [
                 float(x) for x in gate_attention[:valid_length].detach().cpu().tolist()
             ]
-            row["clir_key_prior"] = [
-                float(x) for x in outputs["key_prior"][local_idx, :valid_length].detach().cpu().tolist()
-            ]
-            row["clir_complete_prior"] = [
-                float(x) for x in outputs["complete_prior"][local_idx, :valid_length].detach().cpu().tolist()
-            ]
+            if path_probs is not None and pseudo_onsets is not None:
+                row["clir_path_hallucination_prob"] = float(path_probs[local_idx].detach().cpu())
+                row["clir_pseudo_onset"] = int(pseudo_onsets[local_idx].detach().cpu())
+                prior_alignment = torch.sum(gate_attention * outputs["fused_prior"][local_idx])
+                row["clir_prior_gate_alignment"] = float(prior_alignment.detach().cpu())
+                row["clir_condition_relevance"] = [
+                    float(x)
+                    for x in outputs["condition_relevance"][local_idx, :valid_length].detach().cpu().tolist()
+                ]
+                row["clir_gate_attention"] = row["reward_gate_attention"]
+                row["clir_key_prior"] = [
+                    float(x) for x in outputs["key_prior"][local_idx, :valid_length].detach().cpu().tolist()
+                ]
+                row["clir_complete_prior"] = [
+                    float(x) for x in outputs["complete_prior"][local_idx, :valid_length].detach().cpu().tolist()
+                ]
+            if "trajectory_layer_attention" in outputs:
+                layer_attention = outputs["trajectory_layer_attention"][local_idx, :valid_length]
+                row["mean_layer_pool_attention"] = layer_attention.mean(dim=0).detach().cpu().tolist()
             scored_row_indices.append(row_index)
-            scored_scores.append(row["clir_score"])
+            scored_scores.append(row["reward_score"])
             scored_query_ids.append(str(query_ids_raw[local_idx]))
 
     query_to_int: Dict[str, int] = {}
@@ -120,7 +138,9 @@ def main() -> None:
     )
     selected_indices = {scored_row_indices[local_idx] for local_idx in best_local_indices.values()}
     for idx, row in enumerate(rows):
-        row["clir_selected_best_of_n"] = idx in selected_indices
+        row["reward_selected_best_of_n"] = idx in selected_indices
+        if model_variant == "clir":
+            row["clir_selected_best_of_n"] = idx in selected_indices
 
     write_jsonl(args.output_jsonl, rows)
     print(f"wrote {args.output_jsonl}")

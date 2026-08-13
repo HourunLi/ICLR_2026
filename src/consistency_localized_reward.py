@@ -9,9 +9,10 @@ It uses SWIFT as an architectural reference, not as a dependency:
 4. DPCL-inspired key/complete dual-prior localization for grounded reasoning.
 
 Inputs are pre-extracted hidden states with shape [batch, time, hidden_dim].
-Optional condition states can encode query/context and are fused into token
-features through token-level attention before reward and localization heads are
-applied.
+For real all-layer features, ``hidden_dim`` is the raw concatenated width while
+``model_dim`` is the compact width used by CLIR's quadratic modules. Optional
+condition states are encoded by the same feature encoder as trajectory states,
+then fused through token-level attention before reward and localization heads.
 """
 
 from __future__ import annotations
@@ -27,6 +28,16 @@ import torch.nn.functional as F
 @dataclass
 class RewardConfig:
     hidden_dim: int
+    model_variant: str = "clir"
+    encoder_type: str = "identity"
+    model_dim: Optional[int] = None
+    num_feature_layers: int = 1
+    per_layer_dim: Optional[int] = None
+    layer_encoder_dim: int = 256
+    layer_encoder_blocks: int = 2
+    layer_encoder_heads: int = 8
+    layer_pool_queries: int = 4
+    encoder_dropout: float = 0.0
     projection_dim: int = 256
     consistency_margin: float = 0.2
     negative_tail_margin: float = 0.5
@@ -52,37 +63,327 @@ class RewardConfig:
     gate_prior_weight: float = 0.25
     reconstruction_weight: float = 0.1
 
+    def __post_init__(self) -> None:
+        if self.hidden_dim <= 0:
+            raise ValueError("hidden_dim must be positive")
+        if self.model_variant not in {"strict_swift", "encoded_swift", "clir"}:
+            raise ValueError("model_variant must be one of: strict_swift, encoded_swift, clir")
+        if self.encoder_type not in {"identity", "flat_linear", "layer_transformer"}:
+            raise ValueError("encoder_type must be one of: identity, flat_linear, layer_transformer")
+
+        if self.model_dim is None:
+            self.model_dim = (
+                self.hidden_dim
+                if self.encoder_type == "identity"
+                else min(self.hidden_dim, 768)
+            )
+        if self.model_dim <= 0:
+            raise ValueError("model_dim must be positive")
+
+        if self.num_feature_layers <= 0:
+            raise ValueError("num_feature_layers must be positive")
+        if self.per_layer_dim is None:
+            if self.hidden_dim % self.num_feature_layers != 0:
+                raise ValueError("hidden_dim must be divisible by num_feature_layers")
+            self.per_layer_dim = self.hidden_dim // self.num_feature_layers
+        if self.hidden_dim != self.num_feature_layers * self.per_layer_dim:
+            raise ValueError("hidden_dim must equal num_feature_layers * per_layer_dim")
+
+        if self.encoder_type == "identity" and self.model_dim != self.hidden_dim:
+            raise ValueError("identity encoder requires model_dim == hidden_dim")
+        if self.model_variant == "strict_swift" and self.encoder_type != "identity":
+            raise ValueError("strict_swift is the unencoded baseline and requires encoder_type='identity'")
+        if self.model_variant == "encoded_swift" and self.encoder_type == "identity":
+            raise ValueError("encoded_swift requires a non-identity encoder")
+        if (
+            self.model_variant == "clir"
+            and self.encoder_type == "identity"
+            and self.hidden_dim >= 65_536
+        ):
+            raise ValueError(
+                "identity CLIR would apply quadratic modules at the raw feature width; "
+                "use encoder_type='layer_transformer' and a compact model_dim"
+            )
+        if self.layer_encoder_dim <= 0 or self.layer_encoder_blocks <= 0:
+            raise ValueError("layer encoder dimensions and block count must be positive")
+        if self.layer_encoder_heads <= 0:
+            raise ValueError("layer_encoder_heads must be positive")
+        if self.layer_encoder_dim % self.layer_encoder_heads != 0:
+            raise ValueError("layer_encoder_dim must be divisible by layer_encoder_heads")
+        if self.layer_pool_queries <= 0:
+            raise ValueError("layer_pool_queries must be positive")
+        if not 0.0 <= self.encoder_dropout < 1.0:
+            raise ValueError("encoder_dropout must be in [0, 1)")
+
+
+class IdentityFeatureEncoder(nn.Module):
+    """Pass through already compact token features."""
+
+    def forward(self, hidden_states: Tensor) -> Tuple[Tensor, Optional[Tensor]]:
+        return hidden_states, None
+
+
+class FlatLinearFeatureEncoder(nn.Module):
+    """Unstructured full-width projection used as a development ablation."""
+
+    def __init__(self, input_dim: int, model_dim: int) -> None:
+        super().__init__()
+        self.input_norm = nn.LayerNorm(input_dim)
+        self.projection = nn.Linear(input_dim, model_dim)
+        self.output_norm = nn.LayerNorm(model_dim)
+
+    def forward(self, hidden_states: Tensor) -> Tuple[Tensor, Optional[Tensor]]:
+        encoded = self.projection(self.input_norm(hidden_states))
+        return self.output_norm(F.gelu(encoded)), None
+
+
+class LayerAxisFeatureEncoder(nn.Module):
+    """Compress every token while preserving and modeling its full layer axis.
+
+    The raw concatenation is reshaped to ``[layers, per_layer_dim]``. A shared
+    low-rank projection, learned depth positions, a small Transformer over the
+    layer axis, and learned pooling queries produce one compact token vector.
+    Pool attention is returned for diagnostics as ``[B, T, K, L]``.
+    """
+
+    def __init__(self, config: RewardConfig) -> None:
+        super().__init__()
+        self.input_dim = config.hidden_dim
+        self.num_feature_layers = config.num_feature_layers
+        self.per_layer_dim = int(config.per_layer_dim)
+        self.layer_encoder_dim = config.layer_encoder_dim
+        self.layer_pool_queries = config.layer_pool_queries
+
+        self.input_norm = nn.LayerNorm(self.per_layer_dim)
+        self.input_projection = nn.Linear(self.per_layer_dim, self.layer_encoder_dim)
+        self.layer_positions = nn.Parameter(
+            torch.empty(1, self.num_feature_layers, self.layer_encoder_dim)
+        )
+        encoder_layer = nn.TransformerEncoderLayer(
+            d_model=self.layer_encoder_dim,
+            nhead=config.layer_encoder_heads,
+            dim_feedforward=self.layer_encoder_dim * 4,
+            dropout=config.encoder_dropout,
+            activation="gelu",
+            batch_first=True,
+            norm_first=True,
+        )
+        self.layer_transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=config.layer_encoder_blocks,
+            enable_nested_tensor=False,
+        )
+        self.pool_queries = nn.Parameter(
+            torch.empty(1, self.layer_pool_queries, self.layer_encoder_dim)
+        )
+        self.layer_pool = nn.MultiheadAttention(
+            embed_dim=self.layer_encoder_dim,
+            num_heads=config.layer_encoder_heads,
+            dropout=config.encoder_dropout,
+            batch_first=True,
+        )
+        self.output_projection = nn.Linear(
+            self.layer_pool_queries * self.layer_encoder_dim,
+            int(config.model_dim),
+        )
+        self.output_norm = nn.LayerNorm(int(config.model_dim))
+        nn.init.normal_(self.layer_positions, mean=0.0, std=0.02)
+        nn.init.normal_(self.pool_queries, mean=0.0, std=0.02)
+
+    def forward(self, hidden_states: Tensor) -> Tuple[Tensor, Optional[Tensor]]:
+        if hidden_states.ndim != 3 or hidden_states.shape[-1] != self.input_dim:
+            raise ValueError(
+                f"layer encoder expects [batch, time, {self.input_dim}], "
+                f"got {tuple(hidden_states.shape)}"
+            )
+        batch, time, _ = hidden_states.shape
+        layer_states = hidden_states.reshape(
+            batch * time,
+            self.num_feature_layers,
+            self.per_layer_dim,
+        )
+        layer_states = self.input_projection(self.input_norm(layer_states))
+        layer_states = self.layer_transformer(layer_states + self.layer_positions)
+
+        queries = self.pool_queries.expand(batch * time, -1, -1)
+        pooled, attention = self.layer_pool(
+            queries,
+            layer_states,
+            layer_states,
+            need_weights=True,
+            average_attn_weights=True,
+        )
+        encoded = pooled.flatten(start_dim=1)
+        encoded = self.output_norm(F.gelu(self.output_projection(encoded)))
+        return (
+            encoded.reshape(batch, time, -1),
+            attention.reshape(
+                batch,
+                time,
+                self.layer_pool_queries,
+                self.num_feature_layers,
+            ),
+        )
+
+
+def build_feature_encoder(config: RewardConfig) -> nn.Module:
+    if config.encoder_type == "identity":
+        return IdentityFeatureEncoder()
+    if config.encoder_type == "flat_linear":
+        return FlatLinearFeatureEncoder(config.hidden_dim, int(config.model_dim))
+    return LayerAxisFeatureEncoder(config)
+
+
+def _validate_raw_features(hidden_states: Tensor, config: RewardConfig, name: str) -> None:
+    if hidden_states.ndim != 3:
+        raise ValueError(f"{name} must have shape [batch, time, hidden_dim]")
+    if hidden_states.shape[-1] != config.hidden_dim:
+        raise ValueError(
+            f"{name} hidden_dim mismatch: got {hidden_states.shape[-1]}, expected {config.hidden_dim}"
+        )
+
+
+def _swift_outputs(token_features: Tensor, mask: Tensor, token_head: nn.Linear, eps: float) -> Dict[str, Tensor]:
+    token_output = token_head(token_features)
+    gate_logits = token_output[..., 0]
+    token_rewards = token_output[..., 1]
+    gates = torch.sigmoid(gate_logits) * mask
+    scores = (gates * token_rewards).sum(dim=1) / gates.sum(dim=1).clamp_min(eps)
+    return {
+        "scores": scores,
+        "token_rewards": token_rewards,
+        "token_values": token_rewards,
+        "token_scores": scores,
+        "gate_logits": gate_logits,
+        "gates": gates,
+        "token_features": token_features,
+        "mask": mask,
+    }
+
+
+class SwiftRewardBase(nn.Module):
+    """Shared correctness-only training contract for strict/encoded SWIFT."""
+
+    config: RewardConfig
+
+    def training_step(
+        self,
+        batch: Dict[str, Tensor],
+        prior_phase: str = "joint",
+    ) -> Tuple[Dict[str, Tensor], Dict[str, Tensor]]:
+        del prior_phase
+        outputs = self.forward(
+            batch["hidden_states"],
+            mask=batch.get("mask"),
+            condition_states=batch.get("condition_states"),
+            condition_mask=batch.get("condition_mask"),
+            condition_embedding=batch.get("condition_embedding"),
+            condition_embedding_mask=batch.get("condition_embedding_mask"),
+        )
+        total = outputs["scores"].new_zeros(())
+        losses: Dict[str, Tensor] = {}
+        if "correctness" in batch:
+            target = batch["correctness"].to(outputs["scores"]).view_as(outputs["scores"])
+            final = F.binary_cross_entropy_with_logits(outputs["scores"].float(), target.float())
+            losses["final"] = final
+            total = total + self.config.final_weight * final
+        losses["total"] = total
+        return outputs, losses
+
+
+class StrictSwiftReward(SwiftRewardBase):
+    """Official SWIFT-style full-width Linear(D, 2) reward/gate baseline."""
+
+    def __init__(self, config: RewardConfig) -> None:
+        super().__init__()
+        if config.model_variant != "strict_swift":
+            raise ValueError("StrictSwiftReward requires model_variant='strict_swift'")
+        self.config = config
+        self.token_reward_head = nn.Linear(config.hidden_dim, 2)
+
+    def forward(
+        self,
+        hidden_states: Tensor,
+        mask: Optional[Tensor] = None,
+        condition_states: Optional[Tensor] = None,
+        condition_mask: Optional[Tensor] = None,
+        condition_embedding: Optional[Tensor] = None,
+        condition_embedding_mask: Optional[Tensor] = None,
+    ) -> Dict[str, Tensor]:
+        del condition_states, condition_mask, condition_embedding, condition_embedding_mask
+        _validate_raw_features(hidden_states, self.config, "hidden_states")
+        if mask is None:
+            mask = hidden_states.new_ones(hidden_states.shape[:2])
+        mask = mask.to(device=hidden_states.device, dtype=hidden_states.dtype)
+        return _swift_outputs(hidden_states, mask, self.token_reward_head, self.config.eps)
+
+
+class EncodedSwiftReward(SwiftRewardBase):
+    """SWIFT reward/gate head after the same encoder family used by CLIR."""
+
+    def __init__(self, config: RewardConfig) -> None:
+        super().__init__()
+        if config.model_variant != "encoded_swift":
+            raise ValueError("EncodedSwiftReward requires model_variant='encoded_swift'")
+        self.config = config
+        self.input_encoder = build_feature_encoder(config)
+        self.token_reward_head = nn.Linear(int(config.model_dim), 2)
+
+    def forward(
+        self,
+        hidden_states: Tensor,
+        mask: Optional[Tensor] = None,
+        condition_states: Optional[Tensor] = None,
+        condition_mask: Optional[Tensor] = None,
+        condition_embedding: Optional[Tensor] = None,
+        condition_embedding_mask: Optional[Tensor] = None,
+    ) -> Dict[str, Tensor]:
+        del condition_states, condition_mask, condition_embedding, condition_embedding_mask
+        _validate_raw_features(hidden_states, self.config, "hidden_states")
+        token_features, layer_attention = self.input_encoder(hidden_states)
+        if mask is None:
+            mask = token_features.new_ones(token_features.shape[:2])
+        mask = mask.to(device=token_features.device, dtype=token_features.dtype)
+        outputs = _swift_outputs(token_features, mask, self.token_reward_head, self.config.eps)
+        if layer_attention is not None:
+            outputs["trajectory_layer_attention"] = layer_attention
+        return outputs
+
 
 class ConsistencyLocalizedReward(nn.Module):
     """SWIFT-style reward head plus consistency and localization objectives."""
 
     def __init__(self, config: RewardConfig) -> None:
         super().__init__()
+        if config.model_variant != "clir":
+            raise ValueError("ConsistencyLocalizedReward requires model_variant='clir'")
         self.config = config
-        self.condition_query = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
-        self.condition_key = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
-        self.condition_value = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
+        self.input_encoder = build_feature_encoder(config)
+        model_dim = int(config.model_dim)
+        self.condition_query = nn.Linear(model_dim, model_dim, bias=False)
+        self.condition_key = nn.Linear(model_dim, model_dim, bias=False)
+        self.condition_value = nn.Linear(model_dim, model_dim, bias=False)
         self.condition_fusion = nn.Sequential(
-            nn.LayerNorm(config.hidden_dim * 4 + 1),
-            nn.Linear(config.hidden_dim * 4 + 1, config.hidden_dim),
+            nn.LayerNorm(model_dim * 4 + 1),
+            nn.Linear(model_dim * 4 + 1, model_dim),
             nn.GELU(),
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(model_dim, model_dim),
         )
-        self.feature_norm = nn.LayerNorm(config.hidden_dim)
-        self.token_reward_head = nn.Linear(config.hidden_dim, 2)
-        self.hallucination_head = nn.Linear(config.hidden_dim, 1)
-        self.progress_head = nn.Linear(config.hidden_dim, 1)
-        self.final_score_head = nn.Linear(config.hidden_dim, 1)
-        self.key_prior_head = nn.Linear(config.hidden_dim, 1)
-        self.complete_prior_head = nn.Linear(config.hidden_dim, 1)
+        self.feature_norm = nn.LayerNorm(model_dim)
+        self.token_reward_head = nn.Linear(model_dim, 2)
+        self.hallucination_head = nn.Linear(model_dim, 1)
+        self.progress_head = nn.Linear(model_dim, 1)
+        self.final_score_head = nn.Linear(model_dim, 1)
+        self.key_prior_head = nn.Linear(model_dim, 1)
+        self.complete_prior_head = nn.Linear(model_dim, 1)
         self.complete_reconstructor = nn.Sequential(
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(model_dim, model_dim),
             nn.GELU(),
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(model_dim, model_dim),
         )
         self.projector = nn.Sequential(
-            nn.LayerNorm(config.hidden_dim),
-            nn.Linear(config.hidden_dim, config.projection_dim),
+            nn.LayerNorm(model_dim),
+            nn.Linear(model_dim, config.projection_dim),
         )
 
     def forward(
@@ -95,14 +396,27 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_embedding_mask: Optional[Tensor] = None,
     ) -> Dict[str, Tensor]:
         """Compute scalar reward, token rewards, hallucination, and priors."""
-        if hidden_states.ndim != 3:
-            raise ValueError("hidden_states must have shape [batch, time, hidden_dim]")
+        _validate_raw_features(hidden_states, self.config, "hidden_states")
+        hidden_states, trajectory_layer_attention = self.input_encoder(hidden_states)
+        batch, time, _ = hidden_states.shape
 
-        batch, time, hidden_dim = hidden_states.shape
-        if hidden_dim != self.config.hidden_dim:
-            raise ValueError(
-                f"hidden_dim mismatch: got {hidden_dim}, expected {self.config.hidden_dim}"
+        condition_layer_parts = []
+        if condition_states is not None:
+            _validate_raw_features(condition_states, self.config, "condition_states")
+            condition_states, condition_layer_attention = self.input_encoder(condition_states)
+            if condition_layer_attention is not None:
+                condition_layer_parts.append(condition_layer_attention)
+        if condition_embedding is not None:
+            if condition_embedding.ndim != 2 or condition_embedding.shape[-1] != self.config.hidden_dim:
+                raise ValueError(
+                    f"condition_embedding must have shape [batch, {self.config.hidden_dim}]"
+                )
+            encoded_embedding, embedding_layer_attention = self.input_encoder(
+                condition_embedding.unsqueeze(1)
             )
+            condition_embedding = encoded_embedding[:, 0]
+            if embedding_layer_attention is not None:
+                condition_layer_parts.append(embedding_layer_attention)
 
         if mask is None:
             mask = hidden_states.new_ones(batch, time)
@@ -148,7 +462,7 @@ class ConsistencyLocalizedReward(nn.Module):
         complete_context = (complete_prior.unsqueeze(-1) * token_features).sum(dim=1)
         complete_reconstruction = self.complete_reconstructor(complete_context)
 
-        return {
+        outputs = {
             "scores": scores,
             "token_rewards": token_rewards,
             "token_values": token_values,
@@ -171,6 +485,11 @@ class ConsistencyLocalizedReward(nn.Module):
             "token_features": token_features,
             "mask": mask,
         }
+        if trajectory_layer_attention is not None:
+            outputs["trajectory_layer_attention"] = trajectory_layer_attention
+        if condition_layer_parts:
+            outputs["condition_layer_attention"] = torch.cat(condition_layer_parts, dim=1)
+        return outputs
 
     def training_step(
         self,
@@ -207,13 +526,19 @@ class ConsistencyLocalizedReward(nn.Module):
             token_advantage/token_advantage_mask: token progress/advantage targets.
             progress_targets/progress_mask: direct progress-head supervision.
             key_prior_target/complete_prior_target: DPCL-style prior maps.
+            complete_reconstruction_target: independently generated fixed
+                evidence/answer vector with width model_dim. It must not be
+                pooled from the same candidate trajectory.
         """
         losses: Dict[str, Tensor] = {}
         total = outputs["scores"].new_zeros(())
 
         if "correctness" in batch:
             target = batch["correctness"].to(outputs["scores"]).view_as(outputs["scores"])
-            final_loss = F.binary_cross_entropy_with_logits(outputs["scores"], target)
+            final_loss = F.binary_cross_entropy_with_logits(
+                outputs["scores"].float(),
+                target.float(),
+            )
             losses["final"] = final_loss
             total = total + self.config.final_weight * final_loss
 
@@ -365,6 +690,19 @@ class ConsistencyLocalizedReward(nn.Module):
         token_features = torch.where(has_condition[:, None, None], conditioned, hidden_states)
         attention = attention * has_condition[:, None, None].to(hidden_states.dtype)
         return token_features, relevance, attention
+
+
+def build_reward_model(config: RewardConfig) -> nn.Module:
+    """Build the explicit baseline/CLIR variant recorded in ``config``."""
+    if config.model_variant == "strict_swift":
+        return StrictSwiftReward(config)
+    if config.model_variant == "encoded_swift":
+        return EncodedSwiftReward(config)
+    return ConsistencyLocalizedReward(config)
+
+
+def count_trainable_parameters(model: nn.Module) -> int:
+    return sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
 
 
 def masked_mean(values: Tensor, mask: Tensor) -> Tensor:
@@ -664,6 +1002,11 @@ def dual_prior_losses(
     reconstruction = zero
     if "complete_reconstruction_target" in batch and phase in {"joint", "complete"}:
         target = batch["complete_reconstruction_target"].to(outputs["complete_reconstruction"])
+        if target.shape != outputs["complete_reconstruction"].shape:
+            raise ValueError(
+                "complete_reconstruction_target must be an externally generated fixed vector "
+                f"with shape {tuple(outputs['complete_reconstruction'].shape)}, got {tuple(target.shape)}"
+            )
         if "complete_reconstruction_target_mask" in batch:
             reconstruction_mask = batch["complete_reconstruction_target_mask"].to(device=target.device).bool()
             if reconstruction_mask.any():
@@ -736,7 +1079,14 @@ def select_best_of_n(scores: Tensor, group_ids: Tensor) -> Dict[int, int]:
 
 __all__ = [
     "ConsistencyLocalizedReward",
+    "EncodedSwiftReward",
+    "FlatLinearFeatureEncoder",
+    "LayerAxisFeatureEncoder",
     "RewardConfig",
+    "StrictSwiftReward",
+    "build_feature_encoder",
+    "build_reward_model",
+    "count_trainable_parameters",
     "dual_prior_losses",
     "hallucination_localization_losses",
     "infer_pseudo_onsets",

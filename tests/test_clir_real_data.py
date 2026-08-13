@@ -156,5 +156,17 @@ def test_frozen_protocol_uses_full_layers_and_exact_ids():
     assert protocol["hidden_states"]["include_all_transformer_blocks"] is True
     assert protocol["hidden_states"]["trajectory_slice"] == "exact_output_token_ids"
     assert protocol["hidden_states"]["condition_forward"] == "prompt_only_once_per_query"
+    assert protocol["reward_architecture"]["input_dim"] == 33 * 3072
+    assert protocol["reward_architecture"]["primary_encoder"]["type"] == "layer_transformer"
+    assert protocol["reward_architecture"]["primary_encoder"]["model_dim"] == 768
+    assert set(protocol["reward_architecture"]["required_variants"]) == {
+        "strict_swift",
+        "encoded_swift",
+        "clir",
+    }
+    reconstruction = protocol["reward_architecture"]["complete_reconstruction_target"]
+    assert reconstruction["status"] == "absent_in_stage1"
+    assert reconstruction["candidate_self_pooling_forbidden"] is True
+    assert reconstruction["loss_when_absent"] == 0.0
     assert protocol["correctness"]["checker"] == "clir_gsm8k_numeric_v2"
     assert protocol["evaluation"]["pilot_primary"] == "bon_at_16_accuracy"

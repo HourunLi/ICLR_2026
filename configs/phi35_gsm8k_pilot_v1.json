@@ -43,6 +43,35 @@
     "condition_forward": "prompt_only_once_per_query",
     "storage_dtype": "bfloat16"
   },
+  "reward_architecture": {
+    "input_dim": 101376,
+    "layer_layout": {
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072
+    },
+    "primary_encoder": {
+      "type": "layer_transformer",
+      "model_dim": 768,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "dropout": 0.0
+    },
+    "required_variants": {
+      "strict_swift": "raw all-layer features followed directly by Linear(101376, 2)",
+      "encoded_swift": "shared layer-transformer encoder followed by the SWIFT gate/reward head",
+      "clir": "shared layer-transformer encoder followed by condition fusion and CLIR heads"
+    },
+    "flat_linear_policy": "development_ablation_only",
+    "complete_reconstruction_target": {
+      "status": "absent_in_stage1",
+      "required_source": "independently_generated_fixed_evidence_or_answer_summary",
+      "required_dim": 768,
+      "candidate_self_pooling_forbidden": true,
+      "loss_when_absent": 0.0
+    }
+  },
   "correctness": {
     "checker": "clir_gsm8k_numeric_v2",
     "unit_suffix_policy": "last_numeric_expression_when_boxed_answer_is_not_numeric",

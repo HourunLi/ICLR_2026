@@ -22,7 +22,11 @@ from src.clir_data import (
     clir_collate,
     move_batch_to_device,
 )
-from src.consistency_localized_reward import ConsistencyLocalizedReward, RewardConfig
+from src.consistency_localized_reward import (
+    RewardConfig,
+    build_reward_model,
+    count_trainable_parameters,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,7 +34,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--train_jsonl", required=True, help="Training JSONL file.")
     parser.add_argument("--feature_root", default=None, help="Base directory for relative feature paths.")
     parser.add_argument("--output_model", required=True, help="Where to save the checkpoint.")
-    parser.add_argument("--hidden_dim", type=int, required=True, help="Hidden-state dimension.")
+    parser.add_argument("--hidden_dim", type=int, required=True,
+                        help="Raw input feature width; 101376 for the frozen Phi all-layer representation.")
+    parser.add_argument("--model_variant", default="clir",
+                        choices=["strict_swift", "encoded_swift", "clir"])
+    parser.add_argument("--encoder_type", default="identity",
+                        choices=["identity", "flat_linear", "layer_transformer"])
+    parser.add_argument("--model_dim", type=int, default=None,
+                        help="Compact internal width; defaults to hidden_dim for identity or at most 768 otherwise.")
+    parser.add_argument("--num_feature_layers", type=int, default=1)
+    parser.add_argument("--per_layer_dim", type=int, default=None)
+    parser.add_argument("--layer_encoder_dim", type=int, default=256)
+    parser.add_argument("--layer_encoder_blocks", type=int, default=2)
+    parser.add_argument("--layer_encoder_heads", type=int, default=8)
+    parser.add_argument("--layer_pool_queries", type=int, default=4)
+    parser.add_argument("--encoder_dropout", type=float, default=0.0)
     parser.add_argument("--projection_dim", type=int, default=256)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=5)
@@ -82,6 +100,16 @@ def resolve_device(name: str) -> torch.device:
 def make_config(args: argparse.Namespace) -> RewardConfig:
     return RewardConfig(
         hidden_dim=args.hidden_dim,
+        model_variant=args.model_variant,
+        encoder_type=args.encoder_type,
+        model_dim=args.model_dim,
+        num_feature_layers=args.num_feature_layers,
+        per_layer_dim=args.per_layer_dim,
+        layer_encoder_dim=args.layer_encoder_dim,
+        layer_encoder_blocks=args.layer_encoder_blocks,
+        layer_encoder_heads=args.layer_encoder_heads,
+        layer_pool_queries=args.layer_pool_queries,
+        encoder_dropout=args.encoder_dropout,
         projection_dim=args.projection_dim,
         final_weight=args.final_weight,
         consistency_weight=args.consistency_weight,
@@ -143,7 +171,7 @@ def prior_phase_for_epoch(mode: str, epoch: int) -> str:
 
 
 def run_epoch(
-    model: ConsistencyLocalizedReward,
+    model: torch.nn.Module,
     loader: DataLoader,
     device: torch.device,
     optimizer: torch.optim.Optimizer | None,
@@ -200,7 +228,12 @@ def main() -> None:
     )
 
     config = make_config(args)
-    model = ConsistencyLocalizedReward(config).to(device)
+    model = build_reward_model(config).to(device)
+    print(
+        f"model_variant={config.model_variant} encoder_type={config.encoder_type} "
+        f"input_dim={config.hidden_dim} model_dim={config.model_dim} "
+        f"trainable_parameters={count_trainable_parameters(model)}"
+    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     for epoch in range(1, args.epochs + 1):

@@ -279,7 +279,10 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     add_optional_sequence(output, batch, "progress_targets", max_time, mask_key="progress_mask")
     add_optional_sequence(output, batch, "key_prior_target", max_time, mask_key="key_prior_mask")
     add_optional_sequence(output, batch, "complete_prior_target", max_time, mask_key="complete_prior_mask")
-    add_optional_vector(output, batch, "complete_reconstruction_target", hidden_dim)
+    # Reconstruction targets live in reward-model space, which may differ from
+    # the raw all-layer input width. Infer and validate their own fixed width;
+    # the model performs the final model_dim contract check.
+    add_optional_vector(output, batch, "complete_reconstruction_target")
 
     output["query_ids"] = torch.tensor(encode_raw_ids(output["query_ids_raw"])[0], dtype=torch.long)
     return output
@@ -380,17 +383,23 @@ def add_optional_vector(
     output: Dict[str, Any],
     batch: Sequence[Dict[str, Any]],
     key: str,
-    hidden_dim: int,
 ) -> None:
-    values = torch.zeros(len(batch), hidden_dim, dtype=torch.float32)
-    mask = []
+    present = [item[key].float().flatten() for item in batch if key in item]
+    if not present:
+        return
+    vector_dim = present[0].numel()
+    if vector_dim == 0:
+        raise ValueError(f"{key} must not be empty")
+
+    values = torch.zeros(len(batch), vector_dim, dtype=torch.float32)
+    mask: List[bool] = []
     for row, item in enumerate(batch):
         if key not in item:
             mask.append(False)
             continue
         tensor = item[key].float().flatten()
-        if tensor.numel() != hidden_dim:
-            raise ValueError(f"{key} must have length {hidden_dim}, got {tensor.numel()}")
+        if tensor.numel() != vector_dim:
+            raise ValueError(f"{key} must have one fixed length {vector_dim}, got {tensor.numel()}")
         values[row] = tensor
         mask.append(True)
     if any(mask):

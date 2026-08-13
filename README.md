@@ -49,6 +49,15 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
   `scripts/audit_swift_checker_parity.py`。17 个 query / 272 条候选上，CLIR v2 与固定
   SWIFT checker 一致 260 条（95.59%）；12 个差异全是官方 checker 的单位/尾随文本
   假阴性。
+- 已把原始输入宽度 `input_dim` 与内部 `model_dim` 分离，并实现全层感知的
+  `layer_transformer` 编码器：每个 token 的 `[33,3072]` 先经共享层投影、层轴 Transformer
+  和 learned-query pooling，再进入 768 维 CLIR 模块。全部 33 层仍被使用。
+- 已显式实现 `strict_swift`、`encoded_swift`、`clir` 三种模型，checkpoint 和打分输出都会
+  记录变体。前者保持原始 `Linear(101376,2)`；后两者共享同规格编码器，避免把编码器收益
+  误算成 CLIR 收益。
+- 已在现有两条真实轨迹上完成三种模型的 correctness-only forward/backward gate：参数量
+  分别为 202,754 / 3,435,266 / 9,547,273，全部 scores、loss、gradients finite；CLIR 最大
+  参数矩阵为 `[768,3073]`，峰值 allocated 显存约 1.28 GB。该 gate 只属于工程证据。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
   - token-level query/context cross-attention conditional fusion；
@@ -81,12 +90,11 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 遇到的问题
 
-- Stage 1 真实 artifact 已通过工程验收，但还没有训练 SWIFT/CLIR，更没有 Best-of-N 效果
-  结果；不能把 gate 或 15 个测试通过表述成方法有效。
-- 当前 `ConsistencyLocalizedReward` 把输入宽度同时当作内部模型宽度；若把全层拼接后的
-  `D=101376` 直接接入 condition Q/K/V、fusion 和 reconstruction 的 `Linear(D,D)`，模型
-  会膨胀到约 1028 亿参数。严格 SWIFT 的 `Linear(D,2)` 不受此问题影响；真实 CLIR 训练前
-  必须先实现一个使用全部 33 层、位于所有 `D^2` 模块之前的低维编码器。该编码器尚未实现。
+- Stage 1 真实 artifact 与 reward 架构已通过工程验收，但还没有正式训练 SWIFT/CLIR，
+  更没有 Best-of-N 效果结果；不能把 gate 或 28 个测试通过表述成方法有效。
+- 真实维度的平方爆炸已经通过 layer-axis 编码器解决并完成两条真实轨迹 gate，但尚未在
+  多 query 训练/验证 split 上证明其优化稳定性或 Best-of-N 效果。必须把 strict SWIFT、
+  encoded SWIFT、CLIR 分开报告，不能只和无编码器 baseline 比较后把全部增益归因于 CLIR。
 - 全层 feature 的实测宽度为 101,376，每 token bfloat16 tensor 为 202,752 bytes。按首题
   平均长度粗略外推，6000×8 train acquisition 约 2.25 TB，因此正式扩大前必须实现
   query-sharded manifest、流式提取/加载和断点续跑；这不是把主路径降为最后 4 层的理由。
@@ -101,7 +109,7 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - `token_values = token_rewards + progress_score_weight * progress` 目前仍把 reward head 和 progress head 合并后做 hallucination tail shaping；toy 数据里 `progress_targets` 和 `token_advantage` 相同，真实数据接入后需要重新评估两个 head 的分工和量纲。
 - 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
 
-当前 `SWIFT` 环境是 `torch==2.3.1+cu121`，两套 pytest 共 15/15 通过；
+当前 `SWIFT` 环境是 `torch==2.3.1+cu121`，三套 pytest 共 28/28 通过；
 `create_toy_clir_data.py -> train_clir.py（含 --condition_attention_temperature /
 --progress_score_weight）-> score_clir.py` 端到端跑通，checkpoint 里也确认存了新增配置。
 另外针对 `SemanticGroupBatchSampler` 做过 300 组随机场景、共 1200 次采样的压力测试，
@@ -117,8 +125,8 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 未来解决方向
 
-- 实现并门控一个全层感知的低维编码器；保留严格 SWIFT 的原始高维线性头，同时增加
-  “共享编码器 + SWIFT head”对照，区分编码器收益与 CLIR 模块收益。
+- 在冻结的多 query split 上训练并比较已经实现的 `strict_swift`、`encoded_swift` 和
+  `clir`；先验证优化稳定性，再报告共享候选池上的 Best-of-N 指标。
 - 冻结 train/validation/pilot query-ID 清单，先做 32-query development acquisition，验证
   首题外推的长度分布、吞吐和容量是否稳定。
 - 实现 query-sharded manifest、原子写入、断点续跑和流式 Dataset；condition 每 query 只
@@ -220,7 +228,8 @@ python score_clir.py \
 python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py
 ```
 
-当前两套测试共 15 个：原有 toy/model smoke tests 10 个，真实数据契约测试 5 个。
+当前三套测试共 28 个：toy/model smoke tests 10 个，真实数据契约测试 5 个，reward
+编码器/模型变体/重建目标契约测试 13 个。
 后者验证 exact token slicing、全层拼接、正式 manifest 拒绝错位、GSM8K checker 和冻结
 协议字段。它们证明管线逻辑，不证明 Phi/CLIR 的研究效果。
 
