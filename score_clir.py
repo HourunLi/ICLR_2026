@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict, List
 
 import torch
 from torch.utils.data import DataLoader
 
-from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device, write_jsonl
+from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device
+from src.clir_stage_a import atomic_write_jsonl
 from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
@@ -28,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     parser.add_argument("--onset_threshold", type=float, default=0.5)
+    parser.add_argument("--amp_dtype", default="none", choices=["none", "bfloat16"])
+    parser.add_argument("--skip_feature_finite_check", action="store_true")
     return parser.parse_args()
 
 
@@ -42,7 +46,7 @@ def resolve_device(name: str) -> torch.device:
 
 
 def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
-    checkpoint = torch.load(path, map_location=device)
+    checkpoint = torch.load(path, map_location=device, weights_only=False)
     config = RewardConfig(**checkpoint["config"])
     model = build_reward_model(config).to(device)
     model.load_state_dict(checkpoint["state_dict"])
@@ -54,10 +58,16 @@ def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
 def main() -> None:
     args = parse_args()
     device = resolve_device(args.device)
-    dataset = CLIRTrajectoryDataset(args.input_jsonl, feature_root=args.feature_root)
+    dataset = CLIRTrajectoryDataset(
+        args.input_jsonl,
+        feature_root=args.feature_root,
+        check_finite=not args.skip_feature_finite_check,
+    )
     loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=clir_collate)
     model = load_model(args.model, device)
     model_variant = model.config.model_variant
+    if args.amp_dtype == "bfloat16" and device.type != "cuda":
+        raise ValueError("--amp_dtype bfloat16 currently requires CUDA")
 
     rows: List[Dict] = [dict(row) for row in dataset.rows]
     scored_row_indices: List[int] = []
@@ -68,14 +78,25 @@ def main() -> None:
         row_indices = batch["row_index"].tolist()
         query_ids_raw = list(batch["query_ids_raw"])
         batch = move_batch_to_device(batch, device)
-        outputs = model(
-            batch["hidden_states"],
-            mask=batch["mask"],
-            condition_states=batch.get("condition_states"),
-            condition_mask=batch.get("condition_mask"),
-            condition_embedding=batch.get("condition_embedding"),
-            condition_embedding_mask=batch.get("condition_embedding_mask"),
+        if args.amp_dtype == "none":
+            parameter_dtype = next(model.parameters()).dtype
+            for key in ("hidden_states", "condition_states", "condition_embedding"):
+                if key in batch:
+                    batch[key] = batch[key].to(dtype=parameter_dtype)
+        autocast = (
+            torch.autocast("cuda", dtype=torch.bfloat16)
+            if args.amp_dtype == "bfloat16"
+            else nullcontext()
         )
+        with autocast:
+            outputs = model(
+                batch["hidden_states"],
+                mask=batch["mask"],
+                condition_states=batch.get("condition_states"),
+                condition_mask=batch.get("condition_mask"),
+                condition_embedding=batch.get("condition_embedding"),
+                condition_embedding_mask=batch.get("condition_embedding_mask"),
+            )
         path_probs = None
         pseudo_onsets = None
         if "hallucination_logits" in outputs:
@@ -142,7 +163,7 @@ def main() -> None:
         if model_variant == "clir":
             row["clir_selected_best_of_n"] = idx in selected_indices
 
-    write_jsonl(args.output_jsonl, rows)
+    atomic_write_jsonl(args.output_jsonl, rows)
     print(f"wrote {args.output_jsonl}")
 
 

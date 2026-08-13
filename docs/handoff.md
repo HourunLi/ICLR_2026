@@ -27,7 +27,7 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：真实输入与 reward 架构 gate 已通过，下一门是多 query baseline
+## 2. 现在的状态：Stage A 已通过，下一门是正式多 seed baseline
 
 这是最重要的一句话，必须先说清楚：
 
@@ -47,6 +47,18 @@ learned-query pooling。`strict_swift` / `encoded_swift` / `clir` 三个显式�
 真实轨迹上完成 correctness-only forward/backward；参数量分别为 202,754 / 3,435,266 /
 9,547,273，全部 score、loss、gradient finite，CLIR 峰值 allocated 显存约 1.28 GB。
 research 层面仍未产生效果证据，不能把这些 gate 或测试通过表述成方法有效。
+
+2026-08-13 已进一步完成 Stage A：冻结 query-level split manifest；实现 query 原子生成/
+抽取、payload checksum、成功 marker、确定性合并与 resume；真实跑完 development-32 的
+32×8=256 条候选及全部 33 层特征。最终数据为 237 correct / 19 incorrect、7 个 mixed
+query、25 个 all-correct query，总特征 14,739,981,408 bytes。生成与抽取均通过“全完成
+不改写”和“移走一个 marker 后只重建该 query”的故障恢复测试。
+
+训练端也已支持显式 query-disjoint train/validation、optimizer/epoch/RNG full-state
+checkpoint 与逐组件适用计数；独立 evaluator 会分别报告 reward BoN、random、oracle 和
+query bootstrap CI。三种变体已在 24-query engineering train / 8-query engineering
+validation 上各跑完 1 epoch、打分和 BoN@1/2/4/8。该验证池 7 题全候选正确、1 题 7/8
+正确，过于简单，因此只能证明闭环可运行，不能证明任何方法优于另一方法。
 
 checker 另审计了 17 个 query / 272 条候选：冻结 v2 checker 给出 196 positive、75
 numeric negative、1 non-numeric negative。和 SWIFT commit `41f7c9f` 的官方

@@ -246,6 +246,23 @@ def test_semantic_group_batch_sampler_len_matches_iter_for_uneven_groups(tmp_pat
     assert len(sampler) == len(batches)
 
 
+def test_collate_preserves_bfloat16_feature_storage():
+    batch = clir_collate(
+        [
+            {
+                "row_index": 0,
+                "id": "a",
+                "query_id": "q",
+                "hidden_states": torch.randn(2, 8, dtype=torch.bfloat16),
+                "condition_states": torch.randn(1, 8, dtype=torch.bfloat16),
+            }
+        ]
+    )
+
+    assert batch["hidden_states"].dtype == torch.bfloat16
+    assert batch["condition_states"].dtype == torch.bfloat16
+
+
 def test_train_cli_exposes_new_reward_config_fields():
     argv = [
         "train_clir.py",

@@ -81,9 +81,16 @@ def write_jsonl(path: str | Path, rows: Iterable[Dict[str, Any]]) -> None:
 class CLIRTrajectoryDataset(Dataset):
     """JSONL dataset for pre-extracted hidden-state trajectories."""
 
-    def __init__(self, jsonl_path: str | Path, feature_root: Optional[str | Path] = None) -> None:
+    def __init__(
+        self,
+        jsonl_path: str | Path,
+        feature_root: Optional[str | Path] = None,
+        *,
+        check_finite: bool = True,
+    ) -> None:
         self.jsonl_path = Path(jsonl_path)
         self.feature_root = Path(feature_root) if feature_root is not None else self.jsonl_path.parent
+        self.check_finite = check_finite
         self.rows = read_jsonl(self.jsonl_path)
         if not self.rows:
             raise ValueError(f"No rows found in {self.jsonl_path}")
@@ -101,20 +108,30 @@ class CLIRTrajectoryDataset(Dataset):
             "row_index": index,
             "id": row.get("id", str(index)),
             "query_id": row.get("query_id", row.get("candidate_group_id", row.get("prompt_id", str(index)))),
-            "hidden_states": hidden_states.float(),
+            # Preserve extracted BF16/FP16 storage on CPU. CUDA autocast can
+            # consume it directly, avoiding a 2x host-memory expansion and a
+            # full 101376-wide conversion for every real trajectory.
+            "hidden_states": hidden_states if hidden_states.is_floating_point() else hidden_states.float(),
         }
 
         condition_states = maybe_load_tensor_field(row, "condition_states", "condition_states_path", self.feature_root)
         if condition_states is not None:
             if condition_states.ndim != 2:
                 raise ValueError("condition_states must have shape [condition_time, hidden_dim]")
-            item["condition_states"] = condition_states.float()
+            item["condition_states"] = (
+                condition_states if condition_states.is_floating_point() else condition_states.float()
+            )
 
         # Real-data manifests carry the exact generated token ids.  Their
         # presence switches on the strict contract before legacy toy padding
         # or trimming can hide a token/feature mismatch.
         if "output_token_ids" in row:
-            validate_extracted_row(row, hidden_states, condition_states)
+            validate_extracted_row(
+                row,
+                hidden_states,
+                condition_states,
+                check_finite=self.check_finite,
+            )
 
         condition_embedding = maybe_load_tensor_field(
             row,
@@ -226,7 +243,8 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 
     max_time = max(item["hidden_states"].shape[0] for item in batch)
     hidden_dim = batch[0]["hidden_states"].shape[1]
-    hidden_states = torch.zeros(len(batch), max_time, hidden_dim, dtype=torch.float32)
+    hidden_dtype = batch[0]["hidden_states"].dtype
+    hidden_states = torch.zeros(len(batch), max_time, hidden_dim, dtype=hidden_dtype)
     mask = torch.zeros(len(batch), max_time, dtype=torch.float32)
 
     for row, item in enumerate(batch):
@@ -245,7 +263,7 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 
     if any("condition_states" in item for item in batch):
         max_condition_time = max(item.get("condition_states", torch.empty(0, hidden_dim)).shape[0] for item in batch)
-        condition_states = torch.zeros(len(batch), max_condition_time, hidden_dim, dtype=torch.float32)
+        condition_states = torch.zeros(len(batch), max_condition_time, hidden_dim, dtype=hidden_dtype)
         condition_mask = torch.zeros(len(batch), max_condition_time, dtype=torch.float32)
         for row, item in enumerate(batch):
             states = item.get("condition_states")
@@ -258,7 +276,7 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         output["condition_mask"] = condition_mask
 
     if any("condition_embedding" in item for item in batch):
-        condition_embedding = torch.zeros(len(batch), hidden_dim, dtype=torch.float32)
+        condition_embedding = torch.zeros(len(batch), hidden_dim, dtype=hidden_dtype)
         condition_embedding_mask = torch.zeros(len(batch), dtype=torch.float32)
         for row, item in enumerate(batch):
             if "condition_embedding" in item:

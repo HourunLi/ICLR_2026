@@ -94,6 +94,21 @@ def test_strict_alignment_rejects_token_label_mismatch():
         validate_extracted_row(row, torch.zeros(2, 4), torch.zeros(2, 4))
 
 
+def test_finite_scan_can_only_be_skipped_explicitly_after_artifact_validation():
+    row = {
+        "id": "candidate",
+        "query_id": "query",
+        "prompt_token_ids": [1],
+        "output_token_ids": [2],
+        "response": "answer",
+        "provenance": _provenance(),
+    }
+    feature = torch.tensor([[float("nan"), 0.0]])
+    with pytest.raises(ValueError, match="NaN or Inf"):
+        validate_extracted_row(row, feature)
+    validate_extracted_row(row, feature, check_finite=False)
+
+
 def test_real_manifest_loader_rejects_hidden_state_mismatch(tmp_path: Path):
     hidden_path = tmp_path / "bad.pt"
     torch.save(torch.zeros(3, 4), hidden_path)

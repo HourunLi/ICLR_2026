@@ -36,7 +36,9 @@
 - 模型与 tokenizer revision：
   `2fe192450127e6a83f7441aef6e3ca586c338b77`。
 - 模型 forward 使用 bfloat16。reward 特征的落盘 dtype 必须写入 extraction manifest；
-  训练加载器可再转换为 float32。
+  训练/打分加载器保持 BF16，并在 CUDA autocast 下消费，避免 101376 维特征在 CPU 重复
+  扩展为 FP32。只有通过 extraction marker/checksum/finite 验收的 manifest 才可显式跳过
+  每个 epoch 的重复 finite 全量扫描。
 
 ### Prompt 与 sampling
 
@@ -175,6 +177,17 @@ Stage 1 的真实数据与严格对齐提取、以及 reward architecture gate �
 5. correctness checker 经过人工小样本审计；
 6. 生成/提取时间和真实落盘字节数已经测量。
 
+### Stage A query split 与恢复门（已通过）
+
+- split manifest：`configs/splits/gsm8k_phi35_v1.json`，SHA256
+  `cb7f23e3da36c253d3fe7d3a33675db2e43eafb05685bf55d65511e35f553186`。
+- 6000 train-primary / 500 validation / 973 reserve；development-32 是 train-primary 的
+  工程子集；500 pilot-test 是 1319 final-test 的子集。
+- query 是生成/抽取的最小原子恢复单元；每个 marker 包含 payload size+SHA256，合并按冻结
+  membership 顺序并拒绝缺失、损坏、候选数/索引不连续。
+- 32-query 真实运行中，生成和抽取均验证了全完成恢复不改 marker；移走单个 marker 后，
+  所属 shard 精确跳过 3 个健康 query、只重建 1 个。抽取重建后总 manifest SHA 不变。
+
 ### 2026-08-13 gate 验收记录
 
 Stage 1 单题 gate 已通过，但这只是工程验收，不是 SWIFT/CLIR 效果结论：
@@ -205,6 +218,5 @@ Stage 1 单题 gate 已通过，但这只是工程验收，不是 SWIFT/CLIR 效
 
 尚未冻结、不能由实现者自行假定的研究选择：
 
-- 正式 train/validation 的具体 query ID 清单；
 - CLIR hallucination judge、onset 标注和 dual-prior target 的生成协议；
 - full CLIR 中 progress 与 token reward 是否继续共享 tail-shaping 目标。

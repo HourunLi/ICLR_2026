@@ -1,7 +1,7 @@
 # CLIR 本地运行手册
 
-本手册讲如何在当前 DSW 实例中跑通 toy 闭环，并完成第一条 Phi-3.5-mini 真实数据
-对齐 gate：
+本手册讲如何在当前 DSW 实例中跑通 toy 闭环、单题 gate，以及 Stage A 的 query 分片
+生成/抽取/训练/评估闭环：
 
 1. 激活 `SWIFT` Conda 环境；
 2. 运行 smoke tests；
@@ -59,12 +59,7 @@ cd "$PROJECT_ROOT"
 python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py
 ```
 
-预期结果：
-
-```text
-............... [100%]
-15 passed
-```
+通过数量以当前完整测试输出为准，不在手册中固定过期数字。
 
 请使用 `python -m pytest`，不要直接使用 `pytest`。前者能明确使用当前 Conda 环境的 Python；配合第 1 节设置的 `PYTHONPATH`，可以稳定找到 `src`。
 
@@ -441,3 +436,68 @@ python scripts/audit_swift_checker_parity.py \
 实测一致 260/272（95.59%）。12 个分歧全部是 CLIR v2 判对、SWIFT 判错，内容是
 `3 bolts`、`366 downloads` 等正确数值带单位/尾随文本；没有 CLIR 判错而 SWIFT 判对的
 样本。正式报告既使用所有方法共享的 v2 标签，也单独披露官方 checker parity。
+
+## 11. Stage A：冻结 split 与 32-query query-shard 闭环
+
+以下命令已经在 8 张 L20Z 上实际通过。先冻结 split（已有文件时不要加 `--overwrite`）：
+
+```bash
+python scripts/freeze_gsm8k_splits.py \
+  --cache-dir "$HF_CACHE"
+```
+
+正式 split manifest 是 `configs/splits/gsm8k_phi35_v1.json`。对 32-query development
+slice，可在 8 个终端分别把 `SHARD_ID` 设为 0--7，然后运行：
+
+```bash
+export SHARD_ID=0
+export STAGE_A_DIR="$PROJECT_ROOT/run_artifacts/stage_a_32"
+
+CUDA_VISIBLE_DEVICES="$SHARD_ID" python scripts/generate_gsm8k_rollouts.py \
+  --protocol-config configs/phi35_gsm8k_pilot_v1.json \
+  --split-manifest configs/splits/gsm8k_phi35_v1.json \
+  --membership development_32 --shard-root "$STAGE_A_DIR/query_shards" \
+  --split train --max-queries 32 --n-rollouts 8 \
+  --num-shards 8 --shard-id "$SHARD_ID" --tensor-parallel-size 1 \
+  --cache-dir "$HF_CACHE" --resume
+
+CUDA_VISIBLE_DEVICES="$SHARD_ID" python scripts/extract_hidden_states.py \
+  --protocol-config configs/phi35_gsm8k_pilot_v1.json \
+  --split-manifest configs/splits/gsm8k_phi35_v1.json \
+  --membership development_32 --shard-root "$STAGE_A_DIR/query_shards" \
+  --max-queries 32 --n-rollouts 8 --num-shards 8 --shard-id "$SHARD_ID" \
+  --cache-dir "$HF_CACHE" --storage-dtype bfloat16 --resume
+```
+
+`--resume` 不只看 marker 是否存在，还会检查所有 payload 的 bytes/SHA256、候选数量和索引；
+抽取恢复还会重载 trajectory/condition tensor 检查 shape 与 finite。8 个进程完成后严格合并：
+
+```bash
+python scripts/merge_query_shards.py \
+  --split-manifest configs/splits/gsm8k_phi35_v1.json \
+  --membership development_32 --shard-root "$STAGE_A_DIR/query_shards" \
+  --stage extraction --expected-candidates 8 --max-queries 32 \
+  --output-jsonl "$STAGE_A_DIR/development_32_extracted.jsonl" \
+  --output-report "$STAGE_A_DIR/development_32_extracted.report.json"
+```
+
+已验收结果：32 query / 256 rows / 237 correct / 19 incorrect；7 mixed pools、25
+all-correct pools；33 layers、3072 per layer、101376 total width、BF16；feature bytes 为
+14,739,981,408。该目录属于生成 artifact，不提交 Git。
+
+Stage A 的 24/8 engineering split 可用 `scripts/materialize_development_split.py` 生成。
+真实训练与打分使用 `--amp_dtype bfloat16` 保留 BF16 数据路径；只有在上述 marker/checksum/
+finite 验收全部通过后，才可同时使用 `--skip_feature_finite_check` 避免每个 epoch 重复全量
+扫描。`train_clir.py` 的 `--val_jsonl` 会拒绝 train/validation query 重叠，checkpoint 包含
+optimizer、epoch 和全部 RNG 状态。最终聚合必须调用 `evaluate_clir.py`，不要用 row accuracy
+冒充 Best-of-N：
+
+```bash
+python evaluate_clir.py \
+  --input-jsonl "$STAGE_A_DIR/clir_validation_scores.jsonl" \
+  --output-json "$STAGE_A_DIR/clir_validation_evaluation.json" \
+  --score-field reward_score --k 1 2 4 8 \
+  --bootstrap-replicates 2000 --seed 42
+```
+
+development-32 及其 24/8 派生 split 只用于工程验收，不允许作为正式 validation 或效果证据。

@@ -260,6 +260,8 @@ def validate_extracted_row(
     row: Mapping[str, Any],
     trajectory: Tensor,
     condition: Optional[Tensor] = None,
+    *,
+    check_finite: bool = True,
 ) -> None:
     validate_rollout_row(row)
     identifier = row.get("id", "<missing-id>")
@@ -271,7 +273,7 @@ def validate_extracted_row(
             f"Trajectory feature length mismatch for {identifier!r}: "
             f"expected {output_length}, got {trajectory.shape[0]}"
         )
-    if not torch.isfinite(trajectory).all():
+    if check_finite and not torch.isfinite(trajectory).all():
         raise ValueError(f"Trajectory feature for {identifier!r} contains NaN or Inf")
 
     if condition is not None:
@@ -284,7 +286,7 @@ def validate_extracted_row(
             )
         if condition.shape[1] != trajectory.shape[1]:
             raise ValueError(f"Condition/trajectory feature dimensions differ for {identifier!r}")
-        if not torch.isfinite(condition).all():
+        if check_finite and not torch.isfinite(condition).all():
             raise ValueError(f"Condition feature for {identifier!r} contains NaN or Inf")
 
     for key in TOKEN_LABEL_FIELDS:
