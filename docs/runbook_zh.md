@@ -500,4 +500,15 @@ python evaluate_clir.py \
   --bootstrap-replicates 2000 --seed 42
 ```
 
+多个训练 seed 的 evaluation 按 `seed_<N>/<variant>.json` 排列后，用汇总器计算跨 seed
+样本标准差和预注册主指标的逐 query 配对 CI：
+
+```bash
+python summarize_clir.py \
+  --evaluation-dir run_artifacts/stage1_small_scale_v1/evaluations \
+  --output-json run_artifacts/stage1_small_scale_v1/stage1_summary.json \
+  --seeds 42 43 44 --variants strict_swift encoded_swift clir \
+  --primary-k 16 --bootstrap-replicates 2000 --seed 42 --overwrite
+```
+
 development-32 及其 24/8 派生 split 只用于工程验收，不允许作为正式 validation 或效果证据。

@@ -76,6 +76,14 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - development-32 的 24-query train / 8-query engineering validation 上，strict SWIFT、
   encoded SWIFT、CLIR 都在 101376 维真实输入上完成 1 epoch 训练、打分和 BoN@1/2/4/8
   闭环。验证池 7/8 query 的候选全对、1/8 为 7/8 对，过于简单，不能据此比较方法效果。
+- **Stage 1 small-scale real correctness-only 已完成**：冻结的 512×8 train 和 128×16
+  validation 共抽取 343.86 GiB 全 33 层 BF16 特征；三种模型各以 seeds 42/43/44 训练
+  5 epochs。BoN@16 三 seed 为 strict SWIFT `88.28±2.07%`、encoded SWIFT
+  `88.54±1.63%`、CLIR `89.32±2.51%`，random expected 为 `86.52%`、oracle 为
+  `96.09%`。CLIR 相对 encoded 平均仅 `+0.78±2.07` 个百分点且一个 seed 为负，配对 CI
+  未建立稳定增益。完整口径见 `docs/stage1_results.md`；`pilot_test` 尚未生成或检查。
+- 新增 `summarize_clir.py`：严格校验多 seed evaluation 的 query/k/baseline 一致性，报告
+  跨 seed 样本标准差，并在主指标上计算逐 query 配对 bootstrap CI。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
   - token-level query/context cross-attention conditional fusion；
@@ -108,14 +116,15 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 遇到的问题
 
-- Stage A 与 32-query correctness-only 训练/打分闭环已通过工程验收，但没有跨 seed、
-  正式 validation/pilot-test 的 Best-of-N 效果结果；不能把 pipeline pilot 表述成方法有效。
-- 真实维度的平方爆炸已通过 layer-axis 编码器解决并完成多 query 单 epoch 稳定性验收，
-  但尚未证明正式效果。必须把 strict SWIFT、
-  encoded SWIFT、CLIR 分开报告，不能只和无编码器 baseline 比较后把全部增益归因于 CLIR。
-- 全层 feature 的实测宽度为 101,376，每 token bfloat16 tensor 为 202,752 bytes；
-  development-32 实测总特征约 14.74 GB。query shard、原子完成、checksum 与断点续跑已经
-  实现，但 6000×8 正式训练数据仍可能达到 TB 级，需在 Stage 1 持续监控容量/吞吐。
+- Stage 1 small-scale validation 已有跨 seed 结果，但 incremental 证据不稳定：
+  encoded→CLIR 的 BoN@16 为 `+2.34/+1.56/-1.56` 个百分点，strict→encoded 也发生方向
+  翻转。当前只能报告弱排序信号，不能表述为 CLIR 已优于共享编码器 baseline。
+- validation 的 128 个 query 中只有 39 个 mixed pools；84 个 all-correct 与 5 个
+  all-wrong pools 在 BoN@16 上不能区分选择器，导致配对 CI 较宽。下一轮应只按冻结顺序
+  扩展 query prefix，不能根据答案 cherry-pick。
+- 全层 feature 实测宽度为 101,376，每 token BF16 为 202,752 bytes；本轮 640 个 query
+  的 feature payload 已达 343.86 GiB。Stage 1B 扩大 train/validation 前必须继续冻结容量
+  上限并保留 query-atomic resume/checksum，不应以静默删层规避存储问题。
 - vLLM `candidate.text` 在当前版本会比按原始 IDs decode 的文本多一个前导空格；272/272
   条都只差这个空格。`output_token_ids` 和由它 decode 的 `response` 仍是事实来源。
 - SWIFT 官方 `evaluate_math` 未覆盖 `bolts`、`downloads` 等单位或某些尾随文本；共享审计
@@ -143,10 +152,12 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 未来解决方向
 
-- 进入 Stage 1：在冻结的 train-primary/validation 上采集足够多且难度合适的共享候选池，
-  用多个 seed 正式训练 `strict_swift`、`encoded_swift`、`clir` correctness-only baseline。
-- 先在 validation 上锁定超参数，再在 pilot-test 报告 BoN@1/2/4/8/16、random、oracle、
-  query bootstrap CI 与 checker parity；development-32 不能作为方法验证集。
+- 先做 Stage 1B 诊断：在现有 39 个 mixed validation pools 上分析逐 query 分歧、长度偏差、
+  score margin 与 layer attention，不利用 `pilot_test` 调参。
+- 冻结新的 ordered-prefix 扩展配置以增加 mixed validation query；任何 class weighting、
+  objective、epoch 或解码策略变化都必须版本化，不能覆盖 `stage1-small-scale-v1`。
+- 仅在 validation 的 random 增益和 encoded→CLIR 增量跨 seed 稳定后锁定配置，再一次性
+  进入 `pilot_test`；否则将当前结果保留为弱信号/负增量证据。
 - 补充 augmentation 生成脚本：
   - 改写题干风格；
   - 改写 reasoning trajectory 长度；

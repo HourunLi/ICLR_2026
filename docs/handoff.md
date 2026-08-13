@@ -27,15 +27,14 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：Stage A 已通过，下一门是正式多 seed baseline
+## 2. 现在的状态：Stage 1 small-scale real 已完成，增量证据不稳定
 
 这是最重要的一句话，必须先说清楚：
 
-> **Stage 1 单题真实数据 gate 已验收，但目前仍没有 SWIFT/CLIR 训练或 Best-of-N 效果
-> 结果。** `scripts/generate_gsm8k_rollouts.py` 保存 vLLM 实际返回的 prompt/output IDs，
-> `scripts/extract_hidden_states.py` 对 exact `prompt + output` 做 trajectory teacher forcing，
-> 并对 prompt 单独 forward 一次作为每个 query 共享的 canonical condition。Phi-3.5-mini
-> 已实际生成第一题 16 条候选并提取前两条的全层特征。
+> **冻结的 correctness-only Stage 1 small-scale real 已跑完，但不能宣称 CLIR backbone
+> 已稳定优于 encoded SWIFT。** 512×8 train、128×16 validation、全 33 层 BF16 特征和
+> seeds 42/43/44 的 9 个五 epoch 运行均完成；`pilot_test` 未生成或检查。完整数据、逐 k
+> 结果、配对 CI 和结论见 `docs/stage1_results.md`。
 
 验收数值：trajectory 为 `[162,101376]` / `[250,101376]`，condition 为
 `[113,101376]`，`101376 = 33 * 3072`；全部 finite、bfloat16，两条候选共享同一 condition
@@ -46,7 +45,15 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 learned-query pooling。`strict_swift` / `encoded_swift` / `clir` 三个显式变体已在上述两条
 真实轨迹上完成 correctness-only forward/backward；参数量分别为 202,754 / 3,435,266 /
 9,547,273，全部 score、loss、gradient finite，CLIR 峰值 allocated 显存约 1.28 GB。
-research 层面仍未产生效果证据，不能把这些 gate 或测试通过表述成方法有效。
+small-scale validation 已产生弱排序信号，但还没有稳定的方法增量证据。
+
+本轮 train 为 4096 trajectories（3658 correct / 438 incorrect；117 mixed query），
+validation 为 2048 trajectories（1772 / 276；39 mixed、84 all-correct、5 all-wrong），总
+feature payload 343.86 GiB。BoN@16 三 seed 均值为 strict `88.28±2.07%`、encoded
+`88.54±1.63%`、CLIR `89.32±2.51%`，random expected `86.52%`、oracle `96.09%`。
+encoded→CLIR 只有 `+0.78±2.07` 个百分点且 seed 44 为负；逐 seed paired CI 没有建立
+稳定正增量。因此下一门是 Stage 1B validation-strengthening/diagnostic，而不是直接查看
+test 或把 auxiliary 模块收益当作已有基线。
 
 2026-08-13 已进一步完成 Stage A：冻结 query-level split manifest；实现 query 原子生成/
 抽取、payload checksum、成功 marker、确定性合并与 resume；真实跑完 development-32 的
@@ -91,6 +98,8 @@ src/clir_data.py                     JSONL 数据集、collate、SemanticGroupBa
 src/clir_real_data.py                原始 token-ID 契约、GSM8K checker、全层对齐提取
 train_clir.py                        训练入口（229 行）
 score_clir.py                        打分 + Best-of-N 选择入口（130 行）
+evaluate_clir.py                     单 seed query-level BoN/random/oracle/bootstrap
+summarize_clir.py                    多 seed 均值/标准差与主指标配对 bootstrap
 scripts/generate_gsm8k_rollouts.py  保留原始 IDs 的 vLLM 候选生成
 scripts/extract_hidden_states.py    exact-ID teacher-forced 全层特征提取
 scripts/audit_swift_checker_parity.py  对固定 SWIFT checkout 复跑 checker parity
@@ -238,24 +247,25 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 2. **`_condition_token_features` 里"有 condition 的行过 LayerNorm、没 condition 的行不过"造成的轻微分布不一致**（3.2 节）。如果真实数据里"有没有 condition"本身有意义，需要评估这个不一致有没有影响。
 3. **`gate`/`reconstruction` 两项 dual-prior loss 不跟随 `prior_phase` 交替**（3.6 节），是否需要让它们也分 phase，目前没有定论。
 4. Best-of-N 选择目前是纯 pointwise：训练目标只有单条轨迹的 BCE + 各种辅助 loss，没有 pairwise/listwise 目标。SWIFT 原论文里 pairwise/DPO/InfoNCA/NCA 都试过，效果和 BCE 接近但没有明显更好，所以优先级不高，但如果要和 SWIFT 做严格对齐实验，这块需要补。
-5. **全层编码器虽然通过两条样本的工程 gate，但效果尚未验证。** 下一步必须在多 query
-   validation 上同时比较 strict SWIFT、encoded SWIFT 和 CLIR，并监控 learned layer
-   attention；不能把编码器带来的增益归因于 CLIR，也不能用两条全正例样本估计效果。
+5. **全层编码器与 CLIR backbone 的小规模效果已测，但增量不稳定。** BoN@16 的
+   strict→encoded 为 `+0.26±3.61` 个百分点，encoded→CLIR 为 `+0.78±2.07` 个百分点，
+   两者都发生 seed 方向翻转。下一轮必须扩大 informative mixed-query validation，并监控
+   learned layer attention；不能把两段增益合并归因于 CLIR。
 
 ## 6. 下一步必须做的事（按优先级）
 
-**P0（单题 gate 已完成，当前工作）**
+**P0（Stage 1B validation-strengthening/diagnostic）**
 
-1. 冻结 train/validation/pilot 的 query-ID 清单，先跑 32-query development acquisition，
-   重新测量长度、吞吐和容量分布。
-2. 实现 query-sharded manifest、原子写入、断点续跑和流式加载。全层 bfloat16 每 token
-   实测为 202,752 bytes；按首题平均长度外推，6000×8 train acquisition 约 2.25 TB。
-3. 在完全共享的 candidates/features/splits 上训练 `strict_swift`、`encoded_swift`、`clir`
-   correctness-only baseline；先报告 BoN@1/2/4/8/16、random 与 oracle。
-4. checker 主标签固定为 `clir_gsm8k_numeric_v2`，同时运行官方 `evaluate_math` parity；
-   不允许把修正口径写成官方原样口径，也不能因为存储压力把主路径降成最后 4 层。
+1. 在现有 39 个 mixed validation pools 上做不调参的逐 query 错误、长度、margin 和 layer
+   attention 诊断，确认 k 增大后选择准确率下降的原因。
+2. 冻结新的 ordered-prefix 扩展配置，增加 informative validation query；根据容量决定是否
+   同步扩大 train。不能按标签挑题，也不能覆盖 `stage1-small-scale-v1`。
+3. class weighting、pairwise/listwise objective、epoch 或解码温度若要改变，必须声明新的
+   比较和 validation 口径。先在 validation 建立跨 seed 稳定性，再一次性进入 pilot-test。
+4. checker 主标签继续固定为 `clir_gsm8k_numeric_v2` 并报告官方 parity；不得因存储压力把
+   主路径静默降成最后 4 层。
 
-**P1（跑通 SWIFT baseline 之后，逐步加 CLIR 的三个模块）**
+**P1（Stage 1B 结论锁定之后，逐步加 CLIR 的三个模块）**
 
 5. **LLM rewrite augmentation 流水线**：给每条原始 trajectory 生成 K 个"改写题干风格/长度/context 顺序/domain 表面形式"的版本，用 verifier 过滤掉改变了答案或证据关系的改写，产出 `semantic_id`/`style_id`/`domain_id` 元数据。做完这一步才能真正测试 PRISM 一致性 loss 有没有用。
 6. **幻觉标注流水线**：至少要有 path-level 的 `path_hallucinated`（弱监督），有条件的话再加 token-level 的 `hallucination_onset`（强监督）。可以用 verifier/LLM judge 对着 query+context 检查每一步 claim 有没有支持依据。
@@ -264,7 +274,7 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 **P2（跑完第一轮实验之后再看）**
 
 8. 把训练目标从纯 pointwise BCE 扩展成 pairwise/listwise（DPO/InfoNCA/NCA），和 SWIFT 论文附录 E.1 的消融对齐。
-9. 在真 GPU + 完整依赖环境跑一遍 end-to-end small-scale training，看这套方法在 Best-of-N accuracy / 幻觉率 / worst-augmentation accuracy 上到底有没有比 SWIFT-only backbone 好（`docs/proposal.md` 的 Evaluation Plan 一节已经定义好了要看哪些指标、哪些消融）。
+9. 在冻结的扩大版 validation 和最终锁定的 test 上运行完整组件实验，报告 Best-of-N accuracy、幻觉率和 worst-augmentation accuracy；small-scale correctness-only 结果见 `docs/stage1_results.md`。
 10. 解决第 5 节列的开放问题（token_values 拆分、condition LayerNorm 不一致、gate/reconstruction 要不要分 phase）。
 
 ## 7. Bug 修复历史（给想知道"为什么现在长这样"的人）
