@@ -20,6 +20,10 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
 - Stage 1B v4 outcome-only 3×3 已在提交 `b1c4fae` 上完整执行。9 个 cell 中只有
   `seed=42/encoded_swift` 通过全部健康门，其余 8 个都在 final-train 常数先验门失败；正式汇总为
   `incomplete_diagnostic_only`，不得形成主效果结论。
+- train-only semantics rewrite 工程 pilot v1 已在 clean commit `bc393cf` 上通过：4 条源
+  trajectory 生成 12 个视图，12 个正 consistency pair 和 18 个负 pair，全部 tensor
+  payload 校验通过。该 pilot 只证明数据/特征流水线闭环，不是真实 LLM semantic
+  rewrite，`formal_mechanism_claim_allowed=false`。
 - 当前冻结 train/validation 中，consistency、hallucination、progress、dual-prior 和
   reconstruction 的真实监督覆盖全部为 0。仓库不会从 correctness 伪造这些标签，也不会用
   全零向量冒充缺失监督。
@@ -47,6 +51,11 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
 cell、1 个纳入 cell、8 个显式训练健康失败和 0 个未知 cell。唯一纳入的 encoded SWIFT cell
 在 k=`1/2/4/8/16` 的 BoN accuracy 为 `0.884/0.894/0.902/0.916/0.912`，但单 seed 数字只作
 诊断，不可解释为稳定 baseline 结果，更不可用于判断 CLIR 机制。
+
+rewrite pilot 的冻结结果见
+[docs/semantic_rewrite_pilot_v1.md](docs/semantic_rewrite_pilot_v1.md)；它已完成
+prepare/extract/audit，下一步是冻结真实 LLM generator 和独立 answer/evidence verifier，而不是
+继续扩容格式变换。
 
 ## 代码结构
 

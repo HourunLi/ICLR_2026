@@ -76,3 +76,27 @@ v1 通过后再发布 LLM rewrite 协议，至少冻结 generator model/revision
 axes、regeneration/teacher-force policy 和 query-atomic resume。每个候选必须通过独立 answer + required
 evidence relation verifier，并在分层人工盲审中报告接受率与 agreement。只有 train/validation 的质量
 与覆盖门都通过后，才可把 rewrite groups 纳入新的 mechanism experiment。
+
+## 7. 冻结执行结果
+
+v1 已在 clean commit `bc393cf856b5de45f5e2be281300f913c6724e71` 上完成三个阶段：
+
+- 4 条源 trajectory（2 correct + 2 incorrect）形成 12 行、4 个 semantic group 和 3 个 style；
+- 12 个 positive same-semantic/different-style pair 和 18 个 negative
+  different-semantic/same-style pair；
+- 4 个 original feature 复用，8 个 rewrite feature 按精确 token IDs teacher-force 提取，新增
+  `539337712` bytes BF16 trajectory feature；
+- audit 重读 12 个 trajectory 和 4 个唯一 condition，共 16 个 payload 的 SHA256 全部匹配；
+- supervision audit 只允许 `consistency=true`，其余 6 个机制组件仍为 false，0 条未溯源监督。
+
+关键产物：
+
+- rewrite protocol SHA256：`5609537c02484b06700f8afa31c178c629193a6400630ee3f3088af6813aa512`；
+- plan SHA256：`767e699acddf7850111492bc8137b186a5fd73172f6796ffd7a34a7dc66460ba`；
+- extracted manifest SHA256：`9e58ede2d04c4d5911ca2d1eb945c42587d22950218ec99d1d33a0765a5bf443`；
+- `run_artifacts/semantic_rewrite_pilot_v1/audit_report.json` SHA256：
+  `a31e582579d830d4406f6564e3929f59adbc89686a1f856fda64daf69f08d27f`。
+
+最终状态是 `passed_pipeline_only_no_mechanism_claim`，且
+`formal_mechanism_claim_allowed=false`。这个结果不允许把格式变换表述为语义增强，只是真实 LLM
+rewrite 的工程前置门。

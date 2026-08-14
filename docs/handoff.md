@@ -9,8 +9,9 @@
 
 第四轮审查要求的 P0/P1 代码问题已经修复，Stage 1B v4 outcome-only 3×3 已在 clean commit
 `b1c4fae` 上执行完成。9 个 cell 中 1 个通过、8 个在 final-train 常数先验门失败，因此结果只允许
-作为优化不稳定性诊断，不能回答 CLIR 机制是否有效。下一阶段已确定为真实 semantics rewrite
-监督；`pilot_test` 仍未读取。
+作为优化不稳定性诊断，不能回答 CLIR 机制是否有效。train-only rewrite 工程 pilot v1
+也已完成 prepare/extract/audit；它只验证流水线，当前要进入带独立 verifier 的真实 LLM
+semantics rewrite。`pilot_test` 仍未读取。
 
 ## 2. 已建立的证据
 
@@ -39,6 +40,11 @@
   0 个 unknown/unrun；`formal_primary_claim_allowed=false`。
 - 唯一 included cell 是 `seed=42/encoded_swift`：score population std `1.3618`、query 内 pairwise
   accuracy `0.6680`，BoN@16 `0.912`。单 seed 不能形成稳定 baseline 或模型间主比较。
+- semantics rewrite 工程 pilot v1 在 commit
+  `bc393cf856b5de45f5e2be281300f913c6724e71` 上完成：12 行/4 个 semantic group/3 个 style，
+  12 个正 pair/18 个负 pair，12 个 trajectory 和 4 个 condition payload 全部通过 SHA256、
+  shape、dtype、token 对齐和 finite 审计。audit 状态是
+  `passed_pipeline_only_no_mechanism_claim`。
 
 ## 3. 已冻结完成的 Stage 1B v4
 
@@ -145,11 +151,12 @@ scripts/run_semantic_rewrite_pilot.py  rewrite prepare/extract/audit 唯一入�
 已删除的 `scripts/diagnose_stage1b.py` 不再是入口：其候选顺序、排序和矩阵检查已由 evaluator、summary
 与 launcher 的强制契约覆盖。不要重新引入另一套诊断口径。
 
-## 7. 当前下一步：semantics rewrite
+## 7. 当前下一步：真实 LLM semantics rewrite
 
-v4 已证明 outcome-only 训练在当前预算下高度不稳定，且没有为 CLIR 机制提供监督。下一步不再重复
-v4，而是在 train 范围先做可逆、确定性的 rewrite 工程 pilot，验证 `semantic_id/style_id`、
-teacher-forced token 对齐、feature 提取和 consistency pair 覆盖；该 pilot 只证明流水线，不作为
-机制效果证据。随后在 train/validation 上接入版本化生成器、answer/evidence relation verifier 和
-人工盲审，再冻结可用于 mechanism experiment 的 rewrite 数据。`query_id` 始终保留原候选池身份，
+v4 已证明 outcome-only 训练在当前预算下高度不稳定，可逆格式 pilot 也已把
+`semantic_id/style_id`、teacher-forced token 对齐、全 33 层 feature 提取和 consistency pair 审计
+跑通。下一个版本不再增加格式 transform，而是冻结 generator model/revision、prompt/decoding、
+rewrite axes 和 query-atomic resume，并为每个候选接入独立 answer + required-evidence relation
+verifier 及分层人工盲审。建议先做 32 条 train trajectory × 2 个真实 rewrite style 的小型
+冻结 pilot，质量门通过后再扩到 train/validation。`query_id` 始终保留原候选池身份，
 `semantic_id` 单独表示源 trajectory 的 rewrite group。
