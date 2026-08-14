@@ -28,14 +28,25 @@ GSM8K_PROMPT_TEMPLATE = (
     "{question}"
 )
 
-TOKEN_LABEL_FIELDS = (
-    "token_advantage",
-    "token_advantages",
-    "advantages",
-    "progress_targets",
-    "key_prior_target",
-    "complete_prior_target",
+TOKEN_LABEL_ALIASES = {
+    "token_advantage": ("token_advantage", "token_advantages", "advantages"),
+    "progress_targets": ("progress_targets", "progress", "progress_target"),
+    "key_prior_target": ("key_prior_target", "key_prior"),
+    "complete_prior_target": ("complete_prior_target", "complete_prior"),
+}
+
+TOKEN_LABEL_FIELDS = tuple(
+    alias
+    for aliases in TOKEN_LABEL_ALIASES.values()
+    for alias in aliases
 )
+
+SUPPORTED_GSM8K_CHECKERS = {
+    "clir_gsm8k_numeric_v2",
+    "clir_gsm8k_numeric_v3",
+}
+
+PROTOCOL_HASH_SCHEMA = "clir-protocol-component-hashes-v1"
 
 STORAGE_DTYPES = {
     "bfloat16": torch.bfloat16,
@@ -69,6 +80,59 @@ def load_protocol(path: str | Path) -> Dict[str, Any]:
 def canonical_json_sha256(value: Any) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def protocol_hashes(protocol: Mapping[str, Any]) -> Dict[str, str]:
+    """Return separate immutable hashes for acquisition, labels, and evaluation.
+
+    The legacy ``protocol_sha256`` covers the whole JSON document. Component
+    hashes prevent a downstream evaluation-only edit from invalidating already
+    acquired rollout or hidden-state payloads.
+    """
+
+    dataset = protocol.get("dataset", {})
+    acquisition = {
+        "hash_schema": PROTOCOL_HASH_SCHEMA,
+        "component": "acquisition",
+        "model": protocol.get("model", {}),
+        "dataset": {
+            key: dataset.get(key)
+            for key in ("repo_id", "subset", "revision")
+            if key in dataset
+        },
+        "prompt": protocol.get("prompt", {}),
+        "generation": protocol.get("generation", {}),
+        "hidden_states": protocol.get("hidden_states", {}),
+    }
+    labels = {
+        "hash_schema": PROTOCOL_HASH_SCHEMA,
+        "component": "labels",
+        "correctness": protocol.get("correctness", {}),
+    }
+    evaluation = {
+        "hash_schema": PROTOCOL_HASH_SCHEMA,
+        "component": "evaluation",
+        "evaluation": protocol.get("evaluation", {}),
+    }
+    return {
+        "protocol_sha256": canonical_json_sha256(protocol),
+        "acquisition_protocol_sha256": canonical_json_sha256(acquisition),
+        "label_protocol_sha256": canonical_json_sha256(labels),
+        "evaluation_protocol_sha256": canonical_json_sha256(evaluation),
+    }
+
+
+def validate_protocol_reference(reference: Mapping[str, Any], protocol: Mapping[str, Any]) -> Dict[str, str]:
+    """Validate a split/marker protocol reference with legacy compatibility."""
+
+    hashes = protocol_hashes(protocol)
+    recorded_acquisition = reference.get("acquisition_protocol_sha256")
+    if recorded_acquisition is not None:
+        if recorded_acquisition != hashes["acquisition_protocol_sha256"]:
+            raise ValueError("Acquisition protocol hash mismatch")
+    elif reference.get("protocol_sha256") != hashes["protocol_sha256"]:
+        raise ValueError("Legacy full protocol hash mismatch")
+    return hashes
 
 
 def file_sha256(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
@@ -123,7 +187,11 @@ def _boxed_answers(text: str) -> list[str]:
     return answers
 
 
-def extract_gsm8k_candidate_answer(response: str) -> Optional[str]:
+def extract_gsm8k_candidate_answer(
+    response: str,
+    *,
+    exclude_unit_exponents: bool = False,
+) -> Optional[str]:
     if not isinstance(response, str) or not response.strip():
         return None
     boxed = _boxed_answers(response)
@@ -138,12 +206,26 @@ def extract_gsm8k_candidate_answer(response: str) -> Optional[str]:
         matches = re.findall(pattern, response)
         if matches:
             candidate = matches[-1].strip().rstrip(". ")
-            numeric = _last_numeric_expression(candidate)
+            numeric = _last_numeric_expression(
+                candidate,
+                exclude_unit_exponents=exclude_unit_exponents,
+            )
             return numeric or candidate
-    return _last_numeric_expression(response)
+    return _last_numeric_expression(
+        response,
+        exclude_unit_exponents=exclude_unit_exponents,
+    )
 
 
-def _last_numeric_expression(text: str) -> Optional[str]:
+def _last_numeric_expression(
+    text: str,
+    *,
+    exclude_unit_exponents: bool = False,
+) -> Optional[str]:
+    if exclude_unit_exponents:
+        # Unit suffixes such as ``cm^2`` and ``m^{3}`` must not replace the
+        # actual boxed numeric answer merely because their exponent ends later.
+        text = re.sub(r"\^\s*(?:\{\s*[-+]?\d+\s*\}|[-+]?\d+)", "", text)
     patterns = (
         r"\\(?:d?frac|tfrac)\s*\{\s*-?\d+\s*\}\s*\{\s*-?\d+\s*\}",
         r"(?<![A-Za-z])[-+]?\$?\d[\d,]*(?:\.\d+)?(?:\s*/\s*[-+]?\d[\d,]*)?%?",
@@ -160,8 +242,27 @@ def _last_numeric_expression(text: str) -> Optional[str]:
     return max(candidates, key=lambda item: (item[0], item[1]))[2].strip().rstrip(". ")
 
 
-def _numeric_value(answer: str) -> Optional[Fraction]:
+def _answer_cue_numeric_expression(text: str) -> Optional[str]:
+    """Extract a number directly governed by an answer/is/be/equality cue."""
+
+    numeric = (
+        r"(?:\\(?:d?frac|tfrac)\s*\{\s*-?\d+\s*\}\s*\{\s*-?\d+\s*\}"
+        r"|[-+]?\$?\d[\d,]*(?:\.\d+)?(?:\s*/\s*[-+]?\d[\d,]*)?%?)"
+    )
+    pattern = rf"(?i)(?:answer\s*(?:is|=|:)|(?:is|be|equals|=|:))\s*({numeric})"
+    matches = list(re.finditer(pattern, text))
+    if not matches:
+        return None
+    return matches[-1].group(1).strip().rstrip(". ")
+
+
+def _numeric_value(
+    answer: str,
+    *,
+    percent_as_fraction: bool = True,
+) -> Optional[Fraction]:
     value = answer.strip()
+    value = value.replace("\\%", "%")
     value = re.sub(r"^\$|\$$", "", value)
     value = value.replace(",", "").replace(" ", "")
     value = value.replace("\\$", "")
@@ -184,12 +285,48 @@ def _numeric_value(answer: str) -> Optional[Fraction]:
             result = Fraction(Decimal(value))
     except (InvalidOperation, ValueError, ZeroDivisionError):
         return None
-    return result / 100 if percent else result
+    return result / 100 if percent and percent_as_fraction else result
 
 
-def check_gsm8k_response(response: str, raw_reference: str) -> Dict[str, Any]:
+def _numeric_value_options_v3(answer: str) -> set[Fraction]:
+    """Return context-safe numeric interpretations for GSM8K percentage answers.
+
+    GSM8K references store percentage points as plain numbers, so ``60%`` must
+    match reference ``60``. A conventional fractional reference such as ``0.6``
+    is also accepted. Percent literals whose magnitude is at most one retain
+    only their conventional fractional interpretation, avoiding the false
+    equivalence ``0.6% == 0.6``.
+    """
+
+    literal = _numeric_value(answer, percent_as_fraction=False)
+    if literal is None:
+        return set()
+    normalized = answer.strip().replace("\\%", "%")
+    if not normalized.endswith("%"):
+        return {literal}
+    conventional = literal / 100
+    if abs(literal) > 1:
+        return {literal, conventional}
+    return {conventional}
+
+
+def check_gsm8k_response(
+    response: str,
+    raw_reference: str,
+    *,
+    checker_version: str = "clir_gsm8k_numeric_v3",
+) -> Dict[str, Any]:
+    if checker_version not in SUPPORTED_GSM8K_CHECKERS:
+        raise ValueError(
+            f"Unsupported GSM8K checker {checker_version!r}; "
+            f"expected one of {sorted(SUPPORTED_GSM8K_CHECKERS)}"
+        )
+    is_v3 = checker_version == "clir_gsm8k_numeric_v3"
     reference = extract_gsm8k_reference(raw_reference)
-    parsed = extract_gsm8k_candidate_answer(response)
+    parsed = extract_gsm8k_candidate_answer(
+        response,
+        exclude_unit_exponents=is_v3,
+    )
     if parsed is None:
         return {
             "correctness": 0,
@@ -197,7 +334,7 @@ def check_gsm8k_response(response: str, raw_reference: str) -> Dict[str, Any]:
             "normalized_candidate_answer": None,
             "reference_answer": reference,
             "checker_status": "parse_failed",
-            "checker_version": "clir_gsm8k_numeric_v2",
+            "checker_version": checker_version,
         }
 
     # SWIFT's official evaluator removes common unit suffixes before comparing
@@ -205,17 +342,51 @@ def check_gsm8k_response(response: str, raw_reference: str) -> Dict[str, Any]:
     # is not itself numeric, compare its final numeric expression. This handles
     # answers such as ``\boxed{3 bolts}`` without accepting a wrong number.
     normalized_candidate = parsed
-    parsed_value = _numeric_value(normalized_candidate)
+    parsed_values = (
+        _numeric_value_options_v3(normalized_candidate)
+        if is_v3
+        else {_numeric_value(normalized_candidate)} - {None}
+    )
     normalization = "direct"
-    if parsed_value is None:
-        numeric_expression = _last_numeric_expression(parsed)
-        if numeric_expression is not None and _numeric_value(numeric_expression) is not None:
+    if not parsed_values:
+        numeric_expression = _answer_cue_numeric_expression(parsed) if is_v3 else None
+        if numeric_expression is None:
+            numeric_expression = _last_numeric_expression(
+                parsed,
+                exclude_unit_exponents=is_v3,
+            )
+        numeric_values = (
+            _numeric_value_options_v3(numeric_expression)
+            if is_v3 and numeric_expression is not None
+            else {_numeric_value(numeric_expression)} - {None}
+            if numeric_expression is not None
+            else set()
+        )
+        if numeric_expression is not None and numeric_values:
             normalized_candidate = numeric_expression
-            parsed_value = _numeric_value(numeric_expression)
+            parsed_values = numeric_values
             normalization = "numeric_subexpression"
-    reference_value = _numeric_value(reference)
-    if parsed_value is not None and reference_value is not None:
-        correct = parsed_value == reference_value
+    percent_decimal_value: Optional[Fraction] = None
+    if (
+        is_v3
+        and "%" not in normalized_candidate.replace("\\%", "%")
+        and re.search(r"(?i)(?:%|percent)", response)
+    ):
+        literal = _numeric_value(normalized_candidate, percent_as_fraction=False)
+        if literal is not None and abs(literal) <= 1:
+            percent_decimal_value = literal * 100
+            parsed_values.add(percent_decimal_value)
+    reference_values = (
+        _numeric_value_options_v3(reference)
+        if is_v3
+        else {_numeric_value(reference)} - {None}
+    )
+    if parsed_values and reference_values:
+        correct = bool(parsed_values & reference_values)
+        if is_v3 and "%" in parsed.replace("\\%", "%"):
+            normalization = "percent_equivalence"
+        elif correct and percent_decimal_value is not None and percent_decimal_value in reference_values:
+            normalization = "percent_decimal_equivalence"
         status = "numeric_match" if correct else "numeric_mismatch"
     else:
         normalized_parsed = re.sub(r"\s+", "", parsed).strip("$.").lower()
@@ -230,7 +401,7 @@ def check_gsm8k_response(response: str, raw_reference: str) -> Dict[str, Any]:
         "reference_answer": reference,
         "checker_status": status,
         "checker_normalization": normalization,
-        "checker_version": "clir_gsm8k_numeric_v2",
+        "checker_version": checker_version,
     }
 
 
@@ -247,6 +418,13 @@ def validate_rollout_row(row: Mapping[str, Any], *, require_provenance: bool = T
     if not output_ids:
         raise ValueError(f"Rollout {identifier!r} has an empty output_token_ids sequence")
 
+    if "correctness" in row:
+        correctness = row["correctness"]
+        if isinstance(correctness, bool) or correctness not in (0, 1, 0.0, 1.0):
+            raise ValueError(
+                f"Rollout {identifier!r} correctness must be numeric 0 or 1, got {correctness!r}"
+            )
+
     if require_provenance:
         provenance = row.get("provenance")
         if not isinstance(provenance, Mapping):
@@ -262,12 +440,22 @@ def validate_extracted_row(
     condition: Optional[Tensor] = None,
     *,
     check_finite: bool = True,
+    require_correctness: bool = True,
 ) -> None:
     validate_rollout_row(row)
     identifier = row.get("id", "<missing-id>")
     if trajectory.ndim != 2:
         raise ValueError(f"Trajectory feature for {identifier!r} must have shape [T,D]")
     output_length = len(row["output_token_ids"])
+    if require_correctness and "correctness" not in row:
+        raise ValueError(f"Extracted rollout {identifier!r} is missing required `correctness`")
+    if "correctness" in row:
+        correctness = row["correctness"]
+        if isinstance(correctness, bool) or correctness not in (0, 1, 0.0, 1.0):
+            raise ValueError(
+                f"Extracted rollout {identifier!r} correctness must be numeric 0 or 1, "
+                f"got {correctness!r}"
+            )
     if trajectory.shape[0] != output_length:
         raise ValueError(
             f"Trajectory feature length mismatch for {identifier!r}: "

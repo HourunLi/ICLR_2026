@@ -89,6 +89,8 @@ def build_gsm8k_split_manifest(
     dataset: Mapping[str, Any],
     protocol_version: str,
     protocol_sha256: str,
+    acquisition_protocol_sha256: str | None = None,
+    label_protocol_sha256: str | None = None,
     seed: int = 42,
     train_primary_size: int = 6000,
     validation_size: int = 500,
@@ -138,6 +140,10 @@ def build_gsm8k_split_manifest(
             for name, query_ids in memberships.items()
         },
     }
+    if acquisition_protocol_sha256 is not None:
+        manifest["acquisition_protocol_sha256"] = acquisition_protocol_sha256
+    if label_protocol_sha256 is not None:
+        manifest["label_protocol_sha256"] = label_protocol_sha256
     manifest["manifest_sha256"] = canonical_json_sha256(manifest)
     validate_split_manifest(manifest)
     return manifest
@@ -262,6 +268,8 @@ def validate_completion_marker(
     stage: str,
     query_id: str,
     protocol_sha256: str,
+    acquisition_protocol_sha256: str | None = None,
+    label_protocol_sha256: str | None = None,
     split_manifest_sha256: str,
     expected_candidate_count: int,
     rows_loader: Callable[[Path], Sequence[Mapping[str, Any]]],
@@ -276,10 +284,17 @@ def validate_completion_marker(
         "schema_version": "clir-query-shard-v1",
         "stage": stage,
         "query_id": query_id,
-        "protocol_sha256": protocol_sha256,
         "split_manifest_sha256": split_manifest_sha256,
         "candidate_count": expected_candidate_count,
     }
+    if acquisition_protocol_sha256 is not None and marker.get("acquisition_protocol_sha256") is not None:
+        expected["acquisition_protocol_sha256"] = acquisition_protocol_sha256
+        if label_protocol_sha256 is not None:
+            expected["label_protocol_sha256"] = label_protocol_sha256
+    else:
+        # Legacy v1 shards predate component hashes and remain bound to the
+        # immutable full protocol document.
+        expected["protocol_sha256"] = protocol_sha256
     for key, value in expected.items():
         if marker.get(key) != value:
             raise ValueError(f"Completion marker {key} mismatch for {query_id}")

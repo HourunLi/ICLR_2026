@@ -1,5 +1,11 @@
 # CLIR Stage 1 small-scale correctness-only 结果
 
+> 2026-08-14 审计更正：vLLM 0.5.3 返回的 candidates 已按 cumulative log-probability
+> 排序，旧生成脚本又丢失了 `CompletionOutput.index`。因此本页历史 BoN@1/2/4/8 不是
+> generation-order prefix 指标；BoN@16 的候选全集仍完整，但使用的是历史 v2 checker。
+> 修复、v3 full-pool 诊断和重新生成计划见 `docs/stage1b_protocol.md`。本页保留原始结果，
+> 不回写历史 artifact。
+
 日期：2026-08-13
 
 证据等级：`small-scale real`

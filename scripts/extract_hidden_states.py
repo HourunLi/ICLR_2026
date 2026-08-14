@@ -19,11 +19,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from src.clir_data import read_jsonl
 from src.clir_real_data import (
     artifact_stem,
-    canonical_json_sha256,
     extract_aligned_hidden_states,
     file_sha256,
     load_protocol,
+    protocol_hashes,
     validate_extracted_row,
+    validate_protocol_reference,
     validate_rollout_row,
     validate_uniform_extraction,
 )
@@ -110,9 +111,10 @@ def _validate_extracted_payload_row(row: Mapping[str, Any]) -> None:
 def _validate_rollout_provenance(
     rows: Sequence[Mapping[str, Any]],
     protocol: Mapping[str, Any],
-    protocol_hash: str,
+    hashes: Mapping[str, str],
 ) -> None:
     model_cfg = protocol["model"]
+    expected_candidate_policy = protocol.get("generation", {}).get("candidate_index_policy")
     for row in rows:
         validate_rollout_row(row)
         provenance = row["provenance"]
@@ -121,11 +123,24 @@ def _validate_rollout_provenance(
             "model_revision": model_cfg["revision"],
             "tokenizer_revision": model_cfg["tokenizer_revision"],
             "protocol_version": protocol["protocol_version"],
-            "protocol_sha256": protocol_hash,
         }
         for key, value in expected.items():
             if provenance.get(key) != value:
                 raise ValueError(f"Rollout/{key} mismatch for {row['id']}")
+        recorded_acquisition = provenance.get("acquisition_protocol_sha256")
+        if recorded_acquisition is not None:
+            if recorded_acquisition != hashes["acquisition_protocol_sha256"]:
+                raise ValueError(f"Rollout/acquisition_protocol_sha256 mismatch for {row['id']}")
+            if provenance.get("label_protocol_sha256") != hashes["label_protocol_sha256"]:
+                raise ValueError(f"Rollout/label_protocol_sha256 mismatch for {row['id']}")
+        elif provenance.get("protocol_sha256") != hashes["protocol_sha256"]:
+            raise ValueError(f"Rollout/protocol_sha256 mismatch for {row['id']}")
+        if (
+            expected_candidate_policy is not None
+            and row.get("generation", {}).get("candidate_index_policy")
+            != expected_candidate_policy
+        ):
+            raise ValueError(f"Rollout/candidate_index_policy mismatch for {row['id']}")
 
 
 def _extract_rows(
@@ -190,7 +205,12 @@ def _extract_rows(
             "layer_count": aligned.layer_count,
             "per_layer_hidden_size": aligned.per_layer_hidden_size,
             "feature_dim": aligned.feature_dim,
-            "apply_final_norm": False,
+            "hidden_states_source": "model_outputs.hidden_states_as_returned",
+            "extractor_applied_additional_final_norm": False,
+            "last_returned_state_norm_semantics": hidden_cfg.get(
+                "last_returned_state_norm_semantics",
+                "model_architecture_dependent",
+            ),
             "storage_dtype": storage_dtype,
         }
         trajectory_metadata = {
@@ -270,7 +290,9 @@ def main() -> None:
 
     protocol_path = Path(args.protocol_config).resolve()
     protocol = load_protocol(protocol_path)
-    protocol_hash = canonical_json_sha256(protocol)
+    hashes = protocol_hashes(protocol)
+    protocol_hash = hashes["protocol_sha256"]
+    acquisition_hash = hashes["acquisition_protocol_sha256"]
     model_cfg = protocol["model"]
     hidden_cfg = protocol["hidden_states"]
     storage_dtype = args.storage_dtype or hidden_cfg["storage_dtype"]
@@ -282,8 +304,7 @@ def main() -> None:
     if shard_mode:
         split_manifest = load_split_manifest(args.split_manifest)
         split_manifest_hash = split_manifest["manifest_sha256"]
-        if split_manifest.get("protocol_sha256") != protocol_hash:
-            raise ValueError("Split manifest protocol hash does not match --protocol-config")
+        validate_protocol_reference(split_manifest, protocol)
         entries = membership_entries(
             split_manifest,
             args.membership,
@@ -305,6 +326,8 @@ def main() -> None:
                 stage="rollout",
                 query_id=entry["query_id"],
                 protocol_sha256=protocol_hash,
+                acquisition_protocol_sha256=acquisition_hash,
+                label_protocol_sha256=hashes["label_protocol_sha256"],
                 split_manifest_sha256=split_manifest_hash,
                 expected_candidate_count=n_rollouts,
                 rows_loader=read_jsonl,
@@ -323,6 +346,8 @@ def main() -> None:
                         stage="extraction",
                         query_id=entry["query_id"],
                         protocol_sha256=protocol_hash,
+                        acquisition_protocol_sha256=acquisition_hash,
+                        label_protocol_sha256=hashes["label_protocol_sha256"],
                         split_manifest_sha256=split_manifest_hash,
                         expected_candidate_count=n_rollouts,
                         rows_loader=read_jsonl,
@@ -333,7 +358,7 @@ def main() -> None:
                 except (FileNotFoundError, KeyError, OSError, RuntimeError, TypeError, ValueError):
                     pass
             query_rows = read_jsonl(rollout_marker["_rows_path"])
-            _validate_rollout_provenance(query_rows, protocol, protocol_hash)
+            _validate_rollout_provenance(query_rows, protocol, hashes)
             pending.append((entry, query_dir, query_rows))
         if not pending:
             print(json.dumps({
@@ -356,7 +381,7 @@ def main() -> None:
             rows = rows[: args.max_rows]
         if not rows:
             raise ValueError("Input rollout manifest is empty")
-        _validate_rollout_provenance(rows, protocol, protocol_hash)
+        _validate_rollout_provenance(rows, protocol, hashes)
 
     try:
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -410,6 +435,8 @@ def main() -> None:
                 "source_index": entry["source_index"],
                 "protocol_version": protocol["protocol_version"],
                 "protocol_sha256": protocol_hash,
+                "acquisition_protocol_sha256": acquisition_hash,
+                "label_protocol_sha256": hashes["label_protocol_sha256"],
                 "split_manifest_sha256": split_manifest_hash,
                 "split_membership": args.membership,
                 "candidate_count": len(extracted_rows),
@@ -429,6 +456,8 @@ def main() -> None:
             "rows": sum(item["rows"] for item in aggregate_stats),
             "feature_bytes": sum(item["feature_bytes"] for item in aggregate_stats),
             "protocol_sha256": protocol_hash,
+            "acquisition_protocol_sha256": acquisition_hash,
+            "label_protocol_sha256": hashes["label_protocol_sha256"],
         }, indent=2))
         return
 
@@ -446,6 +475,8 @@ def main() -> None:
         "protocol_version": protocol["protocol_version"],
         "protocol_path": str(protocol_path),
         "protocol_sha256": protocol_hash,
+        "acquisition_protocol_sha256": acquisition_hash,
+        "label_protocol_sha256": hashes["label_protocol_sha256"],
         "input_jsonl": str(Path(args.input_jsonl).resolve()),
         "input_sha256": file_sha256(args.input_jsonl),
         "output_jsonl": str(output_jsonl),

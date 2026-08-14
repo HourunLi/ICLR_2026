@@ -17,6 +17,7 @@ from src.consistency_localized_reward import (
     build_reward_model,
     infer_pseudo_onsets,
     path_hallucination_probability,
+    path_no_hallucination_log_probability,
     select_best_of_n,
 )
 
@@ -28,6 +29,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output_jsonl", required=True, help="Where to write scored rows.")
     parser.add_argument("--feature_root", default=None, help="Base directory for relative feature paths.")
     parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--pin_memory", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--persistent_workers",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     parser.add_argument("--onset_threshold", type=float, default=0.5)
     parser.add_argument("--amp_dtype", default="none", choices=["none", "bfloat16"])
@@ -57,13 +65,25 @@ def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
 @torch.no_grad()
 def main() -> None:
     args = parse_args()
+    if args.num_workers < 0:
+        raise ValueError("num_workers must be non-negative")
+    if args.persistent_workers and args.num_workers == 0:
+        raise ValueError("persistent_workers requires num_workers > 0")
     device = resolve_device(args.device)
     dataset = CLIRTrajectoryDataset(
         args.input_jsonl,
         feature_root=args.feature_root,
         check_finite=not args.skip_feature_finite_check,
     )
-    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=clir_collate)
+    loader = DataLoader(
+        dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        collate_fn=clir_collate,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_memory,
+        persistent_workers=args.persistent_workers,
+    )
     model = load_model(args.model, device)
     model_variant = model.config.model_variant
     if args.amp_dtype == "bfloat16" and device.type != "cuda":
@@ -98,9 +118,13 @@ def main() -> None:
                 condition_embedding_mask=batch.get("condition_embedding_mask"),
             )
         path_probs = None
+        path_log_survival = None
         pseudo_onsets = None
         if "hallucination_logits" in outputs:
             path_probs = path_hallucination_probability(outputs["hallucination_logits"], outputs["mask"])
+            path_log_survival = path_no_hallucination_log_probability(
+                outputs["hallucination_logits"], outputs["mask"]
+            )
             pseudo_onsets = infer_pseudo_onsets(
                 outputs["hallucination_logits"],
                 outputs["mask"],
@@ -124,8 +148,11 @@ def main() -> None:
             row["reward_gate_attention"] = [
                 float(x) for x in gate_attention[:valid_length].detach().cpu().tolist()
             ]
-            if path_probs is not None and pseudo_onsets is not None:
+            if path_probs is not None and path_log_survival is not None and pseudo_onsets is not None:
                 row["clir_path_hallucination_prob"] = float(path_probs[local_idx].detach().cpu())
+                row["clir_path_no_hallucination_log_prob"] = float(
+                    path_log_survival[local_idx].detach().cpu()
+                )
                 row["clir_pseudo_onset"] = int(pseudo_onsets[local_idx].detach().cpu())
                 prior_alignment = torch.sum(gate_attention * outputs["fused_prior"][local_idx])
                 row["clir_prior_gate_alignment"] = float(prior_alignment.detach().cpu())

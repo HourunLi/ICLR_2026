@@ -7,10 +7,12 @@ import torch
 
 from src.clir_data import CLIRTrajectoryDataset, write_jsonl
 from src.clir_real_data import (
+    TOKEN_LABEL_ALIASES,
     build_gsm8k_prompt,
     check_gsm8k_response,
     extract_aligned_hidden_states,
     load_protocol,
+    protocol_hashes,
     validate_extracted_row,
 )
 
@@ -87,6 +89,7 @@ def test_strict_alignment_rejects_token_label_mismatch():
         "prompt_token_ids": [1, 2],
         "output_token_ids": [3, 4],
         "response": "answer",
+        "correctness": 1,
         "token_advantage": [0.0],
         "provenance": _provenance(),
     }
@@ -101,12 +104,49 @@ def test_finite_scan_can_only_be_skipped_explicitly_after_artifact_validation():
         "prompt_token_ids": [1],
         "output_token_ids": [2],
         "response": "answer",
+        "correctness": 1,
         "provenance": _provenance(),
     }
     feature = torch.tensor([[float("nan"), 0.0]])
     with pytest.raises(ValueError, match="NaN or Inf"):
         validate_extracted_row(row, feature)
     validate_extracted_row(row, feature, check_finite=False)
+
+
+def test_real_extraction_requires_binary_correctness():
+    base = {
+        "id": "candidate",
+        "query_id": "query",
+        "prompt_token_ids": [1],
+        "output_token_ids": [2],
+        "response": "answer",
+        "provenance": _provenance(),
+    }
+    with pytest.raises(ValueError, match="missing required `correctness`"):
+        validate_extracted_row(base, torch.zeros(1, 2))
+
+    invalid = {**base, "correctness": -1}
+    with pytest.raises(ValueError, match="numeric 0 or 1"):
+        validate_extracted_row(invalid, torch.zeros(1, 2))
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [alias for aliases in TOKEN_LABEL_ALIASES.values() for alias in aliases],
+)
+def test_every_token_label_alias_uses_strict_length_gate(alias: str):
+    row = {
+        "id": "candidate",
+        "query_id": "query",
+        "prompt_token_ids": [1],
+        "output_token_ids": [2, 3],
+        "response": "answer",
+        "correctness": 1,
+        alias: [1.0],
+        "provenance": _provenance(),
+    }
+    with pytest.raises(ValueError, match=f"{alias}.*length mismatch"):
+        validate_extracted_row(row, torch.zeros(2, 2))
 
 
 def test_real_manifest_loader_rejects_hidden_state_mismatch(tmp_path: Path):
@@ -159,6 +199,63 @@ def test_gsm8k_prompt_and_checker():
     failed = check_gsm8k_response("I cannot solve this.", "#### 4")
     assert failed["correctness"] == 0
     assert failed["checker_status"] == "parse_failed"
+
+
+def test_gsm8k_checker_v3_handles_percent_and_unit_exponents_without_rewriting_v2():
+    percent = check_gsm8k_response(r"Therefore, \boxed{60%}.", "#### 60")
+    escaped_percent = check_gsm8k_response(r"Therefore, \boxed{60\%}.", "#### 60")
+    squared_unit = check_gsm8k_response(r"Therefore, \boxed{36\text{ cm}^2}.", "#### 36")
+
+    assert percent["correctness"] == 1
+    assert escaped_percent["correctness"] == 1
+    assert squared_unit["correctness"] == 1
+    assert squared_unit["normalized_candidate_answer"] == "36"
+    assert percent["checker_version"] == "clir_gsm8k_numeric_v3"
+
+    historical = check_gsm8k_response(
+        r"Therefore, \boxed{60%}.",
+        "#### 60",
+        checker_version="clir_gsm8k_numeric_v2",
+    )
+    assert historical["correctness"] == 0
+    assert historical["checker_version"] == "clir_gsm8k_numeric_v2"
+
+
+def test_gsm8k_checker_v3_handles_decimal_percent_and_textual_boxed_answer():
+    decimal_percent = check_gsm8k_response(
+        "The probability is 0.24, or 24%. Final answer: \\boxed{0.24}.",
+        "#### 24",
+    )
+    textual_box = check_gsm8k_response(
+        "\\boxed{James will be 44 years old after 5 years.}",
+        "#### 44",
+    )
+
+    assert decimal_percent["correctness"] == 1
+    assert decimal_percent["checker_normalization"] == "percent_decimal_equivalence"
+    assert textual_box["correctness"] == 1
+    assert textual_box["normalized_candidate_answer"] == "44"
+
+
+def test_component_protocol_hashes_isolate_evaluation_edits():
+    protocol = {
+        "model": {"repo_id": "model", "revision": "r"},
+        "dataset": {"repo_id": "dataset", "subset": "main", "revision": "r"},
+        "prompt": {"template": "{question}"},
+        "generation": {"temperature": 1.0},
+        "hidden_states": {"layer_policy": "all"},
+        "correctness": {"checker": "v3"},
+        "evaluation": {"k": [1, 2]},
+    }
+    changed = json.loads(json.dumps(protocol))
+    changed["evaluation"]["k"] = [1, 2, 4]
+
+    first = protocol_hashes(protocol)
+    second = protocol_hashes(changed)
+    assert first["protocol_sha256"] != second["protocol_sha256"]
+    assert first["evaluation_protocol_sha256"] != second["evaluation_protocol_sha256"]
+    assert first["acquisition_protocol_sha256"] == second["acquisition_protocol_sha256"]
+    assert first["label_protocol_sha256"] == second["label_protocol_sha256"]
 
 
 def test_frozen_protocol_uses_full_layers_and_exact_ids():

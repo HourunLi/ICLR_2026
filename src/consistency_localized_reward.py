@@ -88,6 +88,15 @@ class RewardConfig:
             self.per_layer_dim = self.hidden_dim // self.num_feature_layers
         if self.hidden_dim != self.num_feature_layers * self.per_layer_dim:
             raise ValueError("hidden_dim must equal num_feature_layers * per_layer_dim")
+        if (
+            self.encoder_type == "layer_transformer"
+            and self.num_feature_layers == 1
+            and self.hidden_dim >= 65_536
+        ):
+            raise ValueError(
+                "large layer_transformer inputs require an explicit multi-layer contract; "
+                "set num_feature_layers and per_layer_dim from the extraction manifest"
+            )
 
         if self.encoder_type == "identity" and self.model_dim != self.hidden_dim:
             raise ValueError("identity encoder requires model_dim == hidden_dim")
@@ -261,6 +270,25 @@ def _swift_outputs(token_features: Tensor, mask: Tensor, token_head: nn.Linear, 
     }
 
 
+def masked_binary_cross_entropy_with_logits(
+    logits: Tensor,
+    targets: Tensor,
+    mask: Optional[Tensor] = None,
+) -> Tensor:
+    """Binary cross entropy that never turns missing labels into negatives."""
+
+    targets = targets.to(device=logits.device, dtype=logits.dtype).view_as(logits)
+    if mask is None:
+        return F.binary_cross_entropy_with_logits(logits.float(), targets.float())
+    valid = mask.to(device=logits.device).bool().view_as(logits)
+    if not valid.any():
+        return logits.sum() * 0.0
+    return F.binary_cross_entropy_with_logits(
+        logits[valid].float(),
+        targets[valid].float(),
+    )
+
+
 class SwiftRewardBase(nn.Module):
     """Shared correctness-only training contract for strict/encoded SWIFT."""
 
@@ -284,7 +312,11 @@ class SwiftRewardBase(nn.Module):
         losses: Dict[str, Tensor] = {}
         if "correctness" in batch:
             target = batch["correctness"].to(outputs["scores"]).view_as(outputs["scores"])
-            final = F.binary_cross_entropy_with_logits(outputs["scores"].float(), target.float())
+            final = masked_binary_cross_entropy_with_logits(
+                outputs["scores"],
+                target,
+                batch.get("correctness_mask"),
+            )
             losses["final"] = final
             total = total + self.config.final_weight * final
         losses["total"] = total
@@ -535,9 +567,10 @@ class ConsistencyLocalizedReward(nn.Module):
 
         if "correctness" in batch:
             target = batch["correctness"].to(outputs["scores"]).view_as(outputs["scores"])
-            final_loss = F.binary_cross_entropy_with_logits(
-                outputs["scores"].float(),
-                target.float(),
+            final_loss = masked_binary_cross_entropy_with_logits(
+                outputs["scores"],
+                target,
+                batch.get("correctness_mask"),
             )
             losses["final"] = final_loss
             total = total + self.config.final_weight * final_loss
@@ -883,7 +916,14 @@ def path_level_hallucination_mil(
     path_hallucinated: Tensor,
     label_mask: Optional[Tensor] = None,
 ) -> Tensor:
-    """Weak path-level hallucination loss using noisy-or over token probabilities."""
+    """Weak path-level hallucination loss using log-space noisy-or.
+
+    Let ``q = product_t (1 - sigmoid(logit_t))`` be the probability that no
+    valid token hallucinates. Directly forming ``1 - q`` rounds to exactly one
+    on realistic sequence lengths and destroys the negative-path gradient.
+    We instead keep ``log(q)`` as a sum of log-sigmoid values and evaluate the
+    positive/negative BCE branches from that stable representation.
+    """
     device = hallucination_logits.device
     if label_mask is None:
         label_mask = torch.ones(path_hallucinated.shape, dtype=torch.bool, device=device)
@@ -892,12 +932,30 @@ def path_level_hallucination_mil(
     if label_mask.sum() == 0:
         return hallucination_logits.new_zeros(())
 
-    logits = hallucination_logits[label_mask]
-    row_mask = mask.to(device=device, dtype=logits.dtype)[label_mask]
-    labels = path_hallucinated.to(device=device, dtype=logits.dtype)[label_mask]
-    probs = torch.sigmoid(logits).clamp(1e-6, 1.0 - 1e-6) * row_mask
-    path_prob = 1.0 - torch.prod(1.0 - probs, dim=1)
-    return F.binary_cross_entropy(path_prob, labels)
+    logits = hallucination_logits[label_mask].float()
+    row_mask = mask.to(device=device)[label_mask].bool()
+    if not row_mask.any(dim=1).all():
+        raise ValueError("Every path-level hallucination label requires at least one valid token")
+    labels = path_hallucinated.to(device=device)[label_mask].bool()
+    log_no_hallucination = (
+        F.logsigmoid(-logits) * row_mask.to(dtype=logits.dtype)
+    ).sum(dim=1)
+    positive_loss = -_log1mexp(log_no_hallucination)
+    negative_loss = -log_no_hallucination
+    return torch.where(labels, positive_loss, negative_loss).mean()
+
+
+def _log1mexp(log_x: Tensor) -> Tensor:
+    """Compute ``log(1 - exp(log_x))`` stably for ``log_x <= 0``."""
+
+    if torch.any(log_x > 0):
+        raise ValueError("_log1mexp requires values <= 0")
+    log_half = -0.6931471805599453
+    return torch.where(
+        log_x < log_half,
+        torch.log1p(-torch.exp(log_x)),
+        torch.log(-torch.expm1(log_x)),
+    )
 
 
 def pseudo_onset_tail_loss(
@@ -1058,10 +1116,26 @@ def infer_pseudo_onsets(
 
 @torch.no_grad()
 def path_hallucination_probability(hallucination_logits: Tensor, mask: Tensor) -> Tensor:
-    """Noisy-or probability that a whole trajectory contains hallucination."""
-    probs = torch.sigmoid(hallucination_logits).clamp(1e-6, 1.0 - 1e-6)
-    mask = mask.to(device=probs.device, dtype=probs.dtype)
-    return 1.0 - torch.prod(1.0 - probs * mask, dim=1)
+    """Noisy-or path probability, accumulated through log survival values."""
+
+    logits = hallucination_logits.float()
+    mask = mask.to(device=logits.device).bool()
+    log_no_hallucination = (
+        F.logsigmoid(-logits) * mask.to(dtype=logits.dtype)
+    ).sum(dim=1)
+    return -torch.expm1(log_no_hallucination)
+
+
+@torch.no_grad()
+def path_no_hallucination_log_probability(
+    hallucination_logits: Tensor,
+    mask: Tensor,
+) -> Tensor:
+    """Return log P(no hallucination), which remains informative for long paths."""
+
+    logits = hallucination_logits.float()
+    mask = mask.to(device=logits.device).bool()
+    return (F.logsigmoid(-logits) * mask.to(dtype=logits.dtype)).sum(dim=1)
 
 
 @torch.no_grad()
@@ -1092,6 +1166,7 @@ __all__ = [
     "infer_pseudo_onsets",
     "masked_mean",
     "path_hallucination_probability",
+    "path_no_hallucination_log_probability",
     "path_level_hallucination_mil",
     "prism_style_consistency_loss",
     "pseudo_onset_tail_loss",

@@ -54,9 +54,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--encoder_dropout", type=float, default=0.0)
     parser.add_argument("--projection_dim", type=int, default=256)
     parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--pin_memory", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument(
+        "--persistent_workers",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
     parser.add_argument("--epochs", type=int, default=5, help="Total target epochs, including resumed epochs.")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.0)
+    parser.add_argument(
+        "--max_grad_norm",
+        type=float,
+        default=0.0,
+        help="Clip the global gradient norm when > 0; zero disables clipping.",
+    )
     parser.add_argument("--val_fraction", type=float, default=0.0,
                         help="Legacy row split only; formal Stage A runs must use --val_jsonl.")
     parser.add_argument("--seed", type=int, default=42)
@@ -137,17 +150,81 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
     )
 
 
+def validate_dataset_feature_contract(
+    dataset: CLIRTrajectoryDataset,
+    config: RewardConfig,
+    split_name: str,
+) -> None:
+    """Cross-check CLI architecture values against extracted feature metadata."""
+
+    metadata_rows = [row.get("feature_metadata") for row in dataset.rows]
+    present = [metadata for metadata in metadata_rows if isinstance(metadata, Mapping)]
+    if not present:
+        return
+    if len(present) != len(metadata_rows):
+        raise ValueError(f"{split_name} mixes rows with and without feature_metadata")
+    contracts = {
+        (
+            int(metadata.get("feature_dim", -1)),
+            int(metadata.get("layer_count", -1)),
+            int(metadata.get("per_layer_hidden_size", -1)),
+        )
+        for metadata in present
+    }
+    if len(contracts) != 1:
+        raise ValueError(f"{split_name} has non-uniform feature metadata: {sorted(contracts)}")
+    feature_dim, layer_count, per_layer_dim = next(iter(contracts))
+    if feature_dim != config.hidden_dim:
+        raise ValueError(
+            f"{split_name} feature_dim={feature_dim} but --hidden_dim={config.hidden_dim}"
+        )
+    if config.encoder_type == "layer_transformer" and (
+        layer_count != config.num_feature_layers
+        or per_layer_dim != config.per_layer_dim
+    ):
+        raise ValueError(
+            f"{split_name} layer contract is {layer_count} x {per_layer_dim}, but model "
+            f"configuration is {config.num_feature_layers} x {config.per_layer_dim}"
+        )
+
+
+def _row_query_id(row: Mapping[str, Any], index: int) -> str:
+    return str(
+        row.get(
+            "query_id",
+            row.get("candidate_group_id", row.get("prompt_id", index)),
+        )
+    )
+
+
 def split_indices(dataset: CLIRTrajectoryDataset, val_fraction: float, seed: int):
     indices = list(range(len(dataset)))
     if val_fraction <= 0.0:
         return indices, None
-    val_size = max(1, int(len(dataset) * val_fraction))
-    train_size = len(dataset) - val_size
-    if train_size <= 0:
-        raise ValueError("val_fraction leaves no training examples")
+
+    query_to_indices: Dict[str, list[int]] = {}
+    for index, row in enumerate(dataset.rows):
+        query_to_indices.setdefault(_row_query_id(row, index), []).append(index)
+    query_ids = list(query_to_indices)
+    if len(query_ids) < 2:
+        raise ValueError("val_fraction requires at least two distinct query groups")
+
+    val_query_count = max(1, int(len(query_ids) * val_fraction))
+    val_query_count = min(val_query_count, len(query_ids) - 1)
     generator = torch.Generator().manual_seed(seed)
-    permutation = torch.randperm(len(dataset), generator=generator).tolist()
-    return permutation[:train_size], permutation[train_size:]
+    permutation = torch.randperm(len(query_ids), generator=generator).tolist()
+    val_queries = {query_ids[position] for position in permutation[:val_query_count]}
+    train_indices = [
+        index
+        for index, row in enumerate(dataset.rows)
+        if _row_query_id(row, index) not in val_queries
+    ]
+    val_indices = [
+        index
+        for index, row in enumerate(dataset.rows)
+        if _row_query_id(row, index) in val_queries
+    ]
+    return train_indices, val_indices
 
 
 def make_loader(
@@ -157,7 +234,19 @@ def make_loader(
     shuffle: bool,
     group_by_semantic_id: bool,
     seed: int,
+    num_workers: int = 0,
+    pin_memory: bool = False,
+    persistent_workers: bool = False,
 ) -> DataLoader:
+    if num_workers < 0:
+        raise ValueError("num_workers must be non-negative")
+    if persistent_workers and num_workers == 0:
+        raise ValueError("persistent_workers requires num_workers > 0")
+    loader_kwargs = {
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+        "persistent_workers": persistent_workers,
+    }
     if group_by_semantic_id and shuffle:
         sampler = SemanticGroupBatchSampler(
             dataset,
@@ -167,9 +256,20 @@ def make_loader(
             seed=seed,
             indices=indices,
         )
-        return DataLoader(dataset, batch_sampler=sampler, collate_fn=clir_collate)
+        return DataLoader(
+            dataset,
+            batch_sampler=sampler,
+            collate_fn=clir_collate,
+            **loader_kwargs,
+        )
     subset = Subset(dataset, indices)
-    return DataLoader(subset, batch_size=batch_size, shuffle=shuffle, collate_fn=clir_collate)
+    return DataLoader(
+        subset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        collate_fn=clir_collate,
+        **loader_kwargs,
+    )
 
 
 def prior_phase_for_epoch(mode: str, epoch: int) -> str:
@@ -183,7 +283,10 @@ def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tenso
     mask = batch["mask"].bool()
     counts: Dict[str, int] = {"total": batch_size}
     if "final" in losses:
-        counts["final"] = int(batch.get("correctness", torch.empty(0)).numel())
+        if "correctness_mask" in batch:
+            counts["final"] = int(batch["correctness_mask"].sum().item())
+        else:
+            counts["final"] = int(batch.get("correctness", torch.empty(0)).numel())
     consistency_count = 0
     if "consistency_mask" in batch:
         valid = batch["consistency_mask"].bool()
@@ -227,6 +330,7 @@ def run_epoch(
     optimizer: torch.optim.Optimizer | None,
     prior_phase: str,
     amp_dtype: str = "none",
+    max_grad_norm: float = 0.0,
 ) -> Dict[str, Any]:
     training = optimizer is not None
     model.train(training)
@@ -256,6 +360,8 @@ def run_epoch(
                 raise FloatingPointError(f"Non-finite total loss in {prior_phase} phase")
             if training:
                 losses["total"].backward()
+                if max_grad_norm > 0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 optimizer.step()
 
             batch_size = int(batch["hidden_states"].shape[0])
@@ -276,10 +382,7 @@ def run_epoch(
 
 def _query_ids(dataset: CLIRTrajectoryDataset, indices: list[int] | None = None) -> set[str]:
     selected = indices if indices is not None else list(range(len(dataset.rows)))
-    return {
-        str(dataset.rows[index].get("query_id", dataset.rows[index].get("candidate_group_id", dataset.rows[index].get("prompt_id", index))))
-        for index in selected
-    }
+    return {_row_query_id(dataset.rows[index], index) for index in selected}
 
 
 def _rng_state() -> Dict[str, Any]:
@@ -314,6 +417,8 @@ def main() -> None:
         raise ValueError("--val_feature_root requires --val_jsonl")
     if args.epochs <= 0:
         raise ValueError("epochs must be positive")
+    if args.max_grad_norm < 0:
+        raise ValueError("max_grad_norm must be non-negative")
     set_seed(args.seed)
     device = resolve_device(args.device)
     output = Path(args.output_model).resolve()
@@ -324,12 +429,14 @@ def main() -> None:
         args.train_jsonl,
         feature_root=args.feature_root,
         check_finite=not args.skip_feature_finite_check,
+        require_correctness=True,
     )
     if args.val_jsonl:
         val_dataset = CLIRTrajectoryDataset(
             args.val_jsonl,
             feature_root=args.val_feature_root,
             check_finite=not args.skip_feature_finite_check,
+            require_correctness=True,
         )
         train_indices = list(range(len(train_dataset)))
         val_indices = list(range(len(val_dataset)))
@@ -343,17 +450,25 @@ def main() -> None:
     if overlap:
         raise ValueError(f"Train/validation query leakage detected: {sorted(overlap)[:5]}")
 
+    config = make_config(args)
+    validate_dataset_feature_contract(train_dataset, config, "train")
+    if val_indices is not None:
+        validate_dataset_feature_contract(val_dataset, config, "validation")
+
     train_loader = make_loader(
         train_dataset, args.batch_size, train_indices, shuffle=True,
         group_by_semantic_id=args.group_by_semantic_id, seed=args.seed,
+        num_workers=args.num_workers, pin_memory=args.pin_memory,
+        persistent_workers=args.persistent_workers,
     )
     val_loader = (
         make_loader(val_dataset, args.batch_size, val_indices, shuffle=False,
-                    group_by_semantic_id=False, seed=args.seed)
+                    group_by_semantic_id=False, seed=args.seed,
+                    num_workers=args.num_workers, pin_memory=args.pin_memory,
+                    persistent_workers=args.persistent_workers)
         if val_indices is not None else None
     )
 
-    config = make_config(args)
     model = build_reward_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     data_state = {
@@ -421,7 +536,8 @@ def main() -> None:
         for epoch in range(start_epoch + 1, args.epochs + 1):
             prior_phase = prior_phase_for_epoch(args.prior_phase_mode, epoch)
             train_metrics = run_epoch(
-                model, train_loader, device, optimizer, prior_phase=prior_phase, amp_dtype=args.amp_dtype
+                model, train_loader, device, optimizer, prior_phase=prior_phase,
+                amp_dtype=args.amp_dtype, max_grad_norm=args.max_grad_norm,
             )
             val_metrics = None
             if val_loader is not None:

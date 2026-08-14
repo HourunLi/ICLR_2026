@@ -50,6 +50,15 @@ def test_config_fails_fast_before_accidental_raw_width_quadratic_clir():
     assert learned.model_dim == 768
 
 
+def test_large_layer_encoder_requires_explicit_layer_layout():
+    with pytest.raises(ValueError, match="explicit multi-layer contract"):
+        RewardConfig(
+            hidden_dim=33 * 3072,
+            model_variant="clir",
+            encoder_type="layer_transformer",
+        )
+
+
 def test_encoded_swift_cannot_silently_become_identity_swift():
     with pytest.raises(ValueError, match="non-identity encoder"):
         RewardConfig(hidden_dim=8, model_variant="encoded_swift")

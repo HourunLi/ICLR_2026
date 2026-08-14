@@ -8,14 +8,20 @@ import json
 from pathlib import Path
 import statistics
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.clir_data import read_jsonl
-from src.clir_real_data import canonical_json_sha256, file_sha256, load_protocol, validate_rollout_row
+from src.clir_real_data import (
+    file_sha256,
+    load_protocol,
+    protocol_hashes,
+    validate_protocol_reference,
+    validate_rollout_row,
+)
 from src.clir_stage_a import (
     atomic_write_json,
     atomic_write_jsonl,
@@ -50,6 +56,24 @@ def _summary(values: list[int]) -> Dict[str, float | int | None]:
     return {"min": min(values), "mean": statistics.fmean(values), "max": max(values)}
 
 
+def validate_candidate_index_policy(
+    rows: list[Mapping[str, Any]],
+    expected_policy: str | None,
+    query_id: str,
+) -> None:
+    if expected_policy is None:
+        return
+    actual_policies = {
+        row.get("generation", {}).get("candidate_index_policy")
+        for row in rows
+    }
+    if actual_policies != {expected_policy}:
+        raise ValueError(
+            f"Candidate index policy mismatch in {query_id}: expected {expected_policy!r}, "
+            f"got {sorted(map(str, actual_policies))}"
+        )
+
+
 def merge_query_shards(
     *,
     protocol_path: str | Path,
@@ -63,11 +87,13 @@ def merge_query_shards(
     if expected_candidates <= 0:
         raise ValueError("expected_candidates must be positive")
     protocol = load_protocol(protocol_path)
-    protocol_hash = canonical_json_sha256(protocol)
+    hashes = protocol_hashes(protocol)
+    protocol_hash = hashes["protocol_sha256"]
+    acquisition_hash = hashes["acquisition_protocol_sha256"]
     split_manifest = load_split_manifest(split_manifest_path)
     split_hash = split_manifest["manifest_sha256"]
-    if split_manifest.get("protocol_sha256") != protocol_hash:
-        raise ValueError("Split manifest protocol hash does not match --protocol-config")
+    validate_protocol_reference(split_manifest, protocol)
+    expected_candidate_policy = protocol.get("generation", {}).get("candidate_index_policy")
     entries = membership_entries(split_manifest, membership, max_queries=max_queries)
     if not entries:
         raise ValueError("Selected membership is empty")
@@ -85,6 +111,8 @@ def merge_query_shards(
             stage=stage,
             query_id=query_id,
             protocol_sha256=protocol_hash,
+            acquisition_protocol_sha256=acquisition_hash,
+            label_protocol_sha256=hashes["label_protocol_sha256"],
             split_manifest_sha256=split_hash,
             expected_candidate_count=expected_candidates,
             rows_loader=read_jsonl,
@@ -92,6 +120,7 @@ def merge_query_shards(
         )
         rows = [dict(row) for row in read_jsonl(marker["_rows_path"])]
         rows.sort(key=lambda row: int(row["candidate_index"]))
+        validate_candidate_index_policy(rows, expected_candidate_policy, query_id)
         labels = [int(row["correctness"]) for row in rows]
         if any(label not in (0, 1) for label in labels):
             raise ValueError(f"Non-binary correctness label in {query_id}")
@@ -121,11 +150,14 @@ def merge_query_shards(
         "stage": stage,
         "protocol_version": protocol["protocol_version"],
         "protocol_sha256": protocol_hash,
+        "acquisition_protocol_sha256": acquisition_hash,
+        "label_protocol_sha256": hashes["label_protocol_sha256"],
         "split_manifest_sha256": split_hash,
         "membership": membership,
         "membership_sha256": split_manifest["membership_sha256"][membership],
         "max_queries": max_queries,
         "candidate_count_per_query": expected_candidates,
+        "candidate_index_policy": expected_candidate_policy,
         "queries": len(entries),
         "rows": len(all_rows),
         "correct": sum(labels),

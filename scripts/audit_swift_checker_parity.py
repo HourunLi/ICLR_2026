@@ -17,6 +17,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.clir_data import read_jsonl
 from src.clir_real_data import check_gsm8k_response, extract_gsm8k_reference
+from src.clir_stage_a import atomic_write_json
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,7 +25,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-jsonl", action="append", required=True)
     parser.add_argument("--swift-repo", required=True)
     parser.add_argument("--expected-swift-commit", default=None)
+    parser.add_argument(
+        "--checker-version",
+        default="clir_gsm8k_numeric_v3",
+        choices=("clir_gsm8k_numeric_v2", "clir_gsm8k_numeric_v3"),
+    )
     parser.add_argument("--max-disagreements", type=int, default=20)
+    parser.add_argument("--output-json", default=None)
+    parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
 
@@ -50,7 +58,11 @@ def main() -> None:
     disagreements = []
     clir_statuses: Counter[str] = Counter()
     for row in rows:
-        clir = check_gsm8k_response(row["response"], row["raw_reference"])
+        clir = check_gsm8k_response(
+            row["response"],
+            row["raw_reference"],
+            checker_version=args.checker_version,
+        )
         _, swift_correct, swift_answer = evaluate_math(
             row["response"], extract_gsm8k_reference(row["raw_reference"])
         )
@@ -72,6 +84,7 @@ def main() -> None:
 
     total = len(rows)
     report = {
+        "checker_version": args.checker_version,
         "rows": total,
         "agreement_count": total - len(disagreements),
         "agreement_rate": (total - len(disagreements)) / max(total, 1),
@@ -83,6 +96,11 @@ def main() -> None:
         "disagreement_count": len(disagreements),
         "disagreements": disagreements[: args.max_disagreements],
     }
+    if args.output_json:
+        output = Path(args.output_json).resolve()
+        if output.exists() and not args.overwrite:
+            raise FileExistsError(f"Refusing to overwrite existing artifact: {output}")
+        atomic_write_json(output, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

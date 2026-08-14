@@ -23,6 +23,8 @@ from src.clir_real_data import (
     canonical_json_sha256,
     check_gsm8k_response,
     load_protocol,
+    protocol_hashes,
+    validate_protocol_reference,
     validate_rollout_row,
 )
 from src.clir_stage_a import (
@@ -75,6 +77,24 @@ def _version(package: str) -> str:
         return "missing"
 
 
+def ordered_vllm_candidates(request_output: Any, expected_count: int) -> list[Any]:
+    """Recover vLLM's original sample order from ``CompletionOutput.index``.
+
+    vLLM 0.5.x exposes ``request_output.outputs`` in cumulative-logprob order,
+    not generation order. ``CompletionOutput.index`` is the retained original
+    sequence index and is therefore the only valid Best-of-N prefix key.
+    """
+
+    candidates = list(request_output.outputs)
+    indices = [int(candidate.index) for candidate in candidates]
+    if sorted(indices) != list(range(expected_count)):
+        raise ValueError(
+            "vLLM candidate indices must be unique and contiguous: "
+            f"expected 0..{expected_count - 1}, got {sorted(indices)}"
+        )
+    return sorted(candidates, key=lambda candidate: int(candidate.index))
+
+
 def main() -> None:
     args = parse_args()
     if args.start_index < 0 or args.max_queries <= 0:
@@ -108,7 +128,10 @@ def main() -> None:
     if n_rollouts <= 0:
         raise ValueError("n-rollouts must be > 0")
 
-    protocol_hash = canonical_json_sha256(protocol)
+    hashes = protocol_hashes(protocol)
+    protocol_hash = hashes["protocol_sha256"]
+    acquisition_hash = hashes["acquisition_protocol_sha256"]
+    label_hash = hashes["label_protocol_sha256"]
     split_manifest = None
     split_manifest_hash = None
     frozen_entries = None
@@ -116,8 +139,7 @@ def main() -> None:
     if shard_mode:
         split_manifest = load_split_manifest(args.split_manifest)
         split_manifest_hash = split_manifest["manifest_sha256"]
-        if split_manifest.get("protocol_sha256") != protocol_hash:
-            raise ValueError("Split manifest protocol hash does not match --protocol-config")
+        validate_protocol_reference(split_manifest, protocol)
         frozen_entries = membership_entries(
             split_manifest,
             args.membership,
@@ -150,6 +172,8 @@ def main() -> None:
                         stage="rollout",
                         query_id=entry["query_id"],
                         protocol_sha256=protocol_hash,
+                        acquisition_protocol_sha256=acquisition_hash,
+                        label_protocol_sha256=label_hash,
                         split_manifest_sha256=split_manifest_hash,
                         expected_candidate_count=n_rollouts,
                         rows_loader=read_jsonl,
@@ -263,6 +287,8 @@ def main() -> None:
     common_provenance = {
         "protocol_version": protocol["protocol_version"],
         "protocol_sha256": protocol_hash,
+        "acquisition_protocol_sha256": acquisition_hash,
+        "label_protocol_sha256": label_hash,
         "model_id": model_cfg["repo_id"],
         "model_revision": model_cfg["revision"],
         "tokenizer_revision": model_cfg["tokenizer_revision"],
@@ -287,14 +313,20 @@ def main() -> None:
     rows_by_query: Dict[str, list[Dict[str, Any]]] = {}
     for query, request_output in zip(query_metadata, request_outputs):
         prompt_ids = [int(value) for value in request_output.prompt_token_ids]
-        for candidate_index, candidate in enumerate(request_output.outputs):
+        query_rows: list[Dict[str, Any]] = []
+        for candidate in ordered_vllm_candidates(request_output, n_rollouts):
+            candidate_index = int(candidate.index)
             output_ids = [int(value) for value in candidate.token_ids]
             response = tokenizer.decode(
                 output_ids,
                 skip_special_tokens=True,
                 clean_up_tokenization_spaces=False,
             )
-            checker = check_gsm8k_response(response, query["raw_reference"])
+            checker = check_gsm8k_response(
+                response,
+                query["raw_reference"],
+                checker_version=protocol["correctness"]["checker"],
+            )
             row = {
                 "id": f"{query['query_id']}-cand-{candidate_index:03d}",
                 "query_id": query["query_id"],
@@ -320,14 +352,17 @@ def main() -> None:
                     "max_model_length": generation_cfg["max_model_length"],
                     "seed": generation_cfg["seed"],
                     "terminal_token_policy": generation_cfg["terminal_token_policy"],
+                    "candidate_index_policy": "vllm_completion_output_index",
+                    "cumulative_logprob": float(candidate.cumulative_logprob),
                     "finish_reason": getattr(candidate, "finish_reason", None),
                     "stop_reason": getattr(candidate, "stop_reason", None),
                 },
                 "provenance": dict(common_provenance),
             }
             validate_rollout_row(row)
-            rows.append(row)
-            rows_by_query.setdefault(query["query_id"], []).append(row)
+            query_rows.append(row)
+        rows.extend(query_rows)
+        rows_by_query[query["query_id"]] = query_rows
 
     if shard_mode:
         for query in query_metadata:
@@ -344,6 +379,8 @@ def main() -> None:
                 "source_index": query["source_index"],
                 "protocol_version": protocol["protocol_version"],
                 "protocol_sha256": protocol_hash,
+                "acquisition_protocol_sha256": acquisition_hash,
+                "label_protocol_sha256": label_hash,
                 "split_manifest_sha256": split_manifest_hash,
                 "split_membership": args.membership,
                 "candidate_count": n_rollouts,
@@ -373,6 +410,8 @@ def main() -> None:
                 "correct": sum(int(row["correctness"]) for row in rows),
                 "decode_mismatches": sum(not row["decode_matches_backend_text"] for row in rows),
                 "protocol_sha256": protocol_hash,
+                "acquisition_protocol_sha256": acquisition_hash,
+                "label_protocol_sha256": label_hash,
             },
             indent=2,
         )

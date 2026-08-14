@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.clir_real_data import canonical_json_sha256, load_protocol
+from src.clir_real_data import load_protocol, protocol_hashes
 from src.clir_stage_a import atomic_write_json, build_gsm8k_split_manifest
 
 
@@ -46,6 +46,7 @@ def main() -> None:
         raise SystemExit("Install the real-data requirements before freezing GSM8K splits") from exc
 
     protocol = load_protocol(args.protocol_config)
+    hashes = protocol_hashes(protocol)
     dataset_cfg = protocol["dataset"]
     common = {
         "path": dataset_cfg["repo_id"],
@@ -66,7 +67,9 @@ def main() -> None:
             "test_rows": len(test),
         },
         protocol_version=protocol["protocol_version"],
-        protocol_sha256=canonical_json_sha256(protocol),
+        protocol_sha256=hashes["protocol_sha256"],
+        acquisition_protocol_sha256=hashes["acquisition_protocol_sha256"],
+        label_protocol_sha256=hashes["label_protocol_sha256"],
         seed=args.seed,
         train_primary_size=args.train_primary_size,
         validation_size=args.validation_size,

@@ -82,6 +82,15 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
   `88.54±1.63%`、CLIR `89.32±2.51%`，random expected 为 `86.52%`、oracle 为
   `96.09%`。CLIR 相对 encoded 平均仅 `+0.78±2.07` 个百分点且一个 seed 为负，配对 CI
   未建立稳定增益。完整口径见 `docs/stage1_results.md`；`pilot_test` 尚未生成或检查。
+- **2026-08-14 正确性审计与 Stage 1B 协议已冻结**：旧 vLLM candidates 实际按 cumulative
+  log-probability 排序，历史 BoN@1/2/4/8 因此不是 generation-order prefix；BoN@16 的
+  full pool 未丢候选。生成器现按 `CompletionOutput.index` 恢复原始 sample index。checker
+  升级为版本化的 `clir_gsm8k_numeric_v3`，在既有 6,144 条回答上只发生 9 条 `0→1`、无
+  `1→0`，并且对固定官方 SWIFT checker 没有假阴性。历史 9 个 checkpoint 的 v3 full-pool
+  诊断显示 mixed-query accuracy 均值为 strict 73.68%、encoded 74.56%、CLIR 78.07%，但
+  CLIR 跨 seed 标准差仍有 7.60 个百分点，layer attention 也不稳定，不能宣称稳定增益。
+  v2 split 保持所有 query membership 不变；Stage 1B 将重新生成全部 500×16 validation。
+  详见 `docs/stage1b_protocol.md`。
 - 新增 `summarize_clir.py`：严格校验多 seed evaluation 的 query/k/baseline 一致性，报告
   跨 seed 样本标准差，并在主指标上计算逐 query 配对 bootstrap CI。
 - 当前模型包含：
@@ -113,13 +122,24 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - `query_id` 只用于 Best-of-N candidate 分组，不再默认 fallback 到 `semantic_id`，避免候选分组和 augmentation 分组混在一起。
 - `condition_attention_temperature` 和 `progress_score_weight` 已接入 `train_clir.py` CLI。
 - dual-prior 在部分 token 有标签时不再对子集重新归一化，而是比较完整轨迹 attention 分布在已标注 token 上的原始概率质量。
+- vLLM candidate 序号改用并校验 `CompletionOutput.index`，同时落盘 cumulative log-probability
+  供审计；旧 artifact 不回写。
+- 缺失 correctness 不再被当作负样本；训练强制标签存在，collate 和 BCE 都携带
+  `correctness_mask`。
+- 所有 token-label alias 共用一份严格长度契约，不再允许 alias 绕过校验后静默 pad/trim。
+- noisy-or MIL 改成 log-space，真实长度下 negative-path loss 不再因 `1-product` 饱和而梯度
+  精确为零；评分同时保留 `log P(no hallucination)`。
+- protocol provenance 拆成 acquisition/label/evaluation component hashes；只改评估参数不会
+  让已采集 hidden states 失效。
+- `--val_fraction` 兼容路径按完整 query 分组切分；训练和评分新增并行 DataLoader 参数，训练
+  支持可选 gradient clipping。
 
 ## 遇到的问题
 
 - Stage 1 small-scale validation 已有跨 seed 结果，但 incremental 证据不稳定：
   encoded→CLIR 的 BoN@16 为 `+2.34/+1.56/-1.56` 个百分点，strict→encoded 也发生方向
   翻转。当前只能报告弱排序信号，不能表述为 CLIR 已优于共享编码器 baseline。
-- validation 的 128 个 query 中只有 39 个 mixed pools；84 个 all-correct 与 5 个
+- v3 下 validation 的 128 个 query 中只有 38 个 mixed pools；85 个 all-correct 与 5 个
   all-wrong pools 在 BoN@16 上不能区分选择器，导致配对 CI 较宽。下一轮应只按冻结顺序
   扩展 query prefix，不能根据答案 cherry-pick。
 - 全层 feature 实测宽度为 101,376，每 token BF16 为 202,752 bytes；本轮 640 个 query
@@ -127,9 +147,10 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
   上限并保留 query-atomic resume/checksum，不应以静默删层规避存储问题。
 - vLLM `candidate.text` 在当前版本会比按原始 IDs decode 的文本多一个前导空格；272/272
   条都只差这个空格。`output_token_ids` 和由它 decode 的 `response` 仍是事实来源。
-- SWIFT 官方 `evaluate_math` 未覆盖 `bolts`、`downloads` 等单位或某些尾随文本；共享审计
-  272 条中产生 12 个假阴性。主标签使用冻结的 `clir_gsm8k_numeric_v2`，同时保留官方
-  checker parity 数字，避免把修正后的标签冒充官方原样口径。
+- SWIFT 官方 `evaluate_math` 未覆盖 `bolts`、`downloads` 等单位或某些尾随文本。全量
+  6,144 条 parity 中，v3 与官方一致 5,589 条；555 个分歧均为 v3 判对、官方判错，0 个反向
+  分歧。主标签使用版本化的 `clir_gsm8k_numeric_v3`，同时保留官方 parity，不能把 v3
+  冒充“官方原始 checker”。
 - LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
 - hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
 - `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
@@ -152,9 +173,9 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 
 ## 未来解决方向
 
-- 先做 Stage 1B 诊断：在现有 39 个 mixed validation pools 上分析逐 query 分歧、长度偏差、
-  score margin 与 layer attention，不利用 `pilot_test` 调参。
-- 冻结新的 ordered-prefix 扩展配置以增加 mixed validation query；任何 class weighting、
+- Stage 1B 的历史 full-pool 诊断已完成；下一步按 `configs/stage1b_validation_v1.json` 重新
+  生成、抽取冻结 validation 的全部 500×16 candidates，不利用 `pilot_test` 调参。
+- v2 ordered-prefix 扩展配置已冻结；任何 class weighting、
   objective、epoch 或解码策略变化都必须版本化，不能覆盖 `stage1-small-scale-v1`。
 - 仅在 validation 的 random 增益和 encoded→CLIR 增量跨 seed 稳定后锁定配置，再一次性
   进入 `pilot_test`；否则将当前结果保留为弱信号/负增量证据。

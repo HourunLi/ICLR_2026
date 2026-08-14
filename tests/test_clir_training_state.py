@@ -5,7 +5,8 @@ import sys
 
 import torch
 
-from src.clir_data import write_jsonl
+from src.clir_data import CLIRTrajectoryDataset, write_jsonl
+from train_clir import split_indices
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -86,3 +87,26 @@ def test_explicit_validation_rejects_query_leakage(tmp_path: Path):
     )
     assert result.returncode != 0
     assert "query leakage" in result.stderr
+
+
+def test_legacy_val_fraction_splits_whole_query_groups(tmp_path: Path):
+    manifest = tmp_path / "rows.jsonl"
+    rows = []
+    for query_index in range(5):
+        for candidate_index in range(query_index + 1):
+            rows.append({
+                "id": f"q{query_index}-c{candidate_index}",
+                "query_id": f"q{query_index}",
+                "hidden_states": [[0.0, 1.0]],
+                "correctness": candidate_index % 2,
+            })
+    write_jsonl(manifest, rows)
+    dataset = CLIRTrajectoryDataset(manifest, require_correctness=True)
+
+    train_indices, val_indices = split_indices(dataset, val_fraction=0.4, seed=11)
+    train_queries = {dataset.rows[index]["query_id"] for index in train_indices}
+    val_queries = {dataset.rows[index]["query_id"] for index in val_indices}
+
+    assert len(val_queries) == 2
+    assert train_queries.isdisjoint(val_queries)
+    assert len(train_indices) + len(val_indices) == len(rows)

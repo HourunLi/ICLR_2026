@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,7 +19,8 @@ from src.clir_stage_a import (
     validate_completion_marker,
     validate_split_manifest,
 )
-from scripts.merge_query_shards import merge_query_shards
+from scripts.merge_query_shards import merge_query_shards, validate_candidate_index_policy
+from scripts.generate_gsm8k_rollouts import ordered_vllm_candidates
 
 
 def fake_records(count: int, prefix: str):
@@ -26,6 +28,33 @@ def fake_records(count: int, prefix: str):
         {"question": f"{prefix} question {index}", "answer": f"work #### {index}"}
         for index in range(count)
     ]
+
+
+def test_vllm_candidates_are_restored_to_original_sample_order():
+    request_output = SimpleNamespace(
+        outputs=[
+            SimpleNamespace(index=2, cumulative_logprob=-1.0),
+            SimpleNamespace(index=0, cumulative_logprob=-2.0),
+            SimpleNamespace(index=1, cumulative_logprob=-3.0),
+        ]
+    )
+    ordered = ordered_vllm_candidates(request_output, 3)
+    assert [candidate.index for candidate in ordered] == [0, 1, 2]
+
+    request_output.outputs[2].index = 2
+    with pytest.raises(ValueError, match="unique and contiguous"):
+        ordered_vllm_candidates(request_output, 3)
+
+
+def test_candidate_index_policy_is_protocol_gated():
+    rows = [
+        {"generation": {"candidate_index_policy": "vllm_completion_output_index"}},
+        {"generation": {"candidate_index_policy": "vllm_completion_output_index"}},
+    ]
+    validate_candidate_index_policy(rows, "vllm_completion_output_index", "q")
+    rows[1]["generation"]["candidate_index_policy"] = "likelihood_rank"
+    with pytest.raises(ValueError, match="Candidate index policy mismatch"):
+        validate_candidate_index_policy(rows, "vllm_completion_output_index", "q")
 
 
 def make_manifest():
@@ -142,6 +171,48 @@ def test_query_completion_marker_checks_payload_and_candidate_contract(tmp_path:
             protocol_sha256="protocol-hash",
             split_manifest_sha256="split-hash",
             expected_candidate_count=2,
+            rows_loader=read_jsonl,
+        )
+
+
+def test_component_marker_rejects_label_hash_drift(tmp_path: Path):
+    query_id = "gsm8k-train-00000"
+    query_dir = query_shard_dir(tmp_path, query_id)
+    rows_path = query_dir / "rollouts.jsonl"
+    rows = [{
+        "id": f"{query_id}-cand-000",
+        "query_id": query_id,
+        "candidate_index": 0,
+        "prompt_token_ids": [1],
+        "output_token_ids": [2],
+        "response": "x",
+        "correctness": 1,
+        "provenance": {},
+    }]
+    atomic_write_jsonl(rows_path, rows)
+    publish_completion_marker(query_dir, "_ROLLOUT_SUCCESS.json", {
+        "schema_version": "clir-query-shard-v1",
+        "stage": "rollout",
+        "query_id": query_id,
+        "protocol_sha256": "full",
+        "acquisition_protocol_sha256": "acquisition",
+        "label_protocol_sha256": "labels-v2",
+        "split_manifest_sha256": "split",
+        "candidate_count": 1,
+        "payloads": [build_payload_record(rows_path, role="rows", root=query_dir)],
+    })
+
+    with pytest.raises(ValueError, match="label_protocol_sha256 mismatch"):
+        validate_completion_marker(
+            query_dir,
+            "_ROLLOUT_SUCCESS.json",
+            stage="rollout",
+            query_id=query_id,
+            protocol_sha256="full",
+            acquisition_protocol_sha256="acquisition",
+            label_protocol_sha256="labels-v3",
+            split_manifest_sha256="split",
+            expected_candidate_count=1,
             rows_loader=read_jsonl,
         )
 

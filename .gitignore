@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Generated experiments and large model/feature payloads are never source.
+/run_artifacts/
+*.pt
+*.pth
+*.safetensors
+
+# Local source material kept outside the versioned documentation set.
+/*.pdf

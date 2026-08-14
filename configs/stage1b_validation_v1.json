@@ -1,0 +1,136 @@
+{
+  "schema_version": "clir-stage1b-validation-v1",
+  "evidence_tier": "expanded real validation",
+  "purpose": "repair candidate ordering and strengthen correctness-only validation without tuning on pilot_test",
+  "protocol_config": "configs/phi35_gsm8k_pilot_v2.json",
+  "protocol_hashes": {
+    "protocol_sha256": "739628100286cd1a608e90e79e25f552994fd9c120d1c49947c19f770eba7211",
+    "acquisition_protocol_sha256": "8d4afea952304c672f3aaff37c7d9f4c6e7e8f0b427d431cfdfd5f2c86911ca0",
+    "label_protocol_sha256": "031cf3575b438a9cddbe072c67283b687ff60cc12b1168fb80c983c229ca7a70",
+    "evaluation_protocol_sha256": "a5dc24d2c6229a4e44586e1ebe55e89b02c0472c221849d24f11bc83fa30dc76"
+  },
+  "split_manifest": "configs/splits/gsm8k_phi35_v2.json",
+  "split_manifest_sha256": "8cb622a38dafff36d041d66a69577d682ba5b4f11e33ab37dd1a62f0936c6d69",
+  "membership_invariance": {
+    "relative_to": "configs/splits/gsm8k_phi35_v1.json",
+    "status": "exact_match_for_queries_memberships_dataset_and_permutation",
+    "validation_membership_sha256": "544c895b85b0c540b7a04068822ff75983a52148b5b493ef0ab03217e09c2da6"
+  },
+  "repairs_required_by_this_version": [
+    "candidate_index_from_vllm_completion_output_index",
+    "clir_gsm8k_numeric_v3_labels",
+    "component_scoped_protocol_hashes",
+    "explicit_phi3_final_hidden_state_norm_semantics"
+  ],
+  "historical_fixed_checkpoint_diagnostic": {
+    "artifact": "run_artifacts/stage1b_v1/diagnostics/legacy_full_pool_v3.json",
+    "scope": "full 16-candidate pools only",
+    "ordered_prefix_metrics_valid": false,
+    "tuning_performed": false
+  },
+  "acquisition": {
+    "train": {
+      "policy": "reuse_stage1_small_scale_v1_features_and_relabel_only",
+      "source_manifest": "run_artifacts/stage1_small_scale_v1/train_extracted.jsonl",
+      "source_manifest_sha256": "dbd93b6c134b23438ed5c131cae32cc415176de7bb65666e62ed4f5f4fa52a99",
+      "v3_manifest": "run_artifacts/repair_audit_20260814/checker_v3/train_extracted.v3.jsonl",
+      "v3_manifest_sha256": "f31d85359fd2ee09352c20fc1c1208b58d0ae393d8201c6b0694ddb6a50d7b5a",
+      "membership": "train_primary",
+      "max_queries": 512,
+      "candidates_per_query": 8,
+      "reuse_rationale": "all eight candidates are used pointwise, so the legacy within-pool index ordering cannot change training membership or features"
+    },
+    "validation": {
+      "policy": "regenerate_and_reextract_under_protocol_v2",
+      "membership": "validation",
+      "max_queries": 500,
+      "candidates_per_query": 16,
+      "candidate_index_policy": "vllm_completion_output_index"
+    },
+    "num_shards": 8,
+    "feature_dtype": "bfloat16",
+    "feature_layers": 33,
+    "per_layer_dim": 3072,
+    "feature_dim": 101376,
+    "estimated_new_validation_feature_bytes": 483453729500,
+    "new_validation_storage_safety_cap_bytes": 644245094400
+  },
+  "pre_extraction_gates": {
+    "minimum_validation_mixed_queries": 120,
+    "minimum_validation_correct_candidates": 256,
+    "minimum_validation_incorrect_candidates": 256,
+    "candidate_indices_must_equal": "0..15_per_query",
+    "candidate_index_policy_must_equal": "vllm_completion_output_index",
+    "failure_policy": "stop before extraction and version any expansion; never select queries by labels"
+  },
+  "models": {
+    "variants": ["strict_swift", "encoded_swift", "clir"],
+    "shared_encoder_for_encoded_swift_and_clir": {
+      "encoder_type": "layer_transformer",
+      "model_dim": 768,
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "projection_dim": 256,
+      "encoder_dropout": 0.0
+    }
+  },
+  "training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "checkpoint_selection": "final_epoch",
+    "early_stopping": false,
+    "batch_size": 2,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 0.0,
+    "amp_dtype": "bfloat16",
+    "group_by_semantic_id": false,
+    "class_reweighting": false,
+    "objective": "pointwise_correctness_bce",
+    "prior_phase_mode": "joint",
+    "auxiliary_target_policy": "all absent CLIR auxiliary targets remain masked with zero applicable count"
+  },
+  "evaluation": {
+    "membership": "validation",
+    "query_count": 500,
+    "k": [1, 2, 4, 8, 16],
+    "primary_metric": "reward_bon_accuracy@16",
+    "required_baselines": [
+      "random_expected",
+      "random_seeded",
+      "oracle",
+      "strict_swift",
+      "encoded_swift",
+      "clir"
+    ],
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 10000,
+    "confidence_level": 0.95,
+    "required_diagnostics": [
+      "all_query_and_mixed_query_accuracy",
+      "correct_vs_wrong_score_margin",
+      "score_length_correlation",
+      "selection_stability_across_seeds",
+      "layer_attention_entropy_and_top_layers"
+    ],
+    "comparison_attribution": {
+      "strict_swift_to_encoded_swift": "full-layer encoder effect",
+      "encoded_swift_to_clir": "correctness-only CLIR backbone effect"
+    }
+  },
+  "decision_rule": {
+    "stable_clir_increment_requires": [
+      "encoded_swift_to_clir_delta_positive_in_at_least_two_of_three_seeds",
+      "mean_encoded_swift_to_clir_delta_positive",
+      "query_paired_aggregate_bootstrap_95pct_ci_lower_bound_above_zero"
+    ],
+    "failure_interpretation": "retain as no stable correctness-only backbone gain; do not inspect pilot_test"
+  },
+  "test_policy": "do not acquire or inspect pilot_test until the validation protocol and conclusion are locked",
+  "status": "frozen_before_stage1b_acquisition"
+}

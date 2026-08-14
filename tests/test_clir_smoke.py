@@ -5,7 +5,14 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, SemanticGroupBatchSampler, clir_collate, write_jsonl
-from src.consistency_localized_reward import ConsistencyLocalizedReward, RewardConfig, dual_prior_losses
+from src.consistency_localized_reward import (
+    ConsistencyLocalizedReward,
+    RewardConfig,
+    dual_prior_losses,
+    path_hallucination_probability,
+    path_level_hallucination_mil,
+    path_no_hallucination_log_probability,
+)
 from train_clir import make_config, parse_args
 
 
@@ -142,7 +149,7 @@ def test_jsonl_dataset_collate(tmp_path: Path):
                 "semantic_id": "q0",
                 "style_id": f"style{idx}",
                 "path_hallucinated": idx == 1,
-                "key_prior_target": [1, 0, 0, 0],
+                "key_prior_target": [1] + [0] * (2 + idx),
             }
         )
 
@@ -155,6 +162,7 @@ def test_jsonl_dataset_collate(tmp_path: Path):
     assert batch["hidden_states"].shape == (2, 4, 8)
     assert batch["mask"].sum().item() == 7
     assert batch["correctness"].tolist() == [1.0, 0.0]
+    assert batch["correctness_mask"].tolist() == [True, True]
     assert batch["consistency_mask"].tolist() == [True, True]
 
 
@@ -261,6 +269,54 @@ def test_collate_preserves_bfloat16_feature_storage():
 
     assert batch["hidden_states"].dtype == torch.bfloat16
     assert batch["condition_states"].dtype == torch.bfloat16
+
+
+def test_partial_correctness_batch_is_masked_instead_of_becoming_negative():
+    batch = clir_collate(
+        [
+            {
+                "row_index": 0,
+                "id": "labeled",
+                "query_id": "q",
+                "hidden_states": torch.randn(2, 8),
+                "correctness": 1,
+            },
+            {
+                "row_index": 1,
+                "id": "unlabeled",
+                "query_id": "q",
+                "hidden_states": torch.randn(2, 8),
+            },
+        ]
+    )
+    assert batch["correctness"].tolist() == [1.0, 0.0]
+    assert batch["correctness_mask"].tolist() == [True, False]
+
+    model = ConsistencyLocalizedReward(RewardConfig(hidden_dim=8, projection_dim=4))
+    outputs, losses = model.training_step(batch)
+    expected = torch.nn.functional.binary_cross_entropy_with_logits(
+        outputs["scores"][:1].float(),
+        torch.ones(1),
+    )
+    assert torch.allclose(losses["final"], expected)
+
+
+def test_log_space_noisy_or_keeps_long_negative_path_gradient():
+    logits = torch.zeros(1, 1024, requires_grad=True)
+    mask = torch.ones_like(logits)
+    loss = path_level_hallucination_mil(logits, mask, torch.tensor([0.0]))
+    loss.backward()
+
+    assert torch.isfinite(loss)
+    assert loss.item() > 100.0
+    assert logits.grad is not None
+    assert logits.grad.norm().item() > 0.0
+
+    probability = path_hallucination_probability(logits.detach(), mask)
+    log_survival = path_no_hallucination_log_probability(logits.detach(), mask)
+    assert probability.item() == 1.0
+    assert torch.isfinite(log_survival).all()
+    assert log_survival.item() < -100.0
 
 
 def test_train_cli_exposes_new_reward_config_fields():

@@ -1,6 +1,6 @@
 # CLIR 项目交接文档（写给下一个接手的人 / AI）
 
-最后更新：2026-08-13（分支 `panzhixin`，基于 `main` commit `1f826ec`）
+最后更新：2026-08-14（分支 `panzhixin`）
 
 这份文档是专门写给**完全没有上下文**的下一个开发者或 AI 看的。目标是让你不用重新翻一遍 commit history、不用重新做一遍代码审查，就能知道：现在做到哪一步了、为什么是这样设计的、踩过哪些坑、接下来该做什么。
 
@@ -27,7 +27,7 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：Stage 1 small-scale real 已完成，增量证据不稳定
+## 2. 现在的状态：审计修复完成，Stage 1B 协议已冻结
 
 这是最重要的一句话，必须先说清楚：
 
@@ -35,6 +35,12 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 > 已稳定优于 encoded SWIFT。** 512×8 train、128×16 validation、全 33 层 BF16 特征和
 > seeds 42/43/44 的 9 个五 epoch 运行均完成；`pilot_test` 未生成或检查。完整数据、逐 k
 > 结果、配对 CI 和结论见 `docs/stage1_results.md`。
+
+2026-08-14 的代码审计发现历史 `candidate_index` 是 vLLM cumulative-logprob 排名，不是
+原始 sample index。因此旧 BoN@1/2/4/8 prefix 口径无效；BoN@16 的候选全集仍完整。生成器
+已改为使用 `CompletionOutput.index`。checker v3、component protocol hashes、correctness
+mask/必填门、token-label alias 严格长度、query-level split 和 log-space noisy-or 均已实现并
+有回归测试。完整修复与 Stage 1B 预注册见 `docs/stage1b_protocol.md`。
 
 验收数值：trajectory 为 `[162,101376]` / `[250,101376]`，condition 为
 `[113,101376]`，`101376 = 33 * 3072`；全部 finite、bfloat16，两条候选共享同一 condition
@@ -67,10 +73,10 @@ query bootstrap CI。三种变体已在 24-query engineering train / 8-query eng
 validation 上各跑完 1 epoch、打分和 BoN@1/2/4/8。该验证池 7 题全候选正确、1 题 7/8
 正确，过于简单，因此只能证明闭环可运行，不能证明任何方法优于另一方法。
 
-checker 另审计了 17 个 query / 272 条候选：冻结 v2 checker 给出 196 positive、75
-numeric negative、1 non-numeric negative。和 SWIFT commit `41f7c9f` 的官方
-`evaluate_math` 一致 260/272；12 个分歧全部是官方 checker 对单位/尾随文本的假阴性。
-脚本是 `scripts/audit_swift_checker_parity.py`，正式报告必须同时保留该 parity 数字。
+checker v3 已在全部 6,144 条 Stage 1 candidates 上审计：相对 v2 只有 9 条 `0→1`、无
+`1→0`。和 SWIFT commit `41f7c9f` 的官方 `evaluate_math` 一致 5,589/6,144；555 个分歧
+全部是 v3 判对而官方判错，没有反向分歧。脚本是
+`scripts/audit_swift_checker_parity.py`；正式报告必须同时保留 parity，但主实验共享 v3 标签。
 
 ### 2.1 已经实现、且验证过能跑通的部分
 
@@ -256,13 +262,16 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 
 **P0（Stage 1B validation-strengthening/diagnostic）**
 
-1. 在现有 39 个 mixed validation pools 上做不调参的逐 query 错误、长度、margin 和 layer
-   attention 诊断，确认 k 增大后选择准确率下降的原因。
-2. 冻结新的 ordered-prefix 扩展配置，增加 informative validation query；根据容量决定是否
-   同步扩大 train。不能按标签挑题，也不能覆盖 `stage1-small-scale-v1`。
+1. 历史 38 个 v3 mixed full pools 的不调参诊断已完成：mixed accuracy 跨 seed 均值为
+   strict 73.68%、encoded 74.56%、CLIR 78.07%，但 CLIR 标准差 7.60 个百分点且 layer
+   attention 跨 seed 不稳定。artifact 为
+   `run_artifacts/stage1b_v1/diagnostics/legacy_full_pool_v3.json`。
+2. `configs/stage1b_validation_v1.json` 已冻结：保留并以 v3 重标 512×8 train；重新生成和抽取
+   全部 500×16 validation，原始 candidate index 必须为 0--15。不能按标签挑题，也不能覆盖
+   `stage1-small-scale-v1`。
 3. class weighting、pairwise/listwise objective、epoch 或解码温度若要改变，必须声明新的
    比较和 validation 口径。先在 validation 建立跨 seed 稳定性，再一次性进入 pilot-test。
-4. checker 主标签继续固定为 `clir_gsm8k_numeric_v2` 并报告官方 parity；不得因存储压力把
+4. checker 主标签固定为 `clir_gsm8k_numeric_v3` 并报告官方 parity；不得因存储压力把
    主路径静默降成最后 4 层。
 
 **P1（Stage 1B 结论锁定之后，逐步加 CLIR 的三个模块）**

@@ -28,7 +28,7 @@ import torch
 from torch import Tensor
 from torch.utils.data import BatchSampler, Dataset
 
-from .clir_real_data import validate_extracted_row
+from .clir_real_data import TOKEN_LABEL_ALIASES, validate_extracted_row
 
 
 TEXT_ID_FIELDS = {
@@ -45,14 +45,9 @@ TEXT_ID_FIELDS = {
 }
 
 TOKEN_SEQUENCE_FIELDS = {
-    "token_advantage",
-    "token_advantages",
-    "advantages",
-    "progress_targets",
-    "key_prior_target",
-    "complete_prior_target",
-    "key_prior",
-    "complete_prior",
+    alias
+    for aliases in TOKEN_LABEL_ALIASES.values()
+    for alias in aliases
 }
 
 
@@ -87,13 +82,26 @@ class CLIRTrajectoryDataset(Dataset):
         feature_root: Optional[str | Path] = None,
         *,
         check_finite: bool = True,
+        require_correctness: bool = False,
     ) -> None:
         self.jsonl_path = Path(jsonl_path)
         self.feature_root = Path(feature_root) if feature_root is not None else self.jsonl_path.parent
         self.check_finite = check_finite
+        self.require_correctness = require_correctness
         self.rows = read_jsonl(self.jsonl_path)
         if not self.rows:
             raise ValueError(f"No rows found in {self.jsonl_path}")
+        if self.require_correctness:
+            for row_index, row in enumerate(self.rows):
+                value = first_present(row, ("correctness", "label", "final_correct"))
+                if value is None:
+                    raise ValueError(
+                        f"Training row {row_index} is missing required correctness label"
+                    )
+                if isinstance(value, bool) or value not in (0, 1, 0.0, 1.0):
+                    raise ValueError(
+                        f"Training row {row_index} correctness must be numeric 0 or 1, got {value!r}"
+                    )
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -131,6 +139,7 @@ class CLIRTrajectoryDataset(Dataset):
                 hidden_states,
                 condition_states,
                 check_finite=self.check_finite,
+                require_correctness=self.require_correctness,
             )
 
         condition_embedding = maybe_load_tensor_field(
@@ -204,16 +213,10 @@ def extract_metadata(row: Dict[str, Any], time: int) -> Dict[str, Any]:
         if value is not None:
             item[output_key] = value
 
-    sequence_aliases = {
-        "token_advantage": ("token_advantage", "token_advantages", "advantages"),
-        "progress_targets": ("progress_targets", "progress", "progress_target"),
-        "key_prior_target": ("key_prior_target", "key_prior"),
-        "complete_prior_target": ("complete_prior_target", "complete_prior"),
-    }
-    for output_key, aliases in sequence_aliases.items():
+    for output_key, aliases in TOKEN_LABEL_ALIASES.items():
         value = first_present(row, aliases)
         if value is not None:
-            item[output_key] = pad_or_trim_1d(value, time)
+            item[output_key] = exact_length_1d(value, time, output_key)
 
     reconstruction_value = first_present(row, ("complete_reconstruction_target", "csr_target"))
     if reconstruction_value is not None:
@@ -229,12 +232,13 @@ def first_present(row: Dict[str, Any], aliases: Sequence[str]) -> Any:
     return None
 
 
-def pad_or_trim_1d(values: Any, length: int) -> Tensor:
+def exact_length_1d(values: Any, length: int, field: str) -> Tensor:
     tensor = torch.as_tensor(values, dtype=torch.float32).flatten()
-    output = torch.zeros(length, dtype=torch.float32)
-    if tensor.numel() > 0:
-        output[: min(length, tensor.numel())] = tensor[:length]
-    return output
+    if tensor.numel() != length:
+        raise ValueError(
+            f"Token label `{field}` length mismatch: expected {length}, got {tensor.numel()}"
+        )
+    return tensor
 
 
 def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -285,7 +289,7 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         output["condition_embedding"] = condition_embedding
         output["condition_embedding_mask"] = condition_embedding_mask
 
-    add_optional_float(output, batch, "correctness")
+    add_optional_float(output, batch, "correctness", mask_key="correctness_mask")
     add_encoded_ids(output, batch, "semantic_id", "semantic_ids", "consistency_mask_semantic")
     add_encoded_ids(output, batch, "style_id", "style_ids", "consistency_mask_style")
     if "semantic_ids" in output and "style_ids" in output:
@@ -387,7 +391,13 @@ def add_optional_sequence(
         if key not in item:
             continue
         tensor = item[key].float().flatten()
-        length = min(tensor.numel(), int(output["mask"][row].sum().item()), max_time)
+        trajectory_length = int(output["mask"][row].sum().item())
+        if tensor.numel() != trajectory_length:
+            raise ValueError(
+                f"Token label `{key}` length mismatch during collate: "
+                f"expected {trajectory_length}, got {tensor.numel()}"
+            )
+        length = trajectory_length
         if length > 0:
             values[row, :length] = tensor[:length]
             mask[row, :length] = True
