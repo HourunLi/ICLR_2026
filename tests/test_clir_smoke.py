@@ -108,6 +108,30 @@ def test_dual_prior_partial_mask_preserves_full_attention_mass():
     assert torch.isclose(losses["gate"], expected)
 
 
+def test_condition_module_params_scale_linearly_with_hidden_dim():
+    # Regression test: the condition attention/fusion/reconstruction layers must
+    # stay O(hidden_dim) via the condition_attention_dim bottleneck, not
+    # O(hidden_dim^2). hidden_dim is meant to be a SWIFT-style concatenation of
+    # many transformer layers (~1.3e5 for a 33-layer 8B model); a quadratic
+    # regression there would balloon this "lightweight" reward model to ~1.8e11
+    # parameters (bigger than GPT-3) instead of a few hundred million.
+    def count_params(hidden_dim: int) -> int:
+        config = RewardConfig(hidden_dim=hidden_dim, projection_dim=64, condition_attention_dim=64)
+        return sum(p.numel() for p in ConsistencyLocalizedReward(config).parameters())
+
+    small, large = 512, 4096
+    n_small, n_large = count_params(small), count_params(large)
+    ratio = n_large / n_small
+    hidden_dim_ratio = large / small
+
+    # Linear scaling keeps ratio close to hidden_dim_ratio (measured ~7.5 for 8x);
+    # quadratic scaling would push it toward hidden_dim_ratio**2 (64 for 8x).
+    assert ratio < 2 * hidden_dim_ratio, (
+        f"condition module parameter count grew {ratio:.1f}x for a {hidden_dim_ratio:.0f}x "
+        "hidden_dim increase -- looks quadratic again, check condition_attention_dim wiring"
+    )
+
+
 def test_invalid_hallucination_onset_raises():
     config = RewardConfig(hidden_dim=8, projection_dim=4)
     model = ConsistencyLocalizedReward(config)

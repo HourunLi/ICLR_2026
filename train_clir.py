@@ -32,6 +32,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output_model", required=True, help="Where to save the checkpoint.")
     parser.add_argument("--hidden_dim", type=int, required=True, help="Hidden-state dimension.")
     parser.add_argument("--projection_dim", type=int, default=256)
+    parser.add_argument("--condition_attention_dim", type=int, default=256,
+                        help="Bottleneck width for condition attention/fusion/reconstruction; "
+                             "keeps parameter count linear in hidden_dim instead of quadratic.")
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--lr", type=float, default=1e-3)
@@ -83,6 +86,7 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
     return RewardConfig(
         hidden_dim=args.hidden_dim,
         projection_dim=args.projection_dim,
+        condition_attention_dim=args.condition_attention_dim,
         final_weight=args.final_weight,
         consistency_weight=args.consistency_weight,
         score_consistency_weight=args.score_consistency_weight,
