@@ -1,0 +1,179 @@
+{
+  "schema_version": "clir-stage1b-validation-v4",
+  "evidence_tier": "expanded real validation",
+  "supersedes": "configs/stage1b_validation_v3.json",
+  "purpose": "fourth-review-amended outcome-only capacity and optimization control; not a CLIR mechanism efficacy experiment",
+  "protocol_components": {
+    "acquisition": {
+      "config": "configs/phi35_gsm8k_pilot_v2.json",
+      "acquisition_protocol_sha256": "8d4afea952304c672f3aaff37c7d9f4c6e7e8f0b427d431cfdfd5f2c86911ca0"
+    },
+    "labels": {
+      "config": "configs/phi35_gsm8k_pilot_v4.json",
+      "checker": "clir_gsm8k_numeric_v5",
+      "label_protocol_sha256": "4245dcf4d6f15583d03c1e8088481b597df41a4fe39daf1c2e098e884c3ad8ef"
+    },
+    "evaluation": {
+      "config": "configs/phi35_gsm8k_pilot_v4.json",
+      "evaluation_protocol_sha256": "fafba338a0f93d96123399b200b3b10d7c1e2472329411a0ed733f81acf31635"
+    }
+  },
+  "split_manifest": "configs/splits/gsm8k_phi35_v2.json",
+  "split_manifest_sha256": "8cb622a38dafff36d041d66a69577d682ba5b4f11e33ab37dd1a62f0936c6d69",
+  "validation_membership_sha256": "544c895b85b0c540b7a04068822ff75983a52148b5b493ef0ab03217e09c2da6",
+  "manifests": {
+    "train": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+      "rows": 4096,
+      "queries": 512,
+      "candidates_per_query": 8,
+      "correct": 3668,
+      "incorrect": 428,
+      "mixed_queries": 111,
+      "all_correct_queries": 385,
+      "all_wrong_queries": 16
+    },
+    "validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16,
+      "correct": 7155,
+      "incorrect": 845,
+      "mixed_queries": 146,
+      "all_correct_queries": 342,
+      "all_wrong_queries": 12
+    }
+  },
+  "feature_integrity_gate": {
+    "required": true,
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "rows": 12096,
+    "unique_payloads": 13108,
+    "verified_payloads": 13108,
+    "total_bytes": 725761877084,
+    "failure_count": 0
+  },
+  "supervision_audit": {
+    "schema_version": "clir-supervision-audit-contract-v1",
+    "applies_to": ["train", "validation"],
+    "source_status": "correctness_only_no_clir_auxiliary_supervision",
+    "forbid_correctness_derived_auxiliary_targets": true,
+    "expected_reconstruction_dim": 768,
+    "expected_field_rows": {
+      "path_hallucinated": 0,
+      "hallucination_onset": 0,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 0,
+      "complete_prior_target": 0,
+      "semantic_id": 0,
+      "style_id": 0,
+      "domain_id": 0,
+      "complete_reconstruction_target": 0
+    },
+    "expected_eligible_components": {
+      "consistency": false,
+      "path_hallucination": false,
+      "onset_localization": false,
+      "token_advantage": false,
+      "progress": false,
+      "dual_prior": false,
+      "reconstruction": false
+    },
+    "expected_eligible_component_count": 0,
+    "mechanism_claim_allowed": false
+  },
+  "models": {
+    "variants": ["strict_swift", "encoded_swift", "clir"],
+    "shared_encoder_for_encoded_swift_and_clir": {
+      "encoder_type": "layer_transformer",
+      "model_dim": 768,
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "projection_dim": 256,
+      "encoder_dropout": 0.0
+    }
+  },
+  "training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "checkpoint_selection": "final_epoch_is_preregistered_primary",
+    "checkpoint_reporting": "retain_every_epoch_for_diagnostic_only",
+    "early_stopping": false,
+    "validation_every_n_epochs": 5,
+    "batch_size": 2,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "skip_feature_finite_check_after_integrity_gate": true,
+    "group_by_semantic_id": false,
+    "class_reweighting": false,
+    "objective": "pointwise_correctness_bce",
+    "prior_phase_mode": "joint",
+    "health_gates": {
+      "constant_class_prior_bce_minimum_relative_improvement": 0.01,
+      "fail_on_prior_collapse": true,
+      "minimum_validation_score_population_std": 0.1,
+      "minimum_within_query_pairwise_accuracy": 0.6
+    }
+  },
+  "scoring": {
+    "batch_size": 2,
+    "amp_dtype": "none",
+    "compute_dtype": "float32",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "skip_feature_finite_check_after_integrity_gate": true
+  },
+  "evaluation": {
+    "membership": "validation",
+    "query_count": 500,
+    "k": [1, 2, 4, 8, 16],
+    "primary_metric": "final_epoch_reward_bon_accuracy@16",
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "score_tie_policy": "lowest_candidate_index_with_explicit_tie_counts",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 10000,
+    "confidence_level": 0.95,
+    "aggregate_definition": "mean across training seeds within each query, then bootstrap queries",
+    "failed_cell_policy": {
+      "allow_explicit_health_gate_failures": true,
+      "unknown_or_unrun_cells": "error",
+      "incomplete_summary": "diagnostic_only_no_formal_primary_claim",
+      "rerun_requires_new_protocol": true
+    }
+  },
+  "decision_rule": {
+    "capacity_control_only": true,
+    "stable_clir_increment_requires": [
+      "encoded_swift_to_clir_delta_positive_in_at_least_two_of_three_seeds",
+      "mean_encoded_swift_to_clir_delta_positive",
+      "query_paired_aggregate_bootstrap_95pct_ci_lower_bound_above_zero"
+    ],
+    "failed_cell_interpretation": "report explicit health failure; incomplete summaries are diagnostic and cannot support the formal primary claim"
+  },
+  "execution": {
+    "launcher": "scripts/run_stage1b_validation.py",
+    "output_root": "run_artifacts/stage1b_v4",
+    "matrix_preflight_is_atomic": true,
+    "formal_execution_requires_clean_git": true,
+    "formal_execution_requires_explicit_execute_flag": true,
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python"
+  },
+  "test_policy": "do not acquire or inspect pilot_test before the validation conclusion is locked",
+  "status": "prepared_pending_review_and_explicit_formal_run_authorization"
+}

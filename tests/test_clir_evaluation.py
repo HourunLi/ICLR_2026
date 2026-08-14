@@ -76,6 +76,21 @@ def test_query_level_evaluator_separates_random_oracle_and_reward_bon():
     assert report["max_k_pool_counts"] == {"mixed": 2, "all_correct": 0, "all_wrong": 0}
     assert report["reward_scoring_provenance"]["checkpoint_sha256"] == "a" * 64
     assert report["metrics"]["4"]["reward_selection_ties"]["query_count"] == 0
+    assert report["ranking_health"] == {
+        "schema_version": "clir-ranking-health-v1",
+        "gate": "within_query_correct_over_incorrect_pairwise_accuracy",
+        "enabled": False,
+        "passed": True,
+        "reason": "disabled",
+        "max_k": 4,
+        "informative_query_count": 2,
+        "pair_count": 6,
+        "tied_pair_count": 0,
+        "tie_credit": 0.5,
+        "pairwise_accuracy": 1.0,
+        "minimum_pairwise_accuracy": 0.0,
+        "aggregation": "micro_average_over_within_query_correct_incorrect_pairs",
+    }
 
 
 def test_query_level_evaluator_requires_frozen_first_k_candidates():
@@ -126,6 +141,26 @@ def test_query_level_evaluator_reports_deterministic_score_ties():
         "max_tie_size": 2,
         "tie_break_policy": "lowest_candidate_index",
     }
+    assert report["ranking_health"]["pairwise_accuracy"] == 0.5
+    assert report["ranking_health"]["tied_pair_count"] == 1
+
+
+def test_query_level_evaluator_flags_weak_within_query_ranking():
+    rows = [
+        _scored_row(query_id="q", candidate_index=0, correctness=1, reward_score=0.1),
+        _scored_row(query_id="q", candidate_index=1, correctness=0, reward_score=0.9),
+    ]
+
+    report = evaluate_candidate_rows(
+        _with_score_distribution(rows),
+        score_field="reward_score",
+        k_values=[2],
+        minimum_within_query_pairwise_accuracy=0.6,
+    )
+
+    assert report["ranking_health"]["enabled"] is True
+    assert report["ranking_health"]["passed"] is False
+    assert report["ranking_health"]["reason"] == "below_minimum_pairwise_accuracy"
 
 
 def test_query_level_evaluator_recomputes_score_distribution_provenance():

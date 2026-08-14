@@ -23,7 +23,7 @@ from src.clir_stage_a import atomic_write_json, git_state, load_split_manifest
 from src.clir_supervision import audit_supervision_coverage
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "stage1b_validation_v3.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "stage1b_validation_v4.json"
 VARIANTS = ("strict_swift", "encoded_swift", "clir")
 FEATURE_REFERENCE_FIELDS = (
     "hidden_states_path",
@@ -63,6 +63,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Allow only failed completed_epoch=0 run records during matrix preflight.",
     )
+    parser.add_argument(
+        "--allow-failed-cells",
+        action="store_true",
+        help=(
+            "For final-checkpoint summary only, exclude cells with explicit preregistered "
+            "health-gate failure evidence and mark the result diagnostic/incomplete."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -82,16 +90,43 @@ def _load_json(path: Path) -> Dict[str, Any]:
 def load_stage1b_protocol(path: str | Path) -> tuple[Path, Dict[str, Any]]:
     protocol_path = _resolve(path)
     protocol = _load_json(protocol_path)
-    if protocol.get("schema_version") != "clir-stage1b-validation-v3":
+    schema_version = protocol.get("schema_version")
+    if schema_version not in {
+        "clir-stage1b-validation-v3",
+        "clir-stage1b-validation-v4",
+    }:
         raise ValueError(
-            "This launcher accepts only clir-stage1b-validation-v3; got "
-            f"{protocol.get('schema_version')!r}"
+            "This launcher accepts Stage 1B v3/v4 protocols; got "
+            f"{schema_version!r}"
         )
     if tuple(protocol.get("models", {}).get("variants", ())) != VARIANTS:
-        raise ValueError("Stage 1B v3 requires the exact three-variant matrix")
+        raise ValueError("Stage 1B outcome-only validation requires the exact three-variant matrix")
     training = protocol.get("training", {})
     if sorted(training.get("seeds", ())) != [42, 43, 44]:
-        raise ValueError("Stage 1B v3 requires seeds 42, 43, and 44")
+        raise ValueError("Stage 1B outcome-only validation requires seeds 42, 43, and 44")
+    if schema_version == "clir-stage1b-validation-v4":
+        health = training.get("health_gates", {})
+        frozen_thresholds = {
+            "constant_class_prior_bce_minimum_relative_improvement": 0.01,
+            "minimum_validation_score_population_std": 0.1,
+            "minimum_within_query_pairwise_accuracy": 0.6,
+        }
+        for key, expected in frozen_thresholds.items():
+            if health.get(key) != expected:
+                raise ValueError(
+                    f"Stage 1B v4 freezes {key}={expected!r}; got {health.get(key)!r}"
+                )
+        if health.get("fail_on_prior_collapse") is not True:
+            raise ValueError("Stage 1B v4 requires fail_on_prior_collapse=true")
+        failed_policy = protocol.get("evaluation", {}).get("failed_cell_policy", {})
+        expected_policy = {
+            "allow_explicit_health_gate_failures": True,
+            "unknown_or_unrun_cells": "error",
+            "incomplete_summary": "diagnostic_only_no_formal_primary_claim",
+            "rerun_requires_new_protocol": True,
+        }
+        if failed_policy != expected_policy:
+            raise ValueError("Stage 1B v4 failed-cell policy differs from the frozen contract")
     return protocol_path, protocol
 
 
@@ -197,13 +232,13 @@ def validate_supervision_contract(
     split_name: str,
 ) -> Dict[str, Any]:
     if contract.get("schema_version") != "clir-supervision-audit-contract-v1":
-        raise ValueError("Stage 1B v3 requires the supervision audit contract v1")
+        raise ValueError("Stage 1B outcome-only validation requires supervision audit contract v1")
     if split_name not in contract.get("applies_to", ()):
         raise ValueError(f"Supervision audit contract does not cover {split_name}")
     if contract.get("forbid_correctness_derived_auxiliary_targets") is not True:
-        raise ValueError("Stage 1B v3 must forbid correctness-derived auxiliary targets")
+        raise ValueError("Stage 1B outcome-only validation forbids correctness-derived targets")
     if contract.get("mechanism_claim_allowed") is not False:
-        raise ValueError("Stage 1B v3 must remain an outcome-only control")
+        raise ValueError("Stage 1B validation must remain an outcome-only control")
     coverage = audit_supervision_coverage(
         rows,
         expected_reconstruction_dim=int(contract["expected_reconstruction_dim"]),
@@ -357,6 +392,7 @@ def _cell_paths(
         "run": model_dir / f"{variant}.run.json",
         "epoch_dir": model_dir / f"{variant}_epochs",
         "scored": scored,
+        "score_health": scored.with_name(f"{scored.name}.health.json"),
         "evaluation": evaluation,
     }
 
@@ -487,6 +523,13 @@ def training_command(
     force: bool,
 ) -> list[str]:
     training = protocol["training"]
+    health_gates = training["health_gates"]
+    prior_improvement = health_gates.get(
+        "constant_class_prior_bce_minimum_relative_improvement",
+        health_gates.get("constant_class_prior_bce_relative_tolerance"),
+    )
+    if prior_improvement is None:
+        raise ValueError("Protocol is missing the constant-prior BCE health threshold")
     paths = _cell_paths(protocol, seed, variant)
     command = [
         python,
@@ -511,8 +554,8 @@ def training_command(
         "--lr", str(training["learning_rate"]),
         "--weight_decay", str(training["weight_decay"]),
         "--max_grad_norm", str(training["max_grad_norm"]),
-        "--prior_collapse_tolerance", str(training["health_gates"]["constant_class_prior_bce_relative_tolerance"]),
-        _bool_flag("fail_on_prior_collapse", bool(training["health_gates"]["fail_on_prior_collapse"])),
+        "--prior_collapse_tolerance", str(prior_improvement),
+        _bool_flag("fail_on_prior_collapse", bool(health_gates["fail_on_prior_collapse"])),
         "--seed", str(seed),
         "--device", device,
         "--amp_dtype", training["amp_dtype"],
@@ -544,15 +587,63 @@ def training_command(
     return command
 
 
-def _require_completed_model(paths: Mapping[str, Path]) -> Dict[str, Any]:
+def _require_completed_model(
+    paths: Mapping[str, Path],
+    checkpoint_epoch: int | None = None,
+    expected_prior_improvement: float | None = None,
+) -> Dict[str, Any]:
+    def require_frozen_health(health: Any) -> Mapping[str, Any]:
+        if not isinstance(health, Mapping) or not health.get("passed"):
+            raise RuntimeError("Training health evidence is absent or failed")
+        if expected_prior_improvement is not None:
+            recorded_threshold = health.get(
+                "minimum_relative_improvement",
+                health.get("relative_tolerance"),
+            )
+            if (
+                health.get("schema_version") != "clir-training-health-v2"
+                or not health.get("enabled")
+                or not isinstance(recorded_threshold, (int, float))
+                or abs(float(recorded_threshold) - expected_prior_improvement) > 1e-12
+            ):
+                raise RuntimeError("Training health evidence does not match the frozen threshold")
+        return health
+
     if not paths["model"].is_file():
         raise FileNotFoundError(f"Checkpoint is absent: {paths['model']}")
+    if checkpoint_epoch is not None:
+        if not paths["metrics"].is_file():
+            raise FileNotFoundError(
+                f"Epoch health metrics are absent: {paths['metrics']}"
+            )
+        with paths["metrics"].open(encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        matches = [row for row in rows if int(row.get("epoch", -1)) == checkpoint_epoch]
+        if len(matches) != 1:
+            raise RuntimeError(
+                f"Expected one health row for epoch {checkpoint_epoch} in {paths['metrics']}"
+            )
+        health = matches[0].get("training_health")
+        try:
+            health = require_frozen_health(health)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"Epoch {checkpoint_epoch} training health evidence is absent/failed: "
+                f"{paths['metrics']}"
+            ) from exc
+        return {
+            "status": "epoch_snapshot_health_passed",
+            "checkpoint_epoch": checkpoint_epoch,
+            "training_health": dict(health),
+            "metrics_jsonl": str(paths["metrics"]),
+        }
     run = _load_json(paths["run"])
     if run.get("status") != "completed":
         raise RuntimeError(f"Training run did not pass health gates: {paths['run']}")
-    health = run.get("health_gate")
-    if not isinstance(health, Mapping) or not health.get("passed"):
-        raise RuntimeError(f"Training health evidence is absent/failed: {paths['run']}")
+    try:
+        require_frozen_health(run.get("health_gate"))
+    except RuntimeError as exc:
+        raise RuntimeError(f"Training health evidence is absent/failed: {paths['run']}") from exc
     return run
 
 
@@ -569,9 +660,21 @@ def scoring_command(
 ) -> list[str]:
     paths = _cell_paths(protocol, seed, variant, checkpoint_epoch)
     if require_inputs:
-        _require_completed_model(paths)
-        if paths["scored"].exists():
-            raise FileExistsError(f"Scored output already exists: {paths['scored']}")
+        health_gates = protocol["training"]["health_gates"]
+        expected_prior_improvement = health_gates.get(
+            "constant_class_prior_bce_minimum_relative_improvement",
+            health_gates.get("constant_class_prior_bce_relative_tolerance"),
+        )
+        _require_completed_model(
+            paths,
+            checkpoint_epoch,
+            expected_prior_improvement=float(expected_prior_improvement),
+        )
+        if paths["scored"].exists() or paths["score_health"].exists():
+            raise FileExistsError(
+                f"Scored output or health evidence already exists: {paths['scored']} / "
+                f"{paths['score_health']}"
+            )
         checkpoint_sha = file_sha256(paths["model"])
     else:
         checkpoint_sha = "<CHECKPOINT_SHA256>"
@@ -636,13 +739,22 @@ def evaluation_command(
         "--expected-scoring-batch-size", str(protocol["scoring"]["batch_size"]),
         "--expected-scoring-amp-dtype", protocol["scoring"]["amp_dtype"],
         "--expected-experiment-protocol-sha256", file_sha256(protocol_path),
+        "--minimum-within-query-pairwise-accuracy",
+        str(
+            protocol["training"]["health_gates"].get(
+                "minimum_within_query_pairwise_accuracy", 0.0
+            )
+        ),
     ]
 
 
 def summary_command(
     python: str,
+    protocol_path: Path,
     protocol: Mapping[str, Any],
     checkpoint_epoch: int | None,
+    *,
+    allow_failed_cells: bool = False,
 ) -> list[str]:
     root = _output_root(protocol)
     if checkpoint_epoch is None:
@@ -651,11 +763,12 @@ def summary_command(
     else:
         evaluation_dir = root / "evaluation_epochs" / f"epoch_{checkpoint_epoch:03d}"
         output = root / "summaries" / f"epoch_{checkpoint_epoch:03d}.json"
-    return [
+    command = [
         python,
         str(PROJECT_ROOT / "summarize_clir.py"),
         "--evaluation-dir", str(evaluation_dir),
         "--output-json", str(output),
+        "--experiment-protocol-config", str(protocol_path),
         "--seeds", *[str(value) for value in protocol["training"]["seeds"]],
         "--variants", *[str(value) for value in protocol["models"]["variants"]],
         "--primary-k", str(max(protocol["evaluation"]["k"])),
@@ -663,6 +776,13 @@ def summary_command(
         "--confidence-level", str(protocol["evaluation"]["confidence_level"]),
         "--seed", "42",
     ]
+    if allow_failed_cells:
+        command.extend([
+            "--allow-failed-cells",
+            "--run-dir", str(root / "models"),
+            "--scored-dir", str(root / "scored"),
+        ])
+    return command
 
 
 def _run(command: Sequence[str]) -> None:
@@ -679,6 +799,16 @@ def main() -> None:
     protocol_path, protocol = load_stage1b_protocol(args.protocol_config)
     if args.checkpoint_epoch is not None and not 1 <= args.checkpoint_epoch <= int(protocol["training"]["epochs"]):
         raise ValueError("checkpoint_epoch is outside the frozen training range")
+    if args.allow_failed_cells and args.stage != "summarize":
+        raise ValueError("--allow-failed-cells is valid only for --stage summarize")
+    if args.allow_failed_cells and args.checkpoint_epoch is not None:
+        raise ValueError("Failed-cell degradation is only defined for the final checkpoint")
+    if args.allow_failed_cells:
+        failure_policy = protocol.get("evaluation", {}).get("failed_cell_policy", {})
+        if not isinstance(failure_policy, Mapping) or not failure_policy.get(
+            "allow_explicit_health_gate_failures"
+        ):
+            raise ValueError("The frozen protocol does not authorize incomplete summaries")
 
     if args.stage == "preflight":
         if args.seed is not None or args.variant is not None or args.checkpoint_epoch is not None:
@@ -748,7 +878,13 @@ def main() -> None:
     if args.stage == "summarize":
         if args.seed is not None or args.variant is not None:
             raise ValueError("Summary always consumes the complete matrix")
-        command = summary_command(args.python, protocol, args.checkpoint_epoch)
+        command = summary_command(
+            args.python,
+            protocol_path,
+            protocol,
+            args.checkpoint_epoch,
+            allow_failed_cells=args.allow_failed_cells,
+        )
         if args.execute:
             output = Path(command[command.index("--output-json") + 1])
             if output.exists():

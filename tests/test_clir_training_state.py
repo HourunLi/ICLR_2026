@@ -8,11 +8,13 @@ import pytest
 import torch
 
 from src.clir_data import CLIRTrajectoryDataset, write_jsonl
+from src.clir_real_data import file_sha256
 from train_clir import (
     LEGACY_RESUME_DEFAULTS,
     RESUME_PINNED_ARGS,
     _constant_prior_health,
     _reconcile_metrics_history,
+    _validate_resume_device,
     _validate_resume_training_args,
     split_indices,
 )
@@ -61,6 +63,7 @@ def test_full_checkpoint_resume_matches_uninterrupted_training(tmp_path: Path):
     uninterrupted = tmp_path / "uninterrupted.pt"
 
     subprocess.run(_command(train, val, resumed, 1), cwd=PROJECT_ROOT, check=True, capture_output=True, text=True)
+    resume_source_sha256 = file_sha256(resumed)
     subprocess.run(
         _command(train, val, resumed, 2) + ["--resume_from", str(resumed)],
         cwd=PROJECT_ROOT,
@@ -81,6 +84,19 @@ def test_full_checkpoint_resume_matches_uninterrupted_training(tmp_path: Path):
     run_record = json.loads(Path(f"{resumed}.run.json").read_text(encoding="utf-8"))
     assert run_record["status"] == "completed"
     assert run_record["completed_epoch"] == 2
+    assert run_record["start_epoch"] == 1
+    assert run_record["resumed_from"] == {
+        "path": str(resumed.resolve()),
+        "sha256": resume_source_sha256,
+        "completed_epoch": 1,
+        "device": "cpu",
+    }
+    assert [segment["device"] for segment in run_record["training_segments"]] == [
+        "cpu",
+        "cpu",
+    ]
+    assert resumed_state["execution_device"] == "cpu"
+    assert resumed_state["training_segments"][-1]["completed_epoch"] == 2
 
 
 def test_explicit_validation_rejects_query_leakage(tmp_path: Path):
@@ -250,6 +266,7 @@ def test_resume_uses_declared_defaults_for_legacy_missing_arguments():
         "weight_decay": 0.0,
         "val_fraction": 0.0,
         "seed": 7,
+        "device": "cpu",
         "amp_dtype": "none",
         "skip_feature_finite_check": False,
         "group_by_semantic_id": False,
@@ -339,11 +356,34 @@ def test_constant_prior_health_gate_detects_review_collapse_case():
         final_correctness_bce=0.2032,
         tolerance=0.02,
     )
+    worse_than_prior = _constant_prior_health(
+        positive_count=3666,
+        example_count=4096,
+        final_correctness_bce=0.7,
+        tolerance=0.02,
+    )
 
     assert collapsed["constant_prior_bce"] == pytest.approx(0.33589, abs=5e-5)
     assert collapsed["passed"] is False
     assert learned["passed"] is True
+    assert worse_than_prior["passed"] is False
+    assert worse_than_prior["reason"] == "not_better_than_constant_prior"
+    assert worse_than_prior["relative_improvement_over_prior_bce"] < 0.0
     assert set(RESUME_PINNED_ARGS) >= {
         "prior_collapse_tolerance",
         "fail_on_prior_collapse",
+        "device",
     }
+
+
+def test_resume_rejects_cross_device_or_ambiguous_checkpoint():
+    with pytest.raises(ValueError, match="Cross-device resume"):
+        _validate_resume_device(
+            {"execution_device": "cpu"},
+            torch.device("cuda"),
+        )
+    with pytest.raises(ValueError, match="lacks an auditable resolved execution device"):
+        _validate_resume_device(
+            {"training_args": {"device": "auto"}, "rng_state": {"cuda": None}},
+            torch.device("cpu"),
+        )

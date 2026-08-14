@@ -40,6 +40,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-scoring-batch-size", type=int, default=None)
     parser.add_argument("--expected-experiment-protocol-sha256", default=None)
     parser.add_argument(
+        "--minimum-within-query-pairwise-accuracy",
+        type=float,
+        default=0.0,
+        help=(
+            "Require the full-pool micro-average probability that a correct candidate "
+            "outranks an incorrect candidate from the same query; ties receive half credit."
+        ),
+    )
+    parser.add_argument(
         "--expected-scoring-amp-dtype",
         default=None,
         choices=["none", "bfloat16"],
@@ -197,6 +206,7 @@ def evaluate_candidate_rows(
     bootstrap_replicates: int = 2000,
     confidence_level: float = 0.95,
     seed: int = 42,
+    minimum_within_query_pairwise_accuracy: float = 0.0,
 ) -> Dict[str, Any]:
     if not rows:
         raise ValueError("Scored candidate manifest is empty")
@@ -205,6 +215,8 @@ def evaluate_candidate_rows(
         raise ValueError("All k values must be positive")
     if not 0.0 < confidence_level < 1.0:
         raise ValueError("confidence_level must be in (0, 1)")
+    if not 0.0 <= minimum_within_query_pairwise_accuracy <= 1.0:
+        raise ValueError("minimum_within_query_pairwise_accuracy must be in [0, 1]")
 
     candidate_index_policies = {
         str(row.get("generation", {}).get("candidate_index_policy", "missing"))
@@ -316,8 +328,48 @@ def evaluate_candidate_rows(
         sum(int(row["correctness"]) for row in normalized[query_id][:max_k])
         for query_id in query_order
     ]
+    pair_credit = 0.0
+    pair_count = 0
+    tied_pair_count = 0
+    informative_query_count = 0
+    for query_id in query_order:
+        pool = normalized[query_id][:max_k]
+        correct_scores = [
+            float(row[score_field]) for row in pool if int(row["correctness"]) == 1
+        ]
+        incorrect_scores = [
+            float(row[score_field]) for row in pool if int(row["correctness"]) == 0
+        ]
+        if not correct_scores or not incorrect_scores:
+            continue
+        informative_query_count += 1
+        for correct_score in correct_scores:
+            for incorrect_score in incorrect_scores:
+                pair_count += 1
+                if correct_score > incorrect_score:
+                    pair_credit += 1.0
+                elif correct_score == incorrect_score:
+                    pair_credit += 0.5
+                    tied_pair_count += 1
+    pairwise_accuracy = pair_credit / pair_count if pair_count else None
+    ranking_gate_enabled = minimum_within_query_pairwise_accuracy > 0.0
+    ranking_gate_passed = (
+        not ranking_gate_enabled
+        or (
+            pairwise_accuracy is not None
+            and pairwise_accuracy >= minimum_within_query_pairwise_accuracy
+        )
+    )
+    if not ranking_gate_enabled:
+        ranking_reason = "disabled"
+    elif pairwise_accuracy is None:
+        ranking_reason = "no_informative_correct_incorrect_pairs"
+    elif ranking_gate_passed:
+        ranking_reason = "minimum_pairwise_accuracy_met"
+    else:
+        ranking_reason = "below_minimum_pairwise_accuracy"
     return {
-        "schema_version": "clir-query-evaluation-v2",
+        "schema_version": "clir-query-evaluation-v3",
         "score_field": score_field,
         "reward_model_variant": reward_model_variant,
         "reward_scoring_provenance": scoring_provenance,
@@ -336,6 +388,21 @@ def evaluate_candidate_rows(
             "mixed": sum(0 < count < max_k for count in max_pool_correct),
             "all_correct": sum(count == max_k for count in max_pool_correct),
             "all_wrong": sum(count == 0 for count in max_pool_correct),
+        },
+        "ranking_health": {
+            "schema_version": "clir-ranking-health-v1",
+            "gate": "within_query_correct_over_incorrect_pairwise_accuracy",
+            "enabled": ranking_gate_enabled,
+            "passed": ranking_gate_passed,
+            "reason": ranking_reason,
+            "max_k": max_k,
+            "informative_query_count": informative_query_count,
+            "pair_count": pair_count,
+            "tied_pair_count": tied_pair_count,
+            "tie_credit": 0.5,
+            "pairwise_accuracy": pairwise_accuracy,
+            "minimum_pairwise_accuracy": minimum_within_query_pairwise_accuracy,
+            "aggregation": "micro_average_over_within_query_correct_incorrect_pairs",
         },
         "metrics": metrics,
         "per_query": per_query,
@@ -362,6 +429,9 @@ def main() -> None:
         bootstrap_replicates=args.bootstrap_replicates,
         confidence_level=args.confidence_level,
         seed=args.seed,
+        minimum_within_query_pairwise_accuracy=(
+            args.minimum_within_query_pairwise_accuracy
+        ),
     )
     provenance = report["reward_scoring_provenance"]
     expected_values = {
@@ -400,6 +470,12 @@ def main() -> None:
     report["input_jsonl"] = str(Path(args.input_jsonl).resolve())
     report["input_sha256"] = input_sha256
     atomic_write_json(output, report)
+    if not report["ranking_health"]["passed"]:
+        raise RuntimeError(
+            "Evaluation ranking health gate failed: within-query pairwise accuracy "
+            f"{report['ranking_health']['pairwise_accuracy']!r} is below "
+            f"{report['ranking_health']['minimum_pairwise_accuracy']!r}"
+        )
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 

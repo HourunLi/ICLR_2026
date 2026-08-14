@@ -1,386 +1,126 @@
-# ICLR 2027: Consistency-Localized Intrinsic Rewards
+# CLIR: Consistency-Localized Intrinsic Rewards
 
-最后更新：2026-08-14
+最后更新：2026-08-15
 
-本仓库是 ICLR 2027 方向的初步代码框架。我们参考 **SWIFT** (*Mining Intrinsic Rewards from LLM Hidden States for Efficient Best-of-N Sampling*) 的 hidden-state token reward / gate 设计，但不依赖、不调用 SWIFT 仓库代码；CLIR 的模型、数据读取、训练和打分脚本都在本仓库内自包含实现。
+CLIR 是一个面向 ICLR 2027 的研究代码库：在自包含的 SWIFT-style hidden-state reward
+backbone 上研究一致性学习、幻觉定位和 dual-prior localization，目标是在 Best-of-N
+推理中获得更可靠的轨迹排序。仓库借鉴 SWIFT 的研究设定，但不调用 SWIFT 仓库代码。
 
-当前工作名：**CLIR**，即 **Consistency-Localized Intrinsic Rewards**。
+新接手者先读 [docs/handoff.md](docs/handoff.md)；方法设计见
+[docs/proposal.md](docs/proposal.md)。
 
-> **给新接手的人（人类或 AI）**：先看 `docs/handoff.md`。那份文档专门写给零上下文的人看，包含完整的架构讲解、数据 schema、bug 修复历史和下一步优先级排序；这份 README 更偏向 changelog，细节粒度不如那边。`docs/proposal.md` 是研究方法设计文档。
+## 当前结论边界
 
-## 代码目标
+- Stage 1 correctness-only 小规模实验已完成。BoN@16 三 seed 均值为 strict SWIFT
+  `88.28%`、encoded SWIFT `88.54%`、CLIR `89.32%`；encoded→CLIR 只有 `+0.78`
+  个百分点，方向不稳定，不能宣称稳定增益。详见
+  [docs/stage1_results.md](docs/stage1_results.md)。
+- Stage 1B v1 是 pre-audit 诊断产物；v2 在 0 个完成 epoch 时中止；v3 尚未正式执行，
+  已被第四轮审查后的 v4 取代。
+- Stage 1B v4 已准备但尚未运行。它仍只有 correctness 标签，因此只是
+  outcome-only 容量/优化对照，不能验证或否证 CLIR 的三个机制。
+- 当前冻结 train/validation 中，consistency、hallucination、progress、dual-prior 和
+  reconstruction 的真实监督覆盖全部为 0。仓库不会从 correctness 伪造这些标签，也不会用
+  全零向量冒充缺失监督。
+- `pilot_test` 尚未生成、读取或用于任何选择。
 
-CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
+## Stage 1B v4
 
-1. **Domain/style consistency learning**  
-   参考 PRISM：对同一个语义问题构造不同风格、长度、题干形式、context 排列或 domain 表达的 LLM rewrite / augmentation。模型需要让这些 augmentation 的 projected reward representation 保持一致，从而削弱题干风格、长度、表面 domain 等 spurious cues。
+机器协议为 [configs/stage1b_validation_v4.json](configs/stage1b_validation_v4.json)，人类可读
+说明为 [docs/stage1b_v4_protocol.md](docs/stage1b_v4_protocol.md)。v4 保留 v3 的冻结数据、
+模型矩阵和预算，只修正审查发现的实验有效性问题：
 
-2. **Hallucination-aware localized reward**  
-   对 `query + context + trajectory` 输入，模型输出整体 reward、token-level progress / advantage 和 hallucination probability。如果某个 token 被定位为 hallucination onset，那么从该点之后的 token reward 会被推向负值。若有 onset 标签，做 token-level 定位监督；若只有 path-level hallucination 标签，则做弱监督 MIL，并生成 pseudo onset 做低权重 negative-tail shaping。
+- train BCE 必须比常数类别先验至少改善 1%，方向错误或改善不足都失败；
+- validation reward score population std 必须至少为 0.1；
+- query 内 correct-vs-incorrect pairwise 排序准确率必须至少为 0.60，tie 计 0.5；
+- final 失败不再封死健康 epoch snapshot；snapshot 只用于注明 post-hoc 的诊断；
+- 失败 cell 只有在持久化证据与同一协议哈希、同一阈值匹配时才可省略；不完整汇总明确标为
+  diagnostic-only，不能支持正式主结论；未知或未运行 cell 仍是错误；
+- resume 记录源 checkpoint 路径/SHA256、起始 epoch 和每段 resolved device，并拒绝跨设备续训。
 
-3. **Dual-prior localization**  
-   参考 Weakly Supervised Temporal Action Localization via Dual-Prior Collaborative Learning：模型学习 key support prior 和 complete support prior。前者偏向最关键证据 token，后者偏向完整支持答案的 token span，再通过互蒸馏和 gate-prior regularization 约束 reward gate。
+第四轮审查的逐项处理见
+[docs/code_review_panzhixin_fourth_change_resolution.md](docs/code_review_panzhixin_fourth_change_resolution.md)。
 
-最终目标是在 Best-of-N sampling 中得到一个更稳的 lightweight reward model：既能筛出更好的 reasoning trajectory，又不容易奖励风格偏差或后半段幻觉。
+## 代码结构
 
-## 当前进展
+| 路径 | 职责 |
+|---|---|
+| `src/consistency_localized_reward.py` | 三种 reward 变体、loss 与模型构造 |
+| `src/clir_data.py` | JSONL/feature 数据集、严格 token 对齐与 collate |
+| `src/clir_real_data.py` | 真实数据协议、checker、hash 与评估契约 |
+| `src/clir_supervision.py` | 外部机制监督的身份绑定、校验与覆盖审计 |
+| `train_clir.py` | 可恢复训练、健康门、checkpoint 与 run provenance |
+| `score_clir.py` | reward 打分和 score-distribution 健康证据 |
+| `evaluate_clir.py` | ordered-prefix BoN、baseline、bootstrap 与排序健康门 |
+| `summarize_clir.py` | 多 seed 汇总、配对比较与显式失败矩阵 |
+| `scripts/run_stage1b_validation.py` | Stage 1B v3/v4 的唯一正式 launcher |
+| `tests/` | 模型、数据、恢复、门禁、评估和 launcher 回归测试 |
 
-- 已完成 CLIR 方法设计草案，见 `docs/proposal.md`。
-- 已实现自包含 PyTorch 模型框架：`src/consistency_localized_reward.py`。
-- 已实现 JSONL 数据读取和 batch collate：`src/clir_data.py`。
-- 已实现训练入口：`train_clir.py`。
-- 已实现打分和 Best-of-N 选择入口：`score_clir.py`。
-- 已实现 toy 数据生成脚本：`examples/create_toy_clir_data.py`。
-- 已冻结第一阶段真实实验协议：`docs/pilot_protocol.md`，机器可读配置为
-  `configs/phi35_gsm8k_pilot_v1.json`。
-- 已实现保留原始 prompt/output token IDs 的 GSM8K/vLLM 生成入口：
-  `scripts/generate_gsm8k_rollouts.py`。
-- 已实现 exact-token-ID teacher forcing、embedding + 全部 Transformer block 拼接的
-  hidden-state 提取入口：`scripts/extract_hidden_states.py`。
-- 真实 manifest 一旦带有 `output_token_ids`，数据加载器会在任何 pad/trim 之前严格检查
-  `len(output_token_ids) == hidden_states.shape[0] == token-label length`。
-- 已实现 smoke tests：`tests/test_clir_smoke.py` 和 `tests/test_clir_real_data.py`。
-- 已添加可安装的真实生成/提取依赖；由于 SWIFT 官方的 NumPy pin 与 vLLM 冲突，采用
-  `numpy==1.26.4` + `vllm==0.5.3.post1` 的解析后组合。
-- Stage 1 单题真实对齐 gate 已实际通过：生成 16 个候选，并对前两条候选完成 exact-ID
-  全层提取；两条 trajectory 为 `[162,101376]` / `[250,101376]`，共享的 prompt-only
-  condition 为 `[113,101376]`，全部 finite、bfloat16。
-- 已实现 checker 单位后缀归一化与 SWIFT parity 审计入口：
-  `scripts/audit_swift_checker_parity.py`。17 个 query / 272 条候选上，CLIR v2 与固定
-  SWIFT checker 一致 260 条（95.59%）；12 个差异全是官方 checker 的单位/尾随文本
-  假阴性。
-- 已把原始输入宽度 `input_dim` 与内部 `model_dim` 分离，并实现全层感知的
-  `layer_transformer` 编码器：每个 token 的 `[33,3072]` 先经共享层投影、层轴 Transformer
-  和 learned-query pooling，再进入 768 维 CLIR 模块。全部 33 层仍被使用。
-- 已显式实现 `strict_swift`、`encoded_swift`、`clir` 三种模型，checkpoint 和打分输出都会
-  记录变体。前者保持原始 `Linear(101376,2)`；后两者共享同规格编码器，避免把编码器收益
-  误算成 CLIR 收益。
-- 已在现有两条真实轨迹上完成三种模型的 correctness-only forward/backward gate：参数量
-  分别为 202,754 / 3,435,266 / 9,547,273，全部 scores、loss、gradients finite；CLIR 最大
-  参数矩阵为 `[768,3073]`，峰值 allocated 显存约 1.28 GB。该 gate 只属于工程证据。
-- **Stage A 工程门已完成**：冻结 query-level split manifest
-  `configs/splits/gsm8k_phi35_v1.json`（manifest SHA256
-  `cb7f23e3da36c253d3fe7d3a33675db2e43eafb05685bf55d65511e35f553186`），包含
-  train-primary 6000、validation 500、reserve 973、development-32 32、pilot-test 500、
-  final-test 1319 个 query。生成和抽取现在按 query 原子分片、checksum 验证、成功 marker
-  与断点续跑；`scripts/merge_query_shards.py` 只按冻结顺序合并完整 shard。
-- development-32 已真实采集 32×8=256 条候选并提取全部 33 层：237 correct / 19
-  incorrect，7 个 mixed-label query、25 个 all-correct query；统一特征规格为
-  33×3072=101376、bfloat16，总特征字节 14,739,981,408。生成和抽取都通过“全完成不改写”
-  与“移走一个 marker 后只重建该 query”的恢复验收。该结果属于 pipeline pilot。
-- `train_clir.py` 现在支持显式、query-disjoint 的 train/validation manifest，保存模型、
-  optimizer、completed epoch、Python/NumPy/Torch/CUDA RNG、data hash 与逐组件 metrics/counts
-  的 full-state checkpoint；测试验证了 1 epoch 中断后恢复到 2 epochs 与连续训练参数逐
-  tensor 完全相同。`evaluate_clir.py` 独立报告 reward BoN、random、oracle、pool coverage
-  和 query bootstrap CI。
-- development-32 的 24-query train / 8-query engineering validation 上，strict SWIFT、
-  encoded SWIFT、CLIR 都在 101376 维真实输入上完成 1 epoch 训练、打分和 BoN@1/2/4/8
-  闭环。验证池 7/8 query 的候选全对、1/8 为 7/8 对，过于简单，不能据此比较方法效果。
-- **Stage 1 small-scale real correctness-only 已完成**：冻结的 512×8 train 和 128×16
-  validation 共抽取 343.86 GiB 全 33 层 BF16 特征；三种模型各以 seeds 42/43/44 训练
-  5 epochs。BoN@16 三 seed 为 strict SWIFT `88.28±2.07%`、encoded SWIFT
-  `88.54±1.63%`、CLIR `89.32±2.51%`，random expected 为 `86.52%`、oracle 为
-  `96.09%`。CLIR 相对 encoded 平均仅 `+0.78±2.07` 个百分点且一个 seed 为负，配对 CI
-  未建立稳定增益。完整口径见 `docs/stage1_results.md`；`pilot_test` 尚未生成或检查。
-- **2026-08-14 Stage 1B 第一轮审计与扩展采集已完成**：旧 vLLM candidates 实际按
-  cumulative log-probability 排序，历史 BoN@1/2/4/8 因此不是 generation-order prefix；
-  BoN@16 的 full pool 未丢候选。生成器现按 `CompletionOutput.index` 保存原始 sample
-  index。冻结 validation 的 500×16 candidates 和全 33 层特征已采集完成。基于 checker
-  v3 的 Stage 1B v1 虽完成了 9 组训练/打分，但第二轮审计在正式指标确认前发现了
-  checker 与 reproducibility 问题，因此这些输出只是 **pre-audit artifacts**，不参与方法结论。
-- **第三轮审查问题已转化为 Stage 1B v3 协议，正式矩阵尚未启动**：v1 的结果显示 CLIR
-  三个 seed 中有两个退化到类别先验，而且真实 manifest 没有任何 consistency、hallucination
-  或 dual-prior 标签。因此 v3 明确降级为“outcome-only 容量/优化对照”，不能支持或否证
-  CLIR 三项核心机制。机器可读口径为 `configs/stage1b_validation_v3.json`，说明见
-  `docs/stage1b_v3_protocol.md`；v2 已冻结为历史协议，不得原地修改或继续执行。
-- checker 已版本化为 `clir_gsm8k_numeric_v5`：非纯数值答案区间按 equality/prose cue/首个
-  数值取受支配答案，同时把 mixed number 和“小时+分钟”视为完整数值，避免把 `21 1/2`
-  误判成 `21`。相对 v4，train 4096 条中人工复核确认 2 条 `0→1`；validation 8000 条中
-  正好 15 条 `0→1`、0 条 `1→0`。最终 validation 为 7155 correct / 845 incorrect，包含
-  146 mixed、342 all-correct、12 all-wrong query。
-- **Stage 1B v2 特征完整性门已通过**：12,096 行共引用 13,108 个独立 trajectory/condition
-  payload，13,108 个 SHA256 全部匹配，失败数 0，实际校验 725,761,877,084 bytes
-  （约 725.8 GB / 676.0 GiB）。报告为
-  `run_artifacts/stage1b_v2/audits/feature_mirror_verification.json`。
-- **当前不存在 Stage 1B v3 效果结果**：v2 的 8 份 `completed_epoch=0` run record 没有
-  checkpoint/metrics，仍不计为实验。`train_clir.py --force` 现在只允许覆盖这类零 epoch
-  失败记录，绝不覆盖真实产物；v3 使用全新输出目录。`scripts/run_stage1b_validation.py`
-  会先原子检查完整 3×3 矩阵、协议/manifest/hash/clean-git，再生成或执行精确命令，避免只
-  启动 1/9 或手敲参数漂移。
-- **真实 CLIR 监督现在有独立导入/审计门**：`scripts/merge_clir_supervision.py` 将外部
-  annotation 逐行绑定到 `id/query_id/output_token_ids SHA256`，严格拒绝 token 长度、onset/path、
-  prior 值域、reconstruction 维度与覆盖冲突；缺失标签保持缺失，不从 correctness 推导或补零。
-  `scripts/audit_clir_supervision.py` 报告逐组件真实适用覆盖。对 v5 train/validation 的实测结果
-  均为 10 个辅助字段 0 行、7 个机制组件不可用；v3 launcher 已把该事实设为机器门禁。契约见
-  `docs/clir_supervision_protocol.md`。
-- 新增 `summarize_clir.py`：严格校验多 seed evaluation 的 query/k/baseline 一致性，报告
-  跨 seed 样本标准差，并在主指标上计算逐 query 配对 bootstrap CI。
-- 当前模型包含：
-  - SWIFT-style token reward / gate aggregation；
-  - token-level query/context cross-attention conditional fusion；
-  - condition relevance 与 condition attention 输出，供定位诊断使用；
-  - gate-weighted `token_values` + trajectory residual 的最终 score logit；
-  - PRISM-style semantic/style consistency loss；
-  - 按 `semantic_id` 分组的 batch sampler，默认让同语义不同风格 augmentation 落入同一 mini-batch；
-  - hallucination onset token BCE；
-  - path-level hallucination MIL；
-  - pseudo-onset negative-tail reward；
-  - token progress / advantage regression；
-  - key prior / complete prior heads；
-  - 有外部 prior labels 时启用 dual-prior interactive distillation，且只在 key/complete 共同有监督覆盖的 token 上对齐；
-  - 有外部 `complete_reconstruction_target` 时启用 complete-prior reconstruction；
-  - reward gate 与 fused prior 的 regularization；
-  - 打分脚本输出 key/complete prior、gate attention、condition relevance 和 gate-prior alignment。
+Best-of-N 选择只在 `evaluate_clir.py` 中进行；`score_clir.py` 只发布逐候选分数和 provenance，
+避免维护两套选择逻辑。
 
-本次同步修复了前一轮代码审查指出的关键问题：
+## 关键数据契约
 
-- 条件化不再是给所有 token 加同一个 query/context 偏置，而是每个 generated token 对 condition tokens 做 attention，再把 token-context match 特征送入后续 heads。
-- dual-prior loss 不再无标签常开；没有 `key_prior_target` / `complete_prior_target` / `complete_reconstruction_target` 时，对应 loss 为 0。
-- dual-prior 的 distillation / gate-prior regularization 只在 key 与 complete prior 都有标签的 token 上计算，避免半标注样本把 prior 拉向无意义一致。
-- dual-prior 支持 `joint`、`key`、`complete` 和 epoch-level `alternate` 训练模式，默认用 `alternate` 贴近 DPCL 的交替优化思路。
-- PRISM consistency 不再依赖普通随机 shuffle 碰运气；训练默认启用 `SemanticGroupBatchSampler`。
-- `SemanticGroupBatchSampler.__len__()` 现在和 `__iter__()` 复用同一套 batch 构造逻辑，避免不拆 semantic chunk 时低估 batch 数。
-- hallucination onset 越界会直接报错，不再静默当成无幻觉样本。
-- `query_id` 只用于 Best-of-N candidate 分组，不再默认 fallback 到 `semantic_id`，避免候选分组和 augmentation 分组混在一起。
-- `condition_attention_temperature` 和 `progress_score_weight` 已接入 `train_clir.py` CLI。
-- dual-prior 在部分 token 有标签时不再对子集重新归一化，而是比较完整轨迹 attention 分布在已标注 token 上的原始概率质量。
-- vLLM candidate 序号改用并校验 `CompletionOutput.index`，同时落盘 cumulative log-probability
-  供审计；旧 artifact 不回写。
-- 缺失 correctness 不再被当作负样本；训练强制标签存在，collate 和 BCE 都携带
-  `correctness_mask`。
-- 所有 token-label alias 共用一份严格长度契约，不再允许 alias 绕过校验后静默 pad/trim。
-- noisy-or MIL 改成 log-space，真实长度下 negative-path loss 不再因 `1-product` 饱和而梯度
-  精确为零；评分同时保留 `log P(no hallucination)`。
-- log-space noisy-or 的 `_log1mexp` 已改为两个分支都数值有效的实现，避免 `torch.where`
-  未选分支在边界附近产生 NaN gradient；训练端另有非有限 loss/gradient 硬失败门。
-- 全层编码器会在 LayerNorm/投影前自动分块，避免 CUDA kernel 在大于 32-bit indexing 上限的
-  张量上溢出；这只改变计算分块，不删层、不做信息降采样。
-- CUDA resume 已改为 CPU 加载 checkpoint 后恢复 RNG，并校验所有冻结训练参数。训练、打分和
-  评估均支持预期 SHA256 门；打分结果逐行保存 checkpoint/input/code/device/dtype/batch
-  provenance，ordered-prefix 评估会硬校验 `candidate_index_policy`。
-- protocol provenance 拆成 acquisition/label/evaluation component hashes；只改评估参数不会
-  让已采集 hidden states 失效。
-- `--val_fraction` 兼容路径按完整 query 分组切分；训练和评分新增并行 DataLoader 参数，训练
-  支持可选 gradient clipping。
+- hidden state 使用 embedding 加全部 32 个 Transformer block，共 33 层；真实宽度固定为
+  `33 × 3072 = 101376`，不得静默删层或降采样。
+- 真实样本必须满足
+  `len(output_token_ids) == trajectory length == every token-label length`。
+- condition 是每个 query 一次独立 prompt-only forward，候选共享；不能从不同总序列长度的
+  forward 中切片替代。
+- `query_id` 只定义 Best-of-N pool；`semantic_id` 只定义 rewrite/consistency group。
+- correctness、checkpoint、manifest、协议和 feature payload 均由版本/hash 绑定；历史 artifact
+  不原地回写。
+- 归档 Stage 1B v1 scored 文件缺少当前 scoring provenance，不能直接交给当前 evaluator；若确实
+  需要重新诊断，必须重新打分，不能放宽当前契约。
 
-## 遇到的问题
+## 本地验证
 
-- Stage 1 small-scale validation 已有跨 seed 结果，但 incremental 证据不稳定：
-  encoded→CLIR 的 BoN@16 为 `+2.34/+1.56/-1.56` 个百分点，strict→encoded 也发生方向
-  翻转。当前只能报告弱排序信号，不能表述为 CLIR 已优于共享编码器 baseline。
-- 历史 v3 small-scale validation 的 informative mixed pools 太少，是配对 CI 较宽的主要原因。
-  扩展并重标后的 v5 validation 有 146/500 mixed pools，但尚未完成任何正式 v3 训练/打分，
-  因此现在只能说“评估池更有信息量”，不能说 CLIR 效果更好。
-- 全层 feature 实测宽度为 101,376，每 token BF16 为 202,752 bytes。当前 Stage 1B v2 本地镜像
-  已完整校验约 676.0 GiB，存储压力不允许静默删层；主路径仍固定使用全部 33 层。
-- vLLM `candidate.text` 在当前版本会比按原始 IDs decode 的文本多一个前导空格；272/272
-  条都只差这个空格。`output_token_ids` 和由它 decode 的 `response` 仍是事实来源。
-- SWIFT 官方 `evaluate_math` 未覆盖 `bolts`、`downloads` 等单位或某些尾随文本。历史
-  v3 parity 必须保留；当前正式主标签已是项目自己的 `clir_gsm8k_numeric_v5`，它既不是
-  v3，也不能冒充“官方原始 checker”。后续报告需单独给出 v5 与固定官方 checker 的 parity。
-- Stage 1B v1 的 CLIR 2/3 seed 退化到类别先验；同时所有 CLIR 专属 loss 的适用计数为 0。
-  v3 已用健康门和 gradient clipping 处理“坏 run 进入结论”的问题，但没有虚构辅助标签，
-  所以它只能作为 outcome-only 容量/优化对照。
-- LLM rewrite augmentation 的生成、过滤和 `semantic_id` / `style_id` / `domain_id` 元数据构造还没有自动化。
-- hallucination onset / path-level label / token advantage / prior target 还需要 verifier 或 LLM judge 数据流水线生成。
-- `complete_reconstruction_target` 现在被设计成外部 CSR-style target embedding；仓库不会再用 pooled hidden state 做自指重构，但真实 target 的生成方式还需要后续实现。
-- `token_values = token_rewards + progress_score_weight * progress` 目前仍把 reward head 和 progress head 合并后做 hallucination tail shaping；toy 数据里 `progress_targets` 和 `token_advantage` 相同，真实数据接入后需要重新评估两个 head 的分工和量纲。
-- 当前训练目标是单 trajectory BCE + auxiliary losses；后续还需要加入 pairwise preference、DPO、InfoNCA / NCA 风格目标，方便更直接对齐 SWIFT baseline。
-
-当前 `SWIFT` 环境是 `torch==2.3.1+cu121`；完整测试必须使用该环境的 `python -m pytest`；
-`create_toy_clir_data.py -> train_clir.py（含 --condition_attention_temperature /
---progress_score_weight）-> score_clir.py` 端到端跑通，checkpoint 里也确认存了新增配置。
-另外针对 `SemanticGroupBatchSampler` 做过 300 组随机场景、共 1200 次采样的压力测试，
-确认 `__len__()` 与 `__iter__()` 实际 batch 数一致，样本覆盖和 `drop_last` 语义正确。
-复查中发现的问题已同步处理：
-
-- **已修复并复核：`SemanticGroupBatchSampler.__len__()` 低估实际 batch 数**。`__len__()` 与 `__iter__()` 复用同一套 `_build_batches()` 逻辑，`chunks.sort(key=len, reverse=True)` 让贪心装箱结果与是否 shuffle 无关，因此计数稳定；随机化压力测试没有发现反例。
-- **已修复并复核：两个新的 `RewardConfig` 字段没有接到 CLI**。`condition_attention_temperature`、`progress_score_weight` 已加入 `train_clir.py` 参数并传入 `make_config()`，端到端跑过一遍确认写进了 checkpoint。
-- **已修复并复核：`dual_prior_losses` 在标签部分覆盖时对子集重新归一化会失真**。现在 distill / gate-prior 保留完整轨迹 attention 分布的概率质量，只在 key 与 complete 都有标签覆盖的 token 上取 MSE；手工验算过 `test_dual_prior_partial_mask_preserves_full_attention_mass` 里的数值，和实现结果一致。
-- **仍需观察，本轮未改动：`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**。`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，真实数据接入后需要重新评估要不要拆开监督。这是设计取舍问题，不是逻辑 bug。
-
-第三轮审查列出的可执行代码问题已处理：安全 `--force`、旧 checkpoint resume 兼容、
-checkpoint 先于 metrics 发布、MIL 长度归一化、两类 encoder 的大张量分块、FP32 scoring、
-score-collapse 门、严格跨阶段 provenance、显式 tie 统计、summary policy gate、每 query
-生成 seed，以及 v5 checker。研究层面的关键缺口仍然存在：outcome-only 数据不包含 CLIR
-专属监督，不能被代码修复伪装成“机制实验”。17 项逐条处置与最终验证见
-`docs/code_review_panzhixin_third_change_resolution.md`。
-
-为继续推进这一研究缺口，仓库已加入外部 annotation 的 immutable token-ID 绑定、无覆盖合并和
-覆盖 eligibility 审计；这解决的是“真实标签如何安全接入并证明非零”，还没有生成 verifier
-标签本身。下一项实现工作仍是 rewrite/verifier/dual-prior target 的生成与人工质量门。
-
-## 未来解决方向
-
-- Stage 1B 的历史 full-pool 诊断、500×16 validation 采集、v5 重标和全量特征校验均已完成。
-  下一门是在代码形成 clean commit 且获得正式算力执行确认后，先运行 v3 launcher 的整矩阵
-  preflight，再执行 3 variants × 3 seeds；不得直接复跑 v2。
-- v3 固定 5 epochs、batch size 2、BF16 training、LR 1e-4、gradient clipping 1.0；主结果仍是
-  final checkpoint，同时保留每个 epoch 供诊断。打分固定 FP32，并以前验 BCE 距离 2% 与
-  validation score population std 0.1 两道预注册健康门拒绝塌缩 run。
-- v3 无论正负都只锁定 outcome-only 容量结论，不据此进入 `pilot_test`。先在 train/validation
-  范围构建并审计真实 CLIR 辅助标签，再版本化完整机制实验；最终配置锁定后才一次性进入
-  `pilot_test`。
-- 补充 augmentation 生成脚本：
-  - 改写题干风格；
-  - 改写 reasoning trajectory 长度；
-  - 改写 context 顺序和表达；
-  - 生成不同 domain surface forms；
-  - 输出 `semantic_id`、`style_id`、`domain_id` 元数据。
-- 补充 hallucination 标注流水线：
-  - 使用 verifier / LLM judge 标注 path-level hallucination；
-  - 进一步定位 hallucination onset token；
-  - 生成 `hallucination_onset`、`path_hallucinated`、`token_advantage`、`progress_targets`。
-- 补充 dual-prior target 生成：
-  - key support prior：最关键证据 token/span；
-  - complete support prior：完整支持答案的 token/span；
-  - 用 query/context entailment 或 verifier score 生成 weak prior。
-- 加入 pairwise/listwise 训练 objective，并做 SWIFT 对齐实验。
-- 在带 GPU 和完整依赖的环境中跑 end-to-end toy training、small-scale training 和 Best-of-N evaluation。
-- real 数据接入后，重新评估 `token_values`（`token_rewards + progress_score_weight * progress`）是否需要拆分监督，或者给 `token_rewards`/`progress` 设计不重叠的目标。
-
-## 运行代码
-
-### 1. 准备环境
+使用项目指定的 SWIFT 环境，不要调用系统 `pytest`：
 
 ```bash
-pip install -r requirements.txt
+P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
+"$P" -m pytest -q
+"$P" -m pip check
 ```
 
-`requirements.txt` 现在包含真实数据阶段需要的 `transformers`、`datasets`、
-`accelerate` 和 `vllm`。SWIFT 官方文件同时固定 `numpy==2.2.6` 和
-`vllm==0.5.3.post1`，但后者要求 `numpy==1.26.4`；本仓库使用可解析、也与本地 SWIFT
-复现报告一致的 `numpy==1.26.4`。大型外部 reward-model 微调才需要的
-`cuml/cupy/peft/wandb` 等仍不安装。
-
-### 2. 生成 toy 数据
+快速查看各入口：
 
 ```bash
-PROJECT_ROOT="$(pwd)"
-RUN_DIR="$PROJECT_ROOT/run_artifacts/toy"
-mkdir -p "$RUN_DIR"
-python examples/create_toy_clir_data.py \
-  --output_jsonl "$RUN_DIR/toy_clir.jsonl" \
-  --feature_dir "$RUN_DIR/features" \
-  --hidden_dim 8
+P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
+"$P" train_clir.py --help
+"$P" score_clir.py --help
+"$P" evaluate_clir.py --help
+"$P" summarize_clir.py --help
 ```
 
-### 3. 训练 CLIR reward model
+toy 数据只验证工程闭环，不能作为研究证据。完整命令见
+[docs/runbook_zh.md](docs/runbook_zh.md)。
+
+## v4 只读预检与命令审计
+
+下面两条命令不启动训练：
 
 ```bash
-python train_clir.py \
-  --train_jsonl "$RUN_DIR/toy_clir.jsonl" \
-  --output_model "$RUN_DIR/clir_toy.pt" \
-  --hidden_dim 8 \
-  --projection_dim 4 \
-  --batch_size 4 \
-  --epochs 3 \
-  --lr 1e-3 \
-  --group_by_semantic_id \
-  --prior_phase_mode alternate \
-  --condition_attention_temperature 1.0 \
-  --progress_score_weight 0.5
+P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
+"$P" scripts/run_stage1b_validation.py --stage preflight
+"$P" scripts/run_stage1b_validation.py --stage train --device cuda
 ```
 
-说明：
+正式执行必须满足 clean commit、完整矩阵原子 preflight 和用户明确授权。未经授权不要运行
+`--stage preflight --execute`，也不要启动任一 GPU cell。
 
-- `--group_by_semantic_id` 默认开启，用于保证同语义不同风格 rewrite 更容易进入同一 batch，从而触发 PRISM consistency。
-- `--prior_phase_mode alternate` 默认开启，奇数 epoch 训练 key-prior phase，偶数 epoch 训练 complete-prior phase；也可设为 `joint`、`key` 或 `complete`。
-- `--condition_attention_temperature` 控制 generated-token 到 query/context condition tokens 的 attention sharpness。
-- `--progress_score_weight` 控制 progress head 进入最终 `token_values` 的权重。
-- `query_id` 用于 Best-of-N candidate 分组；`semantic_id` 用于 rewrite/augmentation consistency 分组；`style_id` 或 `domain_id` 用于 spurious attribute 分组。
+## 文档索引
 
-### 4. 用 CLIR reward model 打分
+- [docs/handoff.md](docs/handoff.md)：当前事实、约束和下一步选择
+- [docs/proposal.md](docs/proposal.md)：CLIR 方法设计
+- [docs/runbook_zh.md](docs/runbook_zh.md)：最短可执行手册
+- [docs/clir_supervision_protocol.md](docs/clir_supervision_protocol.md)：真实机制监督接入契约
+- [docs/stage1b_v4_protocol.md](docs/stage1b_v4_protocol.md)：当前 Stage 1B 协议
+- `docs/stage1b*_protocol.md` 与旧 config：冻结历史，不得原地修改
+- `docs/code_review_panzhixin_*_change.md`：审查证据，不是当前运行说明
 
-```bash
-python score_clir.py \
-  --input_jsonl "$RUN_DIR/toy_clir.jsonl" \
-  --model "$RUN_DIR/clir_toy.pt" \
-  --output_jsonl "$RUN_DIR/clir_toy_scores.jsonl" \
-  --batch_size 4
-```
+## 维护原则
 
-输出 JSONL 会增加：
-
-- `clir_score`
-- `clir_path_hallucination_prob`
-- `clir_pseudo_onset`
-- `clir_mean_gate`
-- `clir_prior_gate_alignment`
-- `clir_condition_relevance`
-- `clir_gate_attention`
-- `clir_key_prior`
-- `clir_complete_prior`
-- `clir_selected_best_of_n`
-
-### 5. 运行 smoke test
-
-```bash
-/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python -m pytest -q \
-  tests/test_clir_smoke.py tests/test_clir_real_data.py
-```
-
-完整测试覆盖 toy/model、真实数据契约、模型变体、split/shard/merge、checkpoint resume
-与 query evaluator。它们证明管线逻辑，不证明 Phi/CLIR 的研究效果。
-
-```bash
-python -m py_compile \
-  src/consistency_localized_reward.py \
-  src/clir_real_data.py \
-  src/clir_data.py \
-  train_clir.py \
-  score_clir.py \
-  scripts/generate_gsm8k_rollouts.py \
-  scripts/extract_hidden_states.py \
-  scripts/audit_swift_checker_parity.py \
-  examples/create_toy_clir_data.py \
-  tests/test_clir_smoke.py \
-  tests/test_clir_real_data.py
-```
-
-### 6. 检查 Stage 1B v3 冻结输入并打印精确命令
-
-```bash
-PYTHON=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
-"$PYTHON" scripts/run_stage1b_validation.py --stage preflight
-"$PYTHON" scripts/run_stage1b_validation.py --stage train --device cuda
-```
-
-第一条只读检查协议、v5 manifest、relabel 不变字段、payload 存在性、已有 feature gate 与
-outcome-only 辅助监督零覆盖契约；第二条
-只打印九条精确训练命令。正式执行还要求 clean commit、明确的算力确认，以及先运行
-`--stage preflight --execute`。完整流程和结论边界见 `docs/stage1b_v3_protocol.md`。
-
-### 7. 复跑第一条真实对齐 gate
-
-完整协议和命令见 `docs/pilot_protocol.md` 与 `docs/runbook_zh.md`。第一轮必须保持
-`--max-queries 1`。本仓库已有验收 artifact；复跑时使用新输出目录或显式
-`--overwrite`，不能跳过该 gate 直接生成大规模数据。
-
-## Baseline
-
-直接 baseline 是：
-
-```text
-Mining Intrinsic Rewards from LLM Hidden States for Efficient Best-of-N Sampling
-```
-
-CLIR 推荐按以下顺序与 SWIFT 做增量比较：
-
-1. SWIFT token reward / gating head。
-2. SWIFT-style reward backbone in this repo。
-3. CLIR + LLM-guided consistency。
-4. CLIR + hallucination localization。
-5. CLIR + dual-prior localization。
-6. Full CLIR。
-
-## 维护规则
-
-之后每次改代码，都同步维护这个 README：
-
-- `代码目标`：如果研究目标或实现接口变了，要更新。
-- `当前进展`：新增模块、脚本、测试、实验结果后要更新。
-- `遇到的问题`：记录当前阻塞点、环境问题、设计风险。
-- `未来解决方向`：把下一步任务按优先级写清楚。
-- `运行代码`：任何命令、参数、路径、依赖变化都要同步更新。
-- `docs/handoff.md`：如果改动大到影响架构、数据 schema、已知问题清单或优先级排序，同步更新这份交接文档，避免它过时后误导下一个接手的人。
+代码行为、机器协议和测试是运行事实来源；README/handoff 只保留当前状态，不复制完整历史。
+改变数据 schema、损失、门禁、指标或结论边界时，必须同步更新对应测试和版本化协议。正式协议一旦
+冻结，只能由新版本取代，不能原地改变阈值或实验语义。

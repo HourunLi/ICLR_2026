@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import subprocess
 import sys
 from unittest.mock import patch
@@ -11,6 +12,7 @@ from src.clir_data import CLIRTrajectoryDataset, SemanticGroupBatchSampler, clir
 from src.consistency_localized_reward import (
     ConsistencyLocalizedReward,
     RewardConfig,
+    build_reward_model,
     dual_prior_losses,
     path_hallucination_probability,
     path_level_hallucination_mil,
@@ -74,6 +76,68 @@ def test_toy_generator_relative_paths_load_without_double_prefix(tmp_path: Path)
 
     assert len(dataset) == 6
     assert dataset[0]["hidden_states"].shape == (5, 8)
+
+
+def test_score_health_failure_persists_sidecar_without_scored_manifest(tmp_path: Path):
+    manifest = tmp_path / "rows.jsonl"
+    checkpoint_path = tmp_path / "model.pt"
+    output = tmp_path / "scores.jsonl"
+    write_jsonl(manifest, [
+        {
+            "id": "q0-c0",
+            "query_id": "q0",
+            "hidden_states": [[0.0, 0.0]],
+            "correctness": 0,
+        },
+        {
+            "id": "q0-c1",
+            "query_id": "q0",
+            "hidden_states": [[0.0, 0.0]],
+            "correctness": 1,
+        },
+    ])
+    config = RewardConfig(
+        hidden_dim=2,
+        model_variant="strict_swift",
+        encoder_type="identity",
+    )
+    model = build_reward_model(config)
+    for parameter in model.parameters():
+        parameter.data.zero_()
+    torch.save({
+        "schema_version": "clir-full-checkpoint-v2",
+        "config": config.__dict__,
+        "state_dict": model.state_dict(),
+        "experiment_protocol": None,
+    }, checkpoint_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "score_clir.py",
+            "--input_jsonl", str(manifest),
+            "--model", str(checkpoint_path),
+            "--output_jsonl", str(output),
+            "--batch_size", "2",
+            "--device", "cpu",
+            "--min_score_std", "0.1",
+        ],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    health_path = output.with_name(f"{output.name}.health.json")
+    health = json.loads(health_path.read_text(encoding="utf-8"))
+    assert result.returncode != 0
+    assert not output.exists()
+    assert health["status"] == "health_gate_failed"
+    assert health["health_gate"]["passed"] is False
+    assert health["scoring_provenance"]["model_variant"] == "strict_swift"
+    assert health["scoring_provenance"]["min_score_std"] == 0.1
+    assert health["scoring_provenance"]["score_distribution"] == health[
+        "health_gate"
+    ]["observed_distribution"]
 
 
 def test_condition_changes_prior_distribution():

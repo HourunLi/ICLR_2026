@@ -102,8 +102,8 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help=(
-            "Flag the final run as collapsed when train correctness BCE is within this "
-            "relative fraction of the constant class-prior entropy; zero disables the gate."
+            "Require train correctness BCE to improve on the constant class-prior entropy "
+            "by at least this relative fraction; zero disables the gate."
         ),
     )
     parser.add_argument(
@@ -516,6 +516,7 @@ RESUME_PINNED_ARGS = (
     "max_grad_norm",
     "val_fraction",
     "seed",
+    "device",
     "amp_dtype",
     "skip_feature_finite_check",
     "group_by_semantic_id",
@@ -632,6 +633,7 @@ def _constant_prior_health(
     if prevalence in {0.0, 1.0}:
         prior_entropy = 0.0
         relative_distance = None
+        relative_improvement = None
         passed = tolerance <= 0.0
         reason = "degenerate_class_distribution"
     else:
@@ -640,10 +642,18 @@ def _constant_prior_health(
             + (1.0 - prevalence) * math.log(1.0 - prevalence)
         )
         relative_distance = abs(final_correctness_bce - prior_entropy) / prior_entropy
-        passed = tolerance <= 0.0 or relative_distance > tolerance
-        reason = "disabled" if tolerance <= 0.0 else "outside_prior_entropy_band" if passed else "within_prior_entropy_band"
+        relative_improvement = (prior_entropy - final_correctness_bce) / prior_entropy
+        passed = tolerance <= 0.0 or relative_improvement >= tolerance
+        if tolerance <= 0.0:
+            reason = "disabled"
+        elif passed:
+            reason = "minimum_improvement_over_prior_met"
+        elif relative_improvement <= 0.0:
+            reason = "not_better_than_constant_prior"
+        else:
+            reason = "insufficient_improvement_over_prior"
     return {
-        "schema_version": "clir-training-health-v1",
+        "schema_version": "clir-training-health-v2",
         "gate": "constant_class_prior_bce",
         "enabled": tolerance > 0.0,
         "passed": passed,
@@ -654,8 +664,48 @@ def _constant_prior_health(
         "constant_prior_bce": prior_entropy,
         "observed_train_correctness_bce": final_correctness_bce,
         "relative_distance_from_prior_bce": relative_distance,
-        "relative_tolerance": tolerance,
+        "relative_improvement_over_prior_bce": relative_improvement,
+        "minimum_relative_improvement": tolerance,
     }
+
+
+def _checkpoint_execution_device(checkpoint: Mapping[str, Any]) -> str | None:
+    recorded = checkpoint.get("execution_device")
+    if isinstance(recorded, str) and recorded:
+        return recorded
+    segments = checkpoint.get("training_segments")
+    if isinstance(segments, list) and segments:
+        last = segments[-1]
+        if isinstance(last, Mapping) and isinstance(last.get("device"), str):
+            return str(last["device"])
+    training_args = checkpoint.get("training_args")
+    if isinstance(training_args, Mapping):
+        declared = training_args.get("device")
+        if declared in {"cpu", "cuda", "mps"}:
+            return str(declared)
+        if declared == "auto":
+            rng_state = checkpoint.get("rng_state")
+            if isinstance(rng_state, Mapping) and rng_state.get("cuda") is not None:
+                return "cuda"
+    return None
+
+
+def _validate_resume_device(
+    checkpoint: Mapping[str, Any],
+    current_device: torch.device,
+) -> str:
+    recorded = _checkpoint_execution_device(checkpoint)
+    if recorded is None:
+        raise ValueError(
+            "Resume checkpoint lacks an auditable resolved execution device; "
+            "start a new run instead of cross-device or ambiguous resume"
+        )
+    if torch.device(recorded).type != current_device.type:
+        raise ValueError(
+            "Cross-device resume is not reproducible: checkpoint used "
+            f"{recorded!r}, current run resolved to {str(current_device)!r}"
+        )
+    return recorded
 
 
 def _final_training_health(
@@ -812,8 +862,12 @@ def main() -> None:
     start_epoch = 0
     metric_rows: list[Dict[str, Any]] = []
     metrics_recovery: Dict[str, Any] | None = None
+    resumed_from: Dict[str, Any] | None = None
+    training_segments: list[Dict[str, Any]] = []
     if args.resume_from:
-        checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
+        resume_path = Path(args.resume_from).resolve()
+        resume_sha256 = file_sha256(resume_path)
+        checkpoint = torch.load(resume_path, map_location="cpu", weights_only=False)
         if checkpoint.get("config") != config.__dict__:
             raise ValueError("Resume checkpoint model config differs from current CLI config")
         if checkpoint.get("data_state") != data_state:
@@ -825,9 +879,29 @@ def main() -> None:
         if checkpoint.get("experiment_protocol") != experiment_protocol:
             raise ValueError("Resume checkpoint experiment protocol differs from current CLI config")
         _validate_resume_training_args(checkpoint["training_args"], args)
+        checkpoint_device = _validate_resume_device(checkpoint, device)
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_epoch = int(checkpoint["completed_epoch"])
+        recorded_segments = checkpoint.get("training_segments")
+        if isinstance(recorded_segments, list) and all(
+            isinstance(segment, Mapping) for segment in recorded_segments
+        ):
+            training_segments = [dict(segment) for segment in recorded_segments]
+        elif start_epoch > 0:
+            training_segments = [{
+                "start_epoch": 1,
+                "target_epoch": start_epoch,
+                "completed_epoch": start_epoch,
+                "device": checkpoint_device,
+                "legacy_inferred": True,
+            }]
+        resumed_from = {
+            "path": str(resume_path),
+            "sha256": resume_sha256,
+            "completed_epoch": start_epoch,
+            "device": checkpoint_device,
+        }
         _restore_rng_state(checkpoint["rng_state"])
         metric_rows, metrics_recovery = _reconcile_metrics_history(
             metrics_path,
@@ -851,14 +925,28 @@ def main() -> None:
                 f"{conflicting_snapshots[0]}"
             )
 
+    active_segment: Dict[str, Any] | None = None
+    if start_epoch < args.epochs:
+        active_segment = {
+            "start_epoch": start_epoch + 1,
+            "target_epoch": args.epochs,
+            "completed_epoch": start_epoch,
+            "device": str(device),
+            "resumed_from_sha256": resumed_from["sha256"] if resumed_from else None,
+        }
+        training_segments.append(active_segment)
+
     run_record: Dict[str, Any] = {
-        "schema_version": "clir-training-run-v1",
+        "schema_version": "clir-training-run-v2",
         "status": "running",
         "output_model": str(output),
         "metrics_jsonl": str(metrics_path),
         "target_epochs": args.epochs,
+        "start_epoch": start_epoch,
         "completed_epoch": start_epoch,
         "device": str(device),
+        "resumed_from": resumed_from,
+        "training_segments": training_segments,
         "amp_dtype": args.amp_dtype,
         "model_variant": config.model_variant,
         "encoder_type": config.encoder_type,
@@ -943,8 +1031,10 @@ def main() -> None:
                 tolerance=args.prior_collapse_tolerance,
             )
             metric_rows.append(metric_record)
+            if active_segment is not None:
+                active_segment["completed_epoch"] = epoch
             checkpoint = {
-                "schema_version": "clir-full-checkpoint-v1",
+                "schema_version": "clir-full-checkpoint-v2",
                 "state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
                 "completed_epoch": epoch,
@@ -954,6 +1044,9 @@ def main() -> None:
                 "training_args": vars(args),
                 "metrics": metric_rows,
                 "experiment_protocol": experiment_protocol,
+                "execution_device": str(device),
+                "resumed_from": resumed_from,
+                "training_segments": training_segments,
                 "code": git_state(Path(__file__).resolve().parent),
             }
             _atomic_torch_save(checkpoint, output)

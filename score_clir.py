@@ -13,14 +13,13 @@ from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device
 from src.clir_real_data import file_sha256
-from src.clir_stage_a import atomic_write_jsonl, git_state
+from src.clir_stage_a import atomic_write_json, atomic_write_jsonl, git_state
 from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
     infer_pseudo_onsets,
     path_hallucination_probability,
     path_no_hallucination_log_probability,
-    select_best_of_n,
 )
 
 
@@ -56,7 +55,10 @@ def parse_args() -> argparse.Namespace:
         "--min_score_std",
         type=float,
         default=0.0,
-        help="Fail before writing scores when population score std is below this health threshold.",
+        help=(
+            "Fail before publishing scores when population score std is below this threshold; "
+            "a health sidecar is always retained."
+        ),
     )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -119,10 +121,14 @@ def main() -> None:
     input_path = Path(args.input_jsonl).resolve()
     model_path = Path(args.model).resolve()
     output_path = Path(args.output_jsonl).resolve()
+    health_path = output_path.with_name(f"{output_path.name}.health.json")
     if output_path in {input_path, model_path}:
         raise ValueError("Scoring output must differ from the input manifest and checkpoint")
-    if output_path.exists() and not args.overwrite:
-        raise FileExistsError(f"Refusing to overwrite existing scored manifest: {output_path}")
+    if (output_path.exists() or health_path.exists()) and not args.overwrite:
+        raise FileExistsError(
+            "Refusing to overwrite existing scoring output/evidence: "
+            f"{output_path} or {health_path}"
+        )
     device = resolve_device(args.device)
     model, checkpoint = load_model_with_checkpoint(model_path, device)
     experiment_protocol = _experiment_protocol_state(args.experiment_protocol_config)
@@ -178,13 +184,10 @@ def main() -> None:
         "experiment_protocol": experiment_protocol,
         "min_score_std": args.min_score_std,
     }
-    scored_row_indices: List[int] = []
     scored_scores: List[float] = []
-    scored_query_ids: List[str] = []
 
     for batch in loader:
         row_indices = batch["row_index"].tolist()
-        query_ids_raw = list(batch["query_ids_raw"])
         batch = move_batch_to_device(batch, device)
         if args.amp_dtype == "none":
             parameter_dtype = next(model.parameters()).dtype
@@ -259,9 +262,7 @@ def main() -> None:
             if "trajectory_layer_attention" in outputs:
                 layer_attention = outputs["trajectory_layer_attention"][local_idx, :valid_length]
                 row["mean_layer_pool_attention"] = layer_attention.mean(dim=0).detach().cpu().tolist()
-            scored_row_indices.append(row_index)
             scored_scores.append(row["reward_score"])
-            scored_query_ids.append(str(query_ids_raw[local_idx]))
 
     score_tensor = torch.tensor(scored_scores, dtype=torch.float64)
     score_distribution = {
@@ -271,30 +272,34 @@ def main() -> None:
         "min": float(score_tensor.min()),
         "max": float(score_tensor.max()),
     }
-    if score_distribution["population_std"] < args.min_score_std:
+    score_gate_passed = score_distribution["population_std"] >= args.min_score_std
+    scoring_provenance["score_distribution"] = score_distribution
+    scoring_health = {
+        "schema_version": "clir-scoring-health-v1",
+        "status": "passed" if score_gate_passed else "health_gate_failed",
+        "output_jsonl": str(output_path),
+        "model_variant": model_variant,
+        "checkpoint_sha256": checkpoint_sha256,
+        "input_sha256": input_sha256,
+        "experiment_protocol": experiment_protocol,
+        "scoring_provenance": scoring_provenance,
+        "health_gate": {
+            "gate": "minimum_validation_score_population_std",
+            "enabled": args.min_score_std > 0.0,
+            "passed": score_gate_passed,
+            "minimum_population_std": args.min_score_std,
+            "observed_distribution": score_distribution,
+        },
+        "code": git_state(PROJECT_ROOT),
+    }
+    atomic_write_json(health_path, scoring_health)
+    if not score_gate_passed:
         raise RuntimeError(
             "Scoring health gate failed: population std "
             f"{score_distribution['population_std']:.8g} is below {args.min_score_std:.8g}"
         )
-    scoring_provenance["score_distribution"] = score_distribution
     for row in rows:
         row["reward_scoring_provenance"] = dict(scoring_provenance)
-
-    query_to_int: Dict[str, int] = {}
-    encoded_groups = []
-    for query_id in scored_query_ids:
-        query_to_int.setdefault(query_id, len(query_to_int))
-        encoded_groups.append(query_to_int[query_id])
-
-    best_local_indices = select_best_of_n(
-        torch.tensor(scored_scores, dtype=torch.float32),
-        torch.tensor(encoded_groups, dtype=torch.long),
-    )
-    selected_indices = {scored_row_indices[local_idx] for local_idx in best_local_indices.values()}
-    for idx, row in enumerate(rows):
-        row["reward_selected_best_of_n"] = idx in selected_indices
-        if model_variant == "clir":
-            row["clir_selected_best_of_n"] = idx in selected_indices
 
     atomic_write_jsonl(output_path, rows)
     print(f"wrote {output_path}")

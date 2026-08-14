@@ -1,7 +1,7 @@
 # CLIR 外部监督导入与覆盖审计协议
 
 本协议定义“监督标签怎样安全进入真实 trajectory manifest”。它不是标签生成器，也不把
-`correctness` 伪装成 token/step 标签。当前 Stage 1B v3 数据经审计后 7 个 CLIR 组件全部
+`correctness` 伪装成 token/step 标签。当前 Stage 1B v4 数据经审计后 7 个 CLIR 组件全部
 不可用；真正的机制实验必须先由独立的 rewrite/verifier/judge 流水线产出本协议中的显式标签，
 再发布新的冻结实验协议。
 
@@ -93,9 +93,9 @@ reconstruction 维度和 consistency pair 数。通过覆盖审计只证明数�
 
 ## 4. 当前状态与下一步
 
-截至 2026-08-14，Stage 1B v3 的 train 4096 行与 validation 8000 行都已用上述审计器检查：
-10 个辅助字段的 row count 全为 0，7 个机制组件的 eligibility 全为 false。v3 launcher 会在
-preflight 中复算并强制这一 outcome-only 契约，避免将 v3 误报为机制实验。
+截至 2026-08-15，Stage 1B v4 的 train 4096 行与 validation 8000 行都已用上述审计器检查：
+10 个辅助字段的 row count 全为 0，7 个机制组件的 eligibility 全为 false。v4 launcher 会在
+preflight 中复算并强制这一 outcome-only 契约，避免将 v4 误报为机制实验。
 
 下一步应先在 train/validation 范围实现并小规模人工审核：
 

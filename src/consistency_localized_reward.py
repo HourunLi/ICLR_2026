@@ -1212,19 +1212,6 @@ def path_no_hallucination_log_probability(
     return (F.logsigmoid(-logits) * mask.to(dtype=logits.dtype)).sum(dim=1)
 
 
-@torch.no_grad()
-def select_best_of_n(scores: Tensor, group_ids: Tensor) -> Dict[int, int]:
-    """Return the row index of the best candidate for each query/group id."""
-    best: Dict[int, int] = {}
-    best_score: Dict[int, float] = {}
-    for idx, group in enumerate(group_ids.detach().cpu().tolist()):
-        score = float(scores[idx].detach().cpu())
-        if group not in best_score or score > best_score[group]:
-            best[group] = idx
-            best_score[group] = score
-    return best
-
-
 __all__ = [
     "ConsistencyLocalizedReward",
     "EncodedSwiftReward",
@@ -1244,5 +1231,4 @@ __all__ = [
     "path_level_hallucination_mil",
     "prism_style_consistency_loss",
     "pseudo_onset_tail_loss",
-    "select_best_of_n",
 ]
