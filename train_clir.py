@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--resume_from", default=None, help="Full-state checkpoint to resume.")
     parser.add_argument("--metrics_jsonl", default=None)
     parser.add_argument("--run_json", default=None)
+    parser.add_argument("--expected_train_sha256", default=None)
+    parser.add_argument("--expected_val_sha256", default=None)
     parser.add_argument("--hidden_dim", type=int, required=True,
                         help="Raw input feature width; 101376 for frozen Phi all-layer features.")
     parser.add_argument("--model_variant", default="clir",
@@ -62,6 +64,12 @@ def parse_args() -> argparse.Namespace:
         default=False,
     )
     parser.add_argument("--epochs", type=int, default=5, help="Total target epochs, including resumed epochs.")
+    parser.add_argument(
+        "--val_every_n_epochs",
+        type=int,
+        default=1,
+        help="Run validation at this interval and always at the final target epoch.",
+    )
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument(
@@ -287,29 +295,68 @@ def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tenso
             counts["final"] = int(batch["correctness_mask"].sum().item())
         else:
             counts["final"] = int(batch.get("correctness", torch.empty(0)).numel())
-    consistency_count = 0
+    positive_consistency_count = 0
+    negative_consistency_count = 0
     if "consistency_mask" in batch:
         valid = batch["consistency_mask"].bool()
         semantic = batch["semantic_ids"]
         style = batch["style_ids"]
         upper = torch.triu(torch.ones((batch_size, batch_size), dtype=torch.bool, device=mask.device), diagonal=1)
         pairs = upper & valid[:, None] & valid[None, :]
-        consistency_count = int((pairs & ((semantic[:, None] == semantic[None, :]) | (style[:, None] == style[None, :]))).sum().item())
+        semantic_eq = semantic[:, None] == semantic[None, :]
+        style_eq = style[:, None] == style[None, :]
+        positive_consistency_count = int((pairs & semantic_eq & ~style_eq).sum().item())
+        negative_consistency_count = int((pairs & ~semantic_eq & style_eq).sum().item())
     for key in losses:
-        if key.startswith("consistency_"):
-            counts[key] = consistency_count
-    onset_tokens = int((batch.get("onset_label_mask", torch.zeros(batch_size, dtype=torch.bool, device=mask.device))[:, None] & mask).sum().item())
-    for key in losses:
-        if key.startswith("localization_"):
-            counts[key] = onset_tokens
+        if key in {"consistency_positive", "consistency_score"}:
+            counts[key] = positive_consistency_count
+        elif key == "consistency_negative":
+            counts[key] = negative_consistency_count
+        elif key == "consistency_total":
+            counts[key] = positive_consistency_count + negative_consistency_count
+
+    onset_mask = batch.get(
+        "onset_label_mask",
+        torch.zeros(batch_size, dtype=torch.bool, device=mask.device),
+    ).bool()
+    supervised_tokens = onset_mask[:, None] & mask
+    onset = batch.get("hallucination_onset", torch.full((batch_size,), -1, device=mask.device)).long()
+    positions = torch.arange(mask.shape[1], device=mask.device)[None, :]
+    tail = onset_mask[:, None] & (onset[:, None] >= 0) & (positions >= onset[:, None]) & mask
+    if "token_advantage_mask" in batch:
+        reward_mask = batch["token_advantage_mask"].bool() & mask
+    elif "token_advantage" in batch:
+        reward_mask = mask
+    else:
+        reward_mask = tail
+    reward_mask = reward_mask | tail
+    localization_counts = {
+        "localization_token_bce": int(supervised_tokens.sum().item()),
+        "localization_token_reward": int(reward_mask.sum().item()),
+        "localization_tail_margin": int(tail.sum().item()),
+    }
+    for key, value in localization_counts.items():
+        if key in losses:
+            counts[key] = value
     if "hallucination_mil" in losses:
         counts["hallucination_mil"] = int(batch.get("path_label_mask", torch.zeros(batch_size, dtype=torch.bool, device=mask.device)).sum().item())
     if "pseudo_tail" in losses:
-        counts["pseudo_tail"] = int(batch.get("path_label_mask", torch.zeros(batch_size, dtype=torch.bool, device=mask.device)).sum().item())
+        path_mask = batch.get(
+            "path_label_mask",
+            torch.zeros(batch_size, dtype=torch.bool, device=mask.device),
+        ).bool()
+        path_positive = batch.get(
+            "path_hallucinated",
+            torch.zeros(batch_size, device=mask.device),
+        ).bool()
+        counts["pseudo_tail"] = int((path_mask & path_positive & ~onset_mask).sum().item())
     if "progress" in losses:
         counts["progress"] = int(batch.get("progress_mask", torch.zeros_like(mask)).sum().item())
-    key_count = int(batch.get("key_prior_mask", torch.zeros_like(mask)).sum().item())
-    complete_count = int(batch.get("complete_prior_mask", torch.zeros_like(mask)).sum().item())
+    key_mask = batch.get("key_prior_mask", torch.zeros_like(mask)).bool() & mask
+    complete_mask = batch.get("complete_prior_mask", torch.zeros_like(mask)).bool() & mask
+    key_count = int(key_mask.sum().item())
+    complete_count = int(complete_mask.sum().item())
+    joint_prior_count = int((key_mask & complete_mask).sum().item())
     reconstruction_count = int(batch.get("complete_reconstruction_target_mask", torch.zeros(batch_size, dtype=torch.bool, device=mask.device)).sum().item())
     for key in losses:
         if key == "prior_key":
@@ -317,7 +364,7 @@ def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tenso
         elif key == "prior_complete":
             counts[key] = complete_count
         elif key in {"prior_distill", "prior_gate", "prior_total"}:
-            counts[key] = min(key_count, complete_count)
+            counts[key] = joint_prior_count
         elif key == "prior_reconstruction":
             counts[key] = reconstruction_count
     return counts
@@ -360,8 +407,20 @@ def run_epoch(
                 raise FloatingPointError(f"Non-finite total loss in {prior_phase} phase")
             if training:
                 losses["total"].backward()
+                non_finite_gradients = [
+                    name
+                    for name, parameter in model.named_parameters()
+                    if parameter.grad is not None and not torch.isfinite(parameter.grad).all()
+                ]
+                if non_finite_gradients:
+                    optimizer.zero_grad(set_to_none=True)
+                    preview = ", ".join(non_finite_gradients[:5])
+                    raise FloatingPointError(f"Non-finite gradients in: {preview}")
                 if max_grad_norm > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                    gradient_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                    if not torch.isfinite(gradient_norm):
+                        optimizer.zero_grad(set_to_none=True)
+                        raise FloatingPointError("Non-finite gradient norm")
                 optimizer.step()
 
             batch_size = int(batch["hidden_states"].shape[0])
@@ -397,9 +456,40 @@ def _rng_state() -> Dict[str, Any]:
 def _restore_rng_state(state: Mapping[str, Any]) -> None:
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
-    torch.set_rng_state(state["torch"])
+    torch.set_rng_state(state["torch"].cpu())
     if torch.cuda.is_available() and state.get("cuda") is not None:
-        torch.cuda.set_rng_state_all(state["cuda"])
+        torch.cuda.set_rng_state_all([cuda_state.cpu() for cuda_state in state["cuda"]])
+
+
+RESUME_PINNED_ARGS = (
+    "batch_size",
+    "num_workers",
+    "pin_memory",
+    "persistent_workers",
+    "lr",
+    "weight_decay",
+    "max_grad_norm",
+    "val_fraction",
+    "seed",
+    "amp_dtype",
+    "skip_feature_finite_check",
+    "group_by_semantic_id",
+    "prior_phase_mode",
+    "val_every_n_epochs",
+)
+
+
+def _validate_resume_training_args(
+    checkpoint_args: Mapping[str, Any],
+    current_args: argparse.Namespace,
+) -> None:
+    mismatches = {
+        key: {"checkpoint": checkpoint_args.get(key), "current": getattr(current_args, key)}
+        for key in RESUME_PINNED_ARGS
+        if checkpoint_args.get(key) != getattr(current_args, key)
+    }
+    if mismatches:
+        raise ValueError(f"Resume training arguments differ: {json.dumps(mismatches, sort_keys=True)}")
 
 
 def _atomic_torch_save(value: Any, path: Path) -> None:
@@ -417,6 +507,8 @@ def main() -> None:
         raise ValueError("--val_feature_root requires --val_jsonl")
     if args.epochs <= 0:
         raise ValueError("epochs must be positive")
+    if args.val_every_n_epochs <= 0:
+        raise ValueError("val_every_n_epochs must be positive")
     if args.max_grad_norm < 0:
         raise ValueError("max_grad_norm must be non-negative")
     set_seed(args.seed)
@@ -430,6 +522,7 @@ def main() -> None:
         feature_root=args.feature_root,
         check_finite=not args.skip_feature_finite_check,
         require_correctness=True,
+        load_condition=args.model_variant == "clir",
     )
     if args.val_jsonl:
         val_dataset = CLIRTrajectoryDataset(
@@ -437,6 +530,7 @@ def main() -> None:
             feature_root=args.val_feature_root,
             check_finite=not args.skip_feature_finite_check,
             require_correctness=True,
+            load_condition=args.model_variant == "clir",
         )
         train_indices = list(range(len(train_dataset)))
         val_indices = list(range(len(val_dataset)))
@@ -471,26 +565,39 @@ def main() -> None:
 
     model = build_reward_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    train_sha256 = file_sha256(args.train_jsonl)
+    val_sha256 = file_sha256(args.val_jsonl) if args.val_jsonl else None
+    if args.expected_train_sha256 and train_sha256 != args.expected_train_sha256:
+        raise ValueError(
+            f"Train manifest SHA256 mismatch: expected {args.expected_train_sha256}, got {train_sha256}"
+        )
+    if args.expected_val_sha256 and val_sha256 != args.expected_val_sha256:
+        raise ValueError(
+            f"Validation manifest SHA256 mismatch: expected {args.expected_val_sha256}, got {val_sha256}"
+        )
     data_state = {
         "train_jsonl": str(Path(args.train_jsonl).resolve()),
-        "train_sha256": file_sha256(args.train_jsonl),
+        "train_sha256": train_sha256,
         "train_rows": len(train_indices),
         "train_queries": len(train_queries),
         "val_jsonl": str(Path(args.val_jsonl).resolve()) if args.val_jsonl else None,
-        "val_sha256": file_sha256(args.val_jsonl) if args.val_jsonl else None,
+        "val_sha256": val_sha256,
         "val_rows": len(val_indices) if val_indices is not None else 0,
         "val_queries": len(val_queries),
     }
     start_epoch = 0
     metric_rows: list[Dict[str, Any]] = []
     if args.resume_from:
-        checkpoint = torch.load(args.resume_from, map_location=device, weights_only=False)
+        checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
         if checkpoint.get("config") != config.__dict__:
             raise ValueError("Resume checkpoint model config differs from current CLI config")
         if checkpoint.get("data_state") != data_state:
             raise ValueError("Resume checkpoint data files/hashes differ from current run")
         if "optimizer_state_dict" not in checkpoint or "rng_state" not in checkpoint:
             raise ValueError("Resume checkpoint lacks full optimizer/RNG state")
+        if not isinstance(checkpoint.get("training_args"), Mapping):
+            raise ValueError("Resume checkpoint lacks recorded training arguments")
+        _validate_resume_training_args(checkpoint["training_args"], args)
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_epoch = int(checkpoint["completed_epoch"])
@@ -540,7 +647,11 @@ def main() -> None:
                 amp_dtype=args.amp_dtype, max_grad_norm=args.max_grad_norm,
             )
             val_metrics = None
-            if val_loader is not None:
+            should_validate = (
+                val_loader is not None
+                and (epoch == args.epochs or epoch % args.val_every_n_epochs == 0)
+            )
+            if should_validate:
                 val_metrics = run_epoch(
                     model, val_loader, device, optimizer=None, prior_phase="joint", amp_dtype=args.amp_dtype
                 )

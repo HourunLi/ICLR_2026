@@ -32,6 +32,7 @@ from src.clir_stage_a import (
     atomic_write_json,
     atomic_write_jsonl,
     build_payload_record,
+    candidate_count_for_membership,
     git_state,
     load_split_manifest,
     membership_entries,
@@ -41,7 +42,7 @@ from src.clir_stage_a import (
 )
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v1.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v3.json"
 
 
 def parse_args() -> argparse.Namespace:
@@ -312,11 +313,7 @@ def main() -> None:
             num_shards=args.num_shards,
             shard_id=args.shard_id,
         )
-        default_n = (
-            generation_cfg["train_candidates"]
-            if all(entry["source_split"] == "train" for entry in entries)
-            else generation_cfg["pilot_eval_candidates"]
-        )
+        default_n = candidate_count_for_membership(generation_cfg, args.membership)
         n_rollouts = args.n_rollouts or default_n
         for entry in entries:
             query_dir = query_shard_dir(args.shard_root, entry["query_id"])

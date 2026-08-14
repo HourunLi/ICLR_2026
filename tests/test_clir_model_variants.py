@@ -86,6 +86,29 @@ def test_real_width_clir_has_no_raw_width_squared_parameter():
             assert not (parameter.shape[-1] == config.hidden_dim and parameter.shape[-2] == config.hidden_dim)
 
 
+def test_layer_encoder_chunks_normalization_without_changing_outputs():
+    torch.manual_seed(7)
+    config = small_layer_config("encoded_swift")
+    model = build_reward_model(config).eval()
+    hidden_states = torch.randn(2, 5, config.hidden_dim)
+    mask = torch.ones(2, 5)
+
+    with torch.no_grad():
+        reference = model(hidden_states, mask=mask)
+        model.input_encoder.max_normalization_elements = (
+            config.num_feature_layers * config.per_layer_dim * 2
+        )
+        chunked = model(hidden_states, mask=mask)
+
+    assert torch.allclose(chunked["scores"], reference["scores"], atol=1e-6, rtol=1e-6)
+    assert torch.allclose(
+        chunked["trajectory_layer_attention"],
+        reference["trajectory_layer_attention"],
+        atol=1e-6,
+        rtol=1e-6,
+    )
+
+
 @pytest.mark.parametrize(
     ("variant", "encoder_type"),
     [

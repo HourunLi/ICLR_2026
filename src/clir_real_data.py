@@ -44,6 +44,7 @@ TOKEN_LABEL_FIELDS = tuple(
 SUPPORTED_GSM8K_CHECKERS = {
     "clir_gsm8k_numeric_v2",
     "clir_gsm8k_numeric_v3",
+    "clir_gsm8k_numeric_v4",
 }
 
 PROTOCOL_HASH_SCHEMA = "clir-protocol-component-hashes-v1"
@@ -191,12 +192,40 @@ def extract_gsm8k_candidate_answer(
     response: str,
     *,
     exclude_unit_exponents: bool = False,
+    ignore_boxed_placeholders: bool = False,
 ) -> Optional[str]:
     if not isinstance(response, str) or not response.strip():
         return None
     boxed = _boxed_answers(response)
     if boxed:
-        return boxed[-1]
+        if not ignore_boxed_placeholders:
+            return boxed[-1]
+        for candidate in reversed(boxed):
+            if not _is_boxed_placeholder(candidate):
+                return candidate
+
+        # Phi occasionally copies the prompt's literal ``\boxed{Your Answer}``
+        # and then puts the actual numeric answer immediately after it.  Once
+        # every boxed expression has been proven to be a placeholder, prefer a
+        # governed answer in the suffix and then its last numeric expression.
+        placeholder_matches = list(
+            re.finditer(
+                r"\\boxed\s*\{\s*(?:Your\s+Answer)?\s*\}",
+                response,
+                flags=re.IGNORECASE,
+            )
+        )
+        if placeholder_matches:
+            suffix = response[placeholder_matches[-1].end() :]
+            governed = _answer_cue_numeric_expression(suffix)
+            if governed is not None:
+                return governed
+            suffix_numeric = _last_numeric_expression(
+                suffix,
+                exclude_unit_exponents=exclude_unit_exponents,
+            )
+            if suffix_numeric is not None:
+                return suffix_numeric
 
     final_patterns = (
         r"(?i)(?:final\s+answer|answer)\s*(?:is|=|:)\s*([^\n]+)",
@@ -215,6 +244,24 @@ def extract_gsm8k_candidate_answer(
         response,
         exclude_unit_exponents=exclude_unit_exponents,
     )
+
+
+def _is_boxed_placeholder(answer: str) -> bool:
+    """Return whether boxed content is the prompt's literal placeholder.
+
+    This is intentionally narrow.  Text such as ``x``, ``No solution``, or
+    ``Impossible`` is a model answer and must remain authoritative even when
+    it contains no number.
+    """
+
+    normalized = answer.strip()
+    text_match = re.fullmatch(r"\\text\s*\{(.*)\}", normalized, flags=re.DOTALL)
+    if text_match:
+        normalized = text_match.group(1).strip()
+    if not normalized:
+        return True
+    letters = re.sub(r"[^A-Za-z]+", "", normalized).lower()
+    return letters in {"answer", "youranswer"} and not re.search(r"\d", normalized)
 
 
 def _last_numeric_expression(
@@ -310,22 +357,53 @@ def _numeric_value_options_v3(answer: str) -> set[Fraction]:
     return {conventional}
 
 
+def _explicit_percentage_points(response: str) -> set[Fraction]:
+    """Extract numeric percentage-point literals from an answer.
+
+    A bare occurrence of ``percent`` elsewhere in a completion is not enough
+    to reinterpret a final decimal.  Requiring the number and percent marker
+    to be adjacent avoids false positives from words such as ``percentage``
+    or unrelated intermediate calculations.
+    """
+
+    numeric = r"[-+]?\d[\d,]*(?:\.\d+)?"
+    pattern = rf"(?i)(?<![A-Za-z0-9.])({numeric})\s*(?:\\?%|percent\b)"
+    values: set[Fraction] = set()
+    for match in re.finditer(pattern, response):
+        value = _numeric_value(match.group(1), percent_as_fraction=False)
+        if value is not None:
+            values.add(value)
+    return values
+
+
+def _has_probability_percent_context(response: str) -> bool:
+    return bool(
+        _explicit_percentage_points(response)
+        and re.search(r"(?i)\b(?:probability|odds|chance)\b", response)
+    )
+
+
 def check_gsm8k_response(
     response: str,
     raw_reference: str,
     *,
-    checker_version: str = "clir_gsm8k_numeric_v3",
+    checker_version: str = "clir_gsm8k_numeric_v4",
 ) -> Dict[str, Any]:
     if checker_version not in SUPPORTED_GSM8K_CHECKERS:
         raise ValueError(
             f"Unsupported GSM8K checker {checker_version!r}; "
             f"expected one of {sorted(SUPPORTED_GSM8K_CHECKERS)}"
         )
-    is_v3 = checker_version == "clir_gsm8k_numeric_v3"
+    is_v3_or_later = checker_version in {
+        "clir_gsm8k_numeric_v3",
+        "clir_gsm8k_numeric_v4",
+    }
+    is_v4 = checker_version == "clir_gsm8k_numeric_v4"
     reference = extract_gsm8k_reference(raw_reference)
     parsed = extract_gsm8k_candidate_answer(
         response,
-        exclude_unit_exponents=is_v3,
+        exclude_unit_exponents=is_v3_or_later,
+        ignore_boxed_placeholders=is_v4,
     )
     if parsed is None:
         return {
@@ -344,20 +422,20 @@ def check_gsm8k_response(
     normalized_candidate = parsed
     parsed_values = (
         _numeric_value_options_v3(normalized_candidate)
-        if is_v3
+        if is_v3_or_later
         else {_numeric_value(normalized_candidate)} - {None}
     )
     normalization = "direct"
     if not parsed_values:
-        numeric_expression = _answer_cue_numeric_expression(parsed) if is_v3 else None
+        numeric_expression = _answer_cue_numeric_expression(parsed) if is_v3_or_later else None
         if numeric_expression is None:
             numeric_expression = _last_numeric_expression(
                 parsed,
-                exclude_unit_exponents=is_v3,
+                exclude_unit_exponents=is_v3_or_later,
             )
         numeric_values = (
             _numeric_value_options_v3(numeric_expression)
-            if is_v3 and numeric_expression is not None
+            if is_v3_or_later and numeric_expression is not None
             else {_numeric_value(numeric_expression)} - {None}
             if numeric_expression is not None
             else set()
@@ -368,22 +446,27 @@ def check_gsm8k_response(
             normalization = "numeric_subexpression"
     percent_decimal_value: Optional[Fraction] = None
     if (
-        is_v3
+        is_v3_or_later
         and "%" not in normalized_candidate.replace("\\%", "%")
-        and re.search(r"(?i)(?:%|percent)", response)
     ):
         literal = _numeric_value(normalized_candidate, percent_as_fraction=False)
         if literal is not None and abs(literal) <= 1:
-            percent_decimal_value = literal * 100
-            parsed_values.add(percent_decimal_value)
+            proposed = literal * 100
+            if (
+                not is_v4
+                or proposed in _explicit_percentage_points(response)
+                or _has_probability_percent_context(response)
+            ):
+                percent_decimal_value = proposed
+                parsed_values.add(proposed)
     reference_values = (
         _numeric_value_options_v3(reference)
-        if is_v3
+        if is_v3_or_later
         else {_numeric_value(reference)} - {None}
     )
     if parsed_values and reference_values:
         correct = bool(parsed_values & reference_values)
-        if is_v3 and "%" in parsed.replace("\\%", "%"):
+        if is_v3_or_later and "%" in parsed.replace("\\%", "%"):
             normalization = "percent_equivalence"
         elif correct and percent_decimal_value is not None and percent_decimal_value in reference_values:
             normalization = "percent_decimal_equivalence"

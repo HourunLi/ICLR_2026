@@ -155,6 +155,11 @@ class LayerAxisFeatureEncoder(nn.Module):
     Pool attention is returned for diagnostics as ``[B, T, K, L]``.
     """
 
+    # Some CUDA LayerNorm kernels silently overflow their 32-bit indexing
+    # above 2**32 input elements.  Staying below 2**31 leaves a conservative
+    # safety margin while preserving the exact operation in ordinary batches.
+    max_normalization_elements = 2**31 - 1
+
     def __init__(self, config: RewardConfig) -> None:
         super().__init__()
         self.input_dim = config.hidden_dim
@@ -211,7 +216,18 @@ class LayerAxisFeatureEncoder(nn.Module):
             self.num_feature_layers,
             self.per_layer_dim,
         )
-        layer_states = self.input_projection(self.input_norm(layer_states))
+        elements_per_row = self.num_feature_layers * self.per_layer_dim
+        rows_per_chunk = max(1, self.max_normalization_elements // elements_per_row)
+        if layer_states.shape[0] <= rows_per_chunk:
+            layer_states = self.input_projection(self.input_norm(layer_states))
+        else:
+            layer_states = torch.cat(
+                [
+                    self.input_projection(self.input_norm(chunk))
+                    for chunk in layer_states.split(rows_per_chunk, dim=0)
+                ],
+                dim=0,
+            )
         layer_states = self.layer_transformer(layer_states + self.layer_positions)
 
         queries = self.pool_queries.expand(batch * time, -1, -1)
@@ -951,10 +967,23 @@ def _log1mexp(log_x: Tensor) -> Tensor:
     if torch.any(log_x > 0):
         raise ValueError("_log1mexp requires values <= 0")
     log_half = -0.6931471805599453
+    # ``torch.where`` evaluates both branches.  Mask each branch's input first
+    # so the unselected expression cannot create an infinite derivative and
+    # poison the selected gradient through 0 * inf.
+    low_input = torch.where(
+        log_x < log_half,
+        log_x,
+        torch.full_like(log_x, -1.0),
+    )
+    high_input = torch.where(
+        log_x < log_half,
+        torch.full_like(log_x, -1.0),
+        log_x,
+    )
     return torch.where(
         log_x < log_half,
-        torch.log1p(-torch.exp(log_x)),
-        torch.log(-torch.expm1(log_x)),
+        torch.log1p(-torch.exp(low_input)),
+        torch.log(-torch.expm1(high_input)),
     )
 
 

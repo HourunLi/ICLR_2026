@@ -27,8 +27,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expected-swift-commit", default=None)
     parser.add_argument(
         "--checker-version",
-        default="clir_gsm8k_numeric_v3",
-        choices=("clir_gsm8k_numeric_v2", "clir_gsm8k_numeric_v3"),
+        default="clir_gsm8k_numeric_v4",
+        choices=(
+            "clir_gsm8k_numeric_v2",
+            "clir_gsm8k_numeric_v3",
+            "clir_gsm8k_numeric_v4",
+        ),
     )
     parser.add_argument("--max-disagreements", type=int, default=20)
     parser.add_argument("--output-json", default=None)

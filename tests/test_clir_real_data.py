@@ -202,9 +202,21 @@ def test_gsm8k_prompt_and_checker():
 
 
 def test_gsm8k_checker_v3_handles_percent_and_unit_exponents_without_rewriting_v2():
-    percent = check_gsm8k_response(r"Therefore, \boxed{60%}.", "#### 60")
-    escaped_percent = check_gsm8k_response(r"Therefore, \boxed{60\%}.", "#### 60")
-    squared_unit = check_gsm8k_response(r"Therefore, \boxed{36\text{ cm}^2}.", "#### 36")
+    percent = check_gsm8k_response(
+        r"Therefore, \boxed{60%}.",
+        "#### 60",
+        checker_version="clir_gsm8k_numeric_v3",
+    )
+    escaped_percent = check_gsm8k_response(
+        r"Therefore, \boxed{60\%}.",
+        "#### 60",
+        checker_version="clir_gsm8k_numeric_v3",
+    )
+    squared_unit = check_gsm8k_response(
+        r"Therefore, \boxed{36\text{ cm}^2}.",
+        "#### 36",
+        checker_version="clir_gsm8k_numeric_v3",
+    )
 
     assert percent["correctness"] == 1
     assert escaped_percent["correctness"] == 1
@@ -225,16 +237,73 @@ def test_gsm8k_checker_v3_handles_decimal_percent_and_textual_boxed_answer():
     decimal_percent = check_gsm8k_response(
         "The probability is 0.24, or 24%. Final answer: \\boxed{0.24}.",
         "#### 24",
+        checker_version="clir_gsm8k_numeric_v3",
     )
     textual_box = check_gsm8k_response(
         "\\boxed{James will be 44 years old after 5 years.}",
         "#### 44",
+        checker_version="clir_gsm8k_numeric_v3",
     )
 
     assert decimal_percent["correctness"] == 1
     assert decimal_percent["checker_normalization"] == "percent_decimal_equivalence"
     assert textual_box["correctness"] == 1
     assert textual_box["normalized_candidate_answer"] == "44"
+
+
+def test_gsm8k_checker_v4_ignores_only_literal_boxed_placeholders():
+    after_placeholder = check_gsm8k_response(
+        r"The final answer, presented as \boxed{Your Answer}, is: $2000 in 5 days.",
+        "#### 2000",
+    )
+    earlier_numeric_box = check_gsm8k_response(
+        r"Final answer: \boxed{45}. Formatting may also be written as \boxed{}.",
+        "#### 45",
+    )
+    substantive_text_answer = check_gsm8k_response(
+        r"The calculation gives 13, but the final answer is \boxed{x}.",
+        "#### 13",
+    )
+    numeric_box_remains_authoritative = check_gsm8k_response(
+        r"Final answer: \boxed{26}. This was computed in 14 steps.",
+        "#### 26",
+    )
+
+    assert after_placeholder["correctness"] == 1
+    assert after_placeholder["parsed_answer"] == "$2000"
+    assert earlier_numeric_box["correctness"] == 1
+    assert earlier_numeric_box["parsed_answer"] == "45"
+    assert substantive_text_answer["correctness"] == 0
+    assert substantive_text_answer["parsed_answer"] == "x"
+    assert numeric_box_remains_authoritative["correctness"] == 1
+    assert numeric_box_remains_authoritative["parsed_answer"] == "26"
+    assert after_placeholder["checker_version"] == "clir_gsm8k_numeric_v4"
+
+
+def test_gsm8k_checker_v4_requires_numeric_evidence_for_decimal_percent_equivalence():
+    explicit_equivalence = check_gsm8k_response(
+        r"The probability is 0.24, or 24%. Final answer: \boxed{0.24}.",
+        "#### 24",
+    )
+    unrelated_percent_word = check_gsm8k_response(
+        r"The percentage calculation is discussed above. Final answer: \boxed{0.12 years}.",
+        "#### 12",
+    )
+    historical_v3 = check_gsm8k_response(
+        r"The percentage calculation is discussed above. Final answer: \boxed{0.12 years}.",
+        "#### 12",
+        checker_version="clir_gsm8k_numeric_v3",
+    )
+    probability_fraction = check_gsm8k_response(
+        r"The probability is 80% * 40% * 75% = 24/100, so the odds are \boxed{\frac{6}{25}}.",
+        "#### 24",
+    )
+
+    assert explicit_equivalence["correctness"] == 1
+    assert explicit_equivalence["checker_normalization"] == "percent_decimal_equivalence"
+    assert unrelated_percent_word["correctness"] == 0
+    assert historical_v3["correctness"] == 1
+    assert probability_fraction["correctness"] == 1
 
 
 def test_component_protocol_hashes_isolate_evaluation_edits():

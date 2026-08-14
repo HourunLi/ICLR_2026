@@ -3,6 +3,9 @@ import pytest
 from evaluate_clir import evaluate_candidate_rows
 
 
+GENERATION = {"candidate_index_policy": "vllm_completion_output_index"}
+
+
 def test_query_level_evaluator_separates_random_oracle_and_reward_bon():
     rows = []
     labels = {
@@ -20,6 +23,7 @@ def test_query_level_evaluator_separates_random_oracle_and_reward_bon():
                 "candidate_index": candidate_index,
                 "correctness": labels[query_id][candidate_index],
                 "reward_score": scores[query_id][candidate_index],
+                "generation": GENERATION,
             })
 
     report = evaluate_candidate_rows(
@@ -40,8 +44,16 @@ def test_query_level_evaluator_separates_random_oracle_and_reward_bon():
 
 def test_query_level_evaluator_requires_frozen_first_k_candidates():
     rows = [
-        {"query_id": "q", "candidate_index": 0, "correctness": 0, "reward_score": 0.1},
-        {"query_id": "q", "candidate_index": 2, "correctness": 1, "reward_score": 0.9},
+        {"query_id": "q", "candidate_index": 0, "correctness": 0, "reward_score": 0.1, "generation": GENERATION},
+        {"query_id": "q", "candidate_index": 2, "correctness": 1, "reward_score": 0.9, "generation": GENERATION},
     ]
     with pytest.raises(ValueError, match="contiguous"):
         evaluate_candidate_rows(rows, score_field="reward_score", k_values=[2])
+
+
+def test_query_level_evaluator_rejects_unproven_candidate_order():
+    rows = [
+        {"query_id": "q", "candidate_index": 0, "correctness": 0, "reward_score": 0.1},
+    ]
+    with pytest.raises(ValueError, match="candidate_index_policy"):
+        evaluate_candidate_rows(rows, score_field="reward_score", k_values=[1])

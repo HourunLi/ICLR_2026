@@ -66,6 +66,30 @@ def stable_query_id(split: str, source_index: int) -> str:
     return f"gsm8k-{split}-{source_index:05d}"
 
 
+def candidate_count_for_membership(
+    generation: Mapping[str, Any],
+    membership: str,
+) -> int:
+    """Resolve candidate count from experimental membership, not source split.
+
+    The frozen ``validation`` membership is sampled from GSM8K's source train
+    split but intentionally uses the evaluation candidate count.
+    """
+
+    if membership in {"train_primary", "reserve", "development_32"}:
+        key = "train_candidates"
+    elif membership in {"validation", "pilot_test"}:
+        key = "pilot_eval_candidates"
+    elif membership == "final_test":
+        key = "formal_eval_candidates"
+    else:
+        raise ValueError(f"Unknown split membership: {membership}")
+    count = int(generation[key])
+    if count <= 0:
+        raise ValueError(f"Protocol {key} must be positive")
+    return count
+
+
 def _query_entries(records: Sequence[Mapping[str, Any]], split: str) -> Dict[str, Dict[str, Any]]:
     entries: Dict[str, Dict[str, Any]] = {}
     for source_index, record in enumerate(records):
@@ -335,6 +359,7 @@ __all__ = [
     "atomic_write_jsonl",
     "atomic_write_text",
     "build_gsm8k_split_manifest",
+    "candidate_count_for_membership",
     "build_payload_record",
     "git_state",
     "load_split_manifest",

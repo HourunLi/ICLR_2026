@@ -166,6 +166,26 @@ def test_jsonl_dataset_collate(tmp_path: Path):
     assert batch["consistency_mask"].tolist() == [True, True]
 
 
+def test_dataset_can_skip_unused_condition_payloads(tmp_path: Path):
+    manifest = tmp_path / "data.jsonl"
+    write_jsonl(
+        manifest,
+        [
+            {
+                "id": "sample",
+                "query_id": "query",
+                "hidden_states": [[0.0, 1.0]],
+                "condition_states_path": "does-not-exist.pt",
+                "correctness": 1,
+            }
+        ],
+    )
+
+    item = CLIRTrajectoryDataset(manifest, load_condition=False)[0]
+
+    assert "condition_states" not in item
+
+
 def test_semantic_group_batch_sampler(tmp_path: Path):
     rows = []
     feature_dir = tmp_path / "features"
@@ -317,6 +337,19 @@ def test_log_space_noisy_or_keeps_long_negative_path_gradient():
     assert probability.item() == 1.0
     assert torch.isfinite(log_survival).all()
     assert log_survival.item() < -100.0
+
+
+def test_log_space_noisy_or_has_finite_gradient_near_zero_path_probability():
+    logits = torch.full((2, 162), -30.0, requires_grad=True)
+    mask = torch.ones_like(logits)
+    labels = torch.tensor([0.0, 1.0])
+
+    loss = path_level_hallucination_mil(logits, mask, labels)
+    loss.backward()
+
+    assert torch.isfinite(loss)
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
 
 
 def test_train_cli_exposes_new_reward_config_fields():

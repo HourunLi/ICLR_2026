@@ -83,11 +83,13 @@ class CLIRTrajectoryDataset(Dataset):
         *,
         check_finite: bool = True,
         require_correctness: bool = False,
+        load_condition: bool = True,
     ) -> None:
         self.jsonl_path = Path(jsonl_path)
         self.feature_root = Path(feature_root) if feature_root is not None else self.jsonl_path.parent
         self.check_finite = check_finite
         self.require_correctness = require_correctness
+        self.load_condition = load_condition
         self.rows = read_jsonl(self.jsonl_path)
         if not self.rows:
             raise ValueError(f"No rows found in {self.jsonl_path}")
@@ -122,7 +124,16 @@ class CLIRTrajectoryDataset(Dataset):
             "hidden_states": hidden_states if hidden_states.is_floating_point() else hidden_states.float(),
         }
 
-        condition_states = maybe_load_tensor_field(row, "condition_states", "condition_states_path", self.feature_root)
+        condition_states = (
+            maybe_load_tensor_field(
+                row,
+                "condition_states",
+                "condition_states_path",
+                self.feature_root,
+            )
+            if self.load_condition
+            else None
+        )
         if condition_states is not None:
             if condition_states.ndim != 2:
                 raise ValueError("condition_states must have shape [condition_time, hidden_dim]")
@@ -142,11 +153,15 @@ class CLIRTrajectoryDataset(Dataset):
                 require_correctness=self.require_correctness,
             )
 
-        condition_embedding = maybe_load_tensor_field(
-            row,
-            "condition_embedding",
-            "condition_embedding_path",
-            self.feature_root,
+        condition_embedding = (
+            maybe_load_tensor_field(
+                row,
+                "condition_embedding",
+                "condition_embedding_path",
+                self.feature_root,
+            )
+            if self.load_condition
+            else None
         )
         if condition_embedding is not None:
             if condition_embedding.ndim != 1:

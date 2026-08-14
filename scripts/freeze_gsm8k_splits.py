@@ -17,8 +17,8 @@ from src.clir_real_data import load_protocol, protocol_hashes
 from src.clir_stage_a import atomic_write_json, build_gsm8k_split_manifest
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v1.json"
-DEFAULT_OUTPUT = PROJECT_ROOT / "configs" / "splits" / "gsm8k_phi35_v1.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v3.json"
+DEFAULT_OUTPUT = PROJECT_ROOT / "configs" / "splits" / "gsm8k_phi35_v3.json"
 
 
 def parse_args() -> argparse.Namespace:

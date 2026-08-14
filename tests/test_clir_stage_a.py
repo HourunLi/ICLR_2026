@@ -12,6 +12,7 @@ from src.clir_stage_a import (
     atomic_write_jsonl,
     build_gsm8k_split_manifest,
     build_payload_record,
+    candidate_count_for_membership,
     git_state,
     membership_entries,
     publish_completion_marker,
@@ -28,6 +29,19 @@ def fake_records(count: int, prefix: str):
         {"question": f"{prefix} question {index}", "answer": f"work #### {index}"}
         for index in range(count)
     ]
+
+
+def test_candidate_count_uses_membership_instead_of_dataset_source_split():
+    generation = {
+        "train_candidates": 8,
+        "pilot_eval_candidates": 16,
+        "formal_eval_candidates": 64,
+    }
+
+    assert candidate_count_for_membership(generation, "train_primary") == 8
+    assert candidate_count_for_membership(generation, "validation") == 16
+    assert candidate_count_for_membership(generation, "pilot_test") == 16
+    assert candidate_count_for_membership(generation, "final_test") == 64
 
 
 def test_vllm_candidates_are_restored_to_original_sample_order():

@@ -30,6 +30,7 @@ from src.clir_real_data import (
 from src.clir_stage_a import (
     atomic_write_jsonl,
     build_payload_record,
+    candidate_count_for_membership,
     git_state,
     load_split_manifest,
     membership_entries,
@@ -40,7 +41,7 @@ from src.clir_stage_a import (
 )
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v1.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v3.json"
 
 
 def parse_args() -> argparse.Namespace:
@@ -124,7 +125,13 @@ def main() -> None:
     generation_cfg = protocol["generation"]
     n_rollouts = args.n_rollouts
     if n_rollouts is None:
-        n_rollouts = generation_cfg["train_candidates" if args.split == "train" else "pilot_eval_candidates"]
+        n_rollouts = (
+            candidate_count_for_membership(generation_cfg, args.membership)
+            if shard_mode
+            else generation_cfg[
+                "train_candidates" if args.split == "train" else "pilot_eval_candidates"
+            ]
+        )
     if n_rollouts <= 0:
         raise ValueError("n-rollouts must be > 0")
 
@@ -281,6 +288,7 @@ def main() -> None:
         top_p=float(generation_cfg["top_p"]),
         max_tokens=int(generation_cfg["max_new_tokens"]),
         stop=list(generation_cfg.get("stop_sequences", [])) or None,
+        seed=int(generation_cfg["seed"]),
     )
     request_outputs = llm.generate(prompts, sampling, use_tqdm=True)
     chat_template_hash = canonical_json_sha256(tokenizer.chat_template or "")

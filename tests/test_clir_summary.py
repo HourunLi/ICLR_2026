@@ -16,6 +16,7 @@ def _report(scores):
                 "candidate_index": candidate_index,
                 "correctness": labels[query_id][candidate_index],
                 "reward_score": scores[query_id][candidate_index],
+                "generation": {"candidate_index_policy": "vllm_completion_output_index"},
             })
     return evaluate_candidate_rows(
         rows,

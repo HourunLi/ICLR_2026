@@ -16,6 +16,9 @@ from src.clir_real_data import file_sha256
 from src.clir_stage_a import atomic_write_json
 
 
+EXPECTED_CANDIDATE_INDEX_POLICY = "vllm_completion_output_index"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-jsonl", required=True)
@@ -25,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bootstrap-replicates", type=int, default=2000)
     parser.add_argument("--confidence-level", type=float, default=0.95)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--expected-input-sha256", default=None)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -72,6 +76,16 @@ def evaluate_candidate_rows(
         raise ValueError("All k values must be positive")
     if not 0.0 < confidence_level < 1.0:
         raise ValueError("confidence_level must be in (0, 1)")
+
+    candidate_index_policies = {
+        str(row.get("generation", {}).get("candidate_index_policy", "missing"))
+        for row in rows
+    }
+    if candidate_index_policies != {EXPECTED_CANDIDATE_INDEX_POLICY}:
+        raise ValueError(
+            "Ordered-prefix evaluation requires candidate_index_policy "
+            f"{EXPECTED_CANDIDATE_INDEX_POLICY!r}, got {sorted(candidate_index_policies)}"
+        )
 
     grouped: Dict[str, list[Mapping[str, Any]]] = {}
     query_order: list[str] = []
@@ -157,7 +171,8 @@ def evaluate_candidate_rows(
     return {
         "schema_version": "clir-query-evaluation-v1",
         "score_field": score_field,
-        "candidate_subset": "first_k_in_generation_order",
+        "candidate_subset": "first_k_by_vllm_completion_output_index",
+        "candidate_index_policy": EXPECTED_CANDIDATE_INDEX_POLICY,
         "query_count": len(query_order),
         "row_count": len(rows),
         "k": k_values,
@@ -182,6 +197,11 @@ def main() -> None:
     output = Path(args.output_json).resolve()
     if output.exists() and not args.overwrite:
         raise FileExistsError(f"Refusing to overwrite existing evaluation: {output}")
+    input_sha256 = file_sha256(args.input_jsonl)
+    if args.expected_input_sha256 and input_sha256 != args.expected_input_sha256:
+        raise ValueError(
+            f"Input manifest SHA256 mismatch: expected {args.expected_input_sha256}, got {input_sha256}"
+        )
     rows = read_jsonl(args.input_jsonl)
     report = evaluate_candidate_rows(
         rows,
@@ -192,7 +212,7 @@ def main() -> None:
         seed=args.seed,
     )
     report["input_jsonl"] = str(Path(args.input_jsonl).resolve())
-    report["input_sha256"] = file_sha256(args.input_jsonl)
+    report["input_sha256"] = input_sha256
     atomic_write_json(output, report)
     print(json.dumps(report, ensure_ascii=False, indent=2))
 

@@ -16,7 +16,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.clir_data import read_jsonl
-from src.clir_real_data import check_gsm8k_response, file_sha256, validate_rollout_row
+from src.clir_real_data import (
+    check_gsm8k_response,
+    file_sha256,
+    load_protocol,
+    protocol_hashes,
+    validate_rollout_row,
+)
 from src.clir_stage_a import atomic_write_json, atomic_write_jsonl, git_state
 
 
@@ -25,10 +31,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-jsonl", required=True)
     parser.add_argument("--output-jsonl", required=True)
     parser.add_argument("--output-report", default=None)
+    parser.add_argument("--label-protocol-config", default=None)
     parser.add_argument(
         "--checker-version",
-        default="clir_gsm8k_numeric_v3",
-        choices=("clir_gsm8k_numeric_v2", "clir_gsm8k_numeric_v3"),
+        default="clir_gsm8k_numeric_v4",
+        choices=(
+            "clir_gsm8k_numeric_v2",
+            "clir_gsm8k_numeric_v3",
+            "clir_gsm8k_numeric_v4",
+        ),
     )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -38,6 +49,7 @@ def relabel_rows(
     rows: list[Dict[str, Any]],
     *,
     checker_version: str,
+    label_provenance: Dict[str, Any] | None = None,
 ) -> tuple[list[Dict[str, Any]], Dict[str, Any]]:
     output_rows: list[Dict[str, Any]] = []
     transitions: Counter[tuple[int, int]] = Counter()
@@ -72,6 +84,8 @@ def relabel_rows(
             )
         updated = dict(row)
         updated.update(checker)
+        if label_provenance is not None:
+            updated["label_provenance"] = dict(label_provenance)
         output_rows.append(updated)
 
     report = {
@@ -105,9 +119,28 @@ def main() -> None:
         if path.exists() and not args.overwrite:
             raise FileExistsError(f"Refusing to overwrite existing artifact: {path}")
 
+    label_provenance = None
+    if args.label_protocol_config:
+        protocol_path = Path(args.label_protocol_config).resolve()
+        protocol = load_protocol(protocol_path)
+        protocol_checker = protocol.get("correctness", {}).get("checker")
+        if protocol_checker != args.checker_version:
+            raise ValueError(
+                f"Label protocol checker is {protocol_checker!r}, not {args.checker_version!r}"
+            )
+        label_provenance = {
+            "schema_version": "clir-label-provenance-v1",
+            "protocol_config": str(protocol_path),
+            "protocol_version": protocol.get("protocol_version"),
+            "label_protocol_sha256": protocol_hashes(protocol)["label_protocol_sha256"],
+            "checker_version": args.checker_version,
+            "code": git_state(PROJECT_ROOT),
+        }
+
     rows, report = relabel_rows(
         read_jsonl(input_path),
         checker_version=args.checker_version,
+        label_provenance=label_provenance,
     )
     atomic_write_jsonl(output_path, rows)
     report.update(
@@ -116,6 +149,7 @@ def main() -> None:
             "input_sha256": file_sha256(input_path),
             "output_jsonl": str(output_path),
             "output_sha256": file_sha256(output_path),
+            "label_provenance": label_provenance,
         }
     )
     atomic_write_json(report_path, report)

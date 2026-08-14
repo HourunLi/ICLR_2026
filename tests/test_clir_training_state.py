@@ -89,6 +89,53 @@ def test_explicit_validation_rejects_query_leakage(tmp_path: Path):
     assert "query leakage" in result.stderr
 
 
+def test_validation_interval_keeps_final_epoch_validation(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    output = tmp_path / "model.pt"
+
+    subprocess.run(
+        _command(train, val, output, 3) + ["--val_every_n_epochs", "3"],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    checkpoint = torch.load(output, map_location="cpu", weights_only=False)
+
+    assert checkpoint["metrics"][0]["validation"] is None
+    assert checkpoint["metrics"][1]["validation"] is None
+    assert checkpoint["metrics"][2]["validation"] is not None
+
+
+def test_resume_rejects_changed_optimizer_contract(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    output = tmp_path / "model.pt"
+    subprocess.run(
+        _command(train, val, output, 1),
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    result = subprocess.run(
+        _command(train, val, output, 2)
+        + ["--resume_from", str(output), "--lr", "0.002"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "Resume training arguments differ" in result.stderr
+
+
 def test_legacy_val_fraction_splits_whole_query_groups(tmp_path: Path):
     manifest = tmp_path / "rows.jsonl"
     rows = []

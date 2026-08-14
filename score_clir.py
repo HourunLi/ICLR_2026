@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Mapping, Tuple
 
 import torch
 from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device
-from src.clir_stage_a import atomic_write_jsonl
+from src.clir_real_data import file_sha256
+from src.clir_stage_a import atomic_write_jsonl, git_state
 from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
@@ -22,13 +23,16 @@ from src.consistency_localized_reward import (
 )
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score CLIR trajectories.")
     parser.add_argument("--input_jsonl", required=True, help="JSONL file to score.")
     parser.add_argument("--model", required=True, help="CLIR checkpoint from train_clir.py.")
     parser.add_argument("--output_jsonl", required=True, help="Where to write scored rows.")
     parser.add_argument("--feature_root", default=None, help="Base directory for relative feature paths.")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--pin_memory", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument(
@@ -40,6 +44,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--onset_threshold", type=float, default=0.5)
     parser.add_argument("--amp_dtype", default="none", choices=["none", "bfloat16"])
     parser.add_argument("--skip_feature_finite_check", action="store_true")
+    parser.add_argument("--expected_input_sha256", default=None)
+    parser.add_argument("--expected_checkpoint_sha256", default=None)
     return parser.parse_args()
 
 
@@ -53,27 +59,40 @@ def resolve_device(name: str) -> torch.device:
     return torch.device(name)
 
 
-def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
-    checkpoint = torch.load(path, map_location=device, weights_only=False)
+def load_model_with_checkpoint(
+    path: str | Path,
+    device: torch.device,
+) -> Tuple[torch.nn.Module, Mapping[str, Any]]:
+    checkpoint = torch.load(path, map_location="cpu", weights_only=False)
     config = RewardConfig(**checkpoint["config"])
     model = build_reward_model(config).to(device)
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
+    return model, checkpoint
+
+
+def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
+    model, _ = load_model_with_checkpoint(path, device)
     return model
 
 
 @torch.no_grad()
 def main() -> None:
     args = parse_args()
+    if args.batch_size <= 0:
+        raise ValueError("batch_size must be positive")
     if args.num_workers < 0:
         raise ValueError("num_workers must be non-negative")
     if args.persistent_workers and args.num_workers == 0:
         raise ValueError("persistent_workers requires num_workers > 0")
     device = resolve_device(args.device)
+    model, checkpoint = load_model_with_checkpoint(args.model, device)
+    model_variant = model.config.model_variant
     dataset = CLIRTrajectoryDataset(
         args.input_jsonl,
         feature_root=args.feature_root,
         check_finite=not args.skip_feature_finite_check,
+        load_condition=model_variant == "clir",
     )
     loader = DataLoader(
         dataset,
@@ -84,12 +103,36 @@ def main() -> None:
         pin_memory=args.pin_memory,
         persistent_workers=args.persistent_workers,
     )
-    model = load_model(args.model, device)
-    model_variant = model.config.model_variant
     if args.amp_dtype == "bfloat16" and device.type != "cuda":
         raise ValueError("--amp_dtype bfloat16 currently requires CUDA")
 
     rows: List[Dict] = [dict(row) for row in dataset.rows]
+    model_path = Path(args.model).resolve()
+    input_path = Path(args.input_jsonl).resolve()
+    checkpoint_sha256 = file_sha256(model_path)
+    input_sha256 = file_sha256(input_path)
+    if args.expected_checkpoint_sha256 and checkpoint_sha256 != args.expected_checkpoint_sha256:
+        raise ValueError(
+            "Checkpoint SHA256 mismatch: "
+            f"expected {args.expected_checkpoint_sha256}, got {checkpoint_sha256}"
+        )
+    if args.expected_input_sha256 and input_sha256 != args.expected_input_sha256:
+        raise ValueError(
+            f"Input manifest SHA256 mismatch: expected {args.expected_input_sha256}, got {input_sha256}"
+        )
+    scoring_provenance: Dict[str, Any] = {
+        "schema_version": "clir-reward-scoring-v1",
+        "checkpoint_path": str(model_path),
+        "checkpoint_sha256": checkpoint_sha256,
+        "checkpoint_schema_version": checkpoint.get("schema_version"),
+        "checkpoint_code": checkpoint.get("code"),
+        "input_jsonl": str(input_path),
+        "input_sha256": input_sha256,
+        "batch_size": args.batch_size,
+        "amp_dtype": args.amp_dtype,
+        "device": str(device),
+        "score_code": git_state(PROJECT_ROOT),
+    }
     scored_row_indices: List[int] = []
     scored_scores: List[float] = []
     scored_query_ids: List[str] = []
@@ -135,6 +178,7 @@ def main() -> None:
             row = rows[row_index]
             valid_length = int(batch["mask"][local_idx].sum().detach().cpu())
             row["reward_model_variant"] = model_variant
+            row["reward_scoring_provenance"] = dict(scoring_provenance)
             row["reward_score"] = float(outputs["scores"][local_idx].detach().cpu())
             row["reward_mean_gate"] = float(
                 outputs["gates"][local_idx, :valid_length].mean().detach().cpu()
