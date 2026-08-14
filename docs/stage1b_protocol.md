@@ -61,6 +61,11 @@ validation 报告 BoN@1/2/4/8/16、random expected/seeded、oracle、全 query �
 结果、score margin、长度相关性、跨 seed 选择稳定性和 layer attention。CI 以 query 为单位
 做 10,000 次 paired bootstrap。
 
+跨 seed 的 aggregate CI 口径在查看 Stage 1B 打分结果前冻结为：对每个 query 先计算同一
+query 上各训练 seed 的 `to-minus-from` 正确性差并取算术平均，再对这些 query-level 均值
+做 10,000 次有放回重采样。同一次重采样保留被抽中 query 的全部训练 seed 结果，不能把
+`seed × query` 展开后当成相互独立样本。aggregate 点估计因此等于各 seed 增量的算术平均。
+
 只有同时满足以下三项，才能称 correctness-only CLIR 相对 encoded SWIFT 有稳定增量：
 
 1. 三个 seed 中至少两个方向为正；

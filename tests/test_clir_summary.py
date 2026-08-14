@@ -53,7 +53,17 @@ def test_multiseed_summary_reports_sample_std_and_paired_comparisons():
     assert comparison["by_seed"] == {"1": 0.0, "2": 1.0}
     assert comparison["mean"] == 0.5
     assert set(comparison["paired_query_bootstrap_ci_by_seed"]) == {"1", "2"}
+    aggregate = comparison["aggregate_query_paired"]
+    assert aggregate["unit"] == "query"
+    assert aggregate["seed_aggregation_within_query"] == "arithmetic_mean"
+    assert aggregate["query_count"] == 2
+    assert aggregate["training_seed_count"] == 2
+    assert aggregate["mean"] == 0.5
+    assert aggregate["bootstrap_ci"] == [0.5, 0.5]
     assert summary["paired_bootstrap"]["unit"] == "query"
+    assert summary["paired_bootstrap"]["aggregate_definition"] == (
+        "mean_across_training_seeds_within_query_then_bootstrap_queries"
+    )
 
 
 def test_multiseed_summary_rejects_candidate_baseline_mismatch():

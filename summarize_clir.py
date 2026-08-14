@@ -47,6 +47,13 @@ def _stable_bootstrap_seed(base_seed: int, comparison: str, training_seed: int) 
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
 
 
+def _stable_aggregate_bootstrap_seed(base_seed: int, comparison: str) -> int:
+    payload = (
+        f"{base_seed}:{comparison}:mean_across_training_seeds_within_query"
+    ).encode("utf-8")
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+
+
 def _paired_bootstrap_ci(
     differences: Sequence[float],
     *,
@@ -155,6 +162,7 @@ def _paired_comparison(
 ) -> Dict[str, Any]:
     differences_by_seed: Dict[int, float] = {}
     intervals: Dict[str, list[float]] = {}
+    paired_by_seed: Dict[int, Dict[str, float]] = {}
     for training_seed in seeds:
         to_values = _query_values(reports[training_seed][to_variant], primary_k, "reward")
         if from_source == "random_expected":
@@ -165,7 +173,12 @@ def _paired_comparison(
             from_values = _query_values(reports[training_seed][from_source], primary_k, "reward")
         if set(to_values) != set(from_values):
             raise ValueError(f"Unpaired query set for comparison {comparison_name}")
-        paired = [to_values[query_id] - from_values[query_id] for query_id in sorted(to_values)]
+        paired_by_query = {
+            query_id: to_values[query_id] - from_values[query_id]
+            for query_id in sorted(to_values)
+        }
+        paired_by_seed[training_seed] = paired_by_query
+        paired = list(paired_by_query.values())
         differences_by_seed[training_seed] = float(statistics.mean(paired))
         intervals[str(training_seed)] = _paired_bootstrap_ci(
             paired,
@@ -173,12 +186,42 @@ def _paired_comparison(
             confidence_level=confidence_level,
             seed=_stable_bootstrap_seed(bootstrap_seed, comparison_name, training_seed),
         )
+
+    query_ids = sorted(next(iter(paired_by_seed.values())))
+    for training_seed, paired_by_query in paired_by_seed.items():
+        if sorted(paired_by_query) != query_ids:
+            raise ValueError(
+                f"Training seed {training_seed} has an unpaired aggregate query set "
+                f"for comparison {comparison_name}"
+            )
+    aggregate_query_differences = [
+        float(statistics.mean(paired_by_seed[training_seed][query_id] for training_seed in seeds))
+        for query_id in query_ids
+    ]
+    aggregate_mean = float(statistics.mean(aggregate_query_differences))
     return {
         "from": from_source,
         "to": to_variant,
         "direction": "to_minus_from_accuracy",
         **_seed_statistics(differences_by_seed),
         "paired_query_bootstrap_ci_by_seed": intervals,
+        "aggregate_query_paired": {
+            "unit": "query",
+            "seed_aggregation_within_query": "arithmetic_mean",
+            "definition": (
+                "For each query, average to-minus-from correctness across training "
+                "seeds, then bootstrap those query-level means."
+            ),
+            "query_count": len(query_ids),
+            "training_seed_count": len(seeds),
+            "mean": aggregate_mean,
+            "bootstrap_ci": _paired_bootstrap_ci(
+                aggregate_query_differences,
+                replicates=bootstrap_replicates,
+                confidence_level=confidence_level,
+                seed=_stable_aggregate_bootstrap_seed(bootstrap_seed, comparison_name),
+            ),
+        },
     }
 
 
@@ -283,7 +326,7 @@ def summarize_evaluation_reports(
         )
 
     return {
-        "schema_version": "clir-multiseed-evaluation-summary-v1",
+        "schema_version": "clir-multiseed-evaluation-summary-v2",
         "seed_aggregation": "arithmetic_mean_and_sample_standard_deviation",
         "seeds": seeds,
         "variants": list(variants),
@@ -292,6 +335,9 @@ def summarize_evaluation_reports(
         "primary_k": primary_k,
         "paired_bootstrap": {
             "unit": "query",
+            "aggregate_definition": (
+                "mean_across_training_seeds_within_query_then_bootstrap_queries"
+            ),
             "replicates": bootstrap_replicates,
             "confidence_level": confidence_level,
             "seed": bootstrap_seed,
