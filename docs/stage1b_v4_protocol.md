@@ -135,5 +135,11 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 ```
 
 然后由调度器显式执行每个 seed/variant 的 train→score→evaluate；命令见
-`docs/runbook_zh.md`。截至 2026-08-15，v4 仅处于
-`prepared_pending_review_and_explicit_formal_run_authorization`，没有启动正式训练，也没有 v4 效果数字。
+`docs/runbook_zh.md`。
+
+截至 2026-08-15，v4 已在 commit `b1c4fae49acebe7e03d87a8ae7664a997ad05358` 完成冻结执行。
+9 个 cell 均有终态：`seed=42/encoded_swift` 通过 train/score/ranking 三门，其余 8 个在 train 门
+失败。`run_artifacts/stage1b_v4/summary.json` 的 SHA256 为
+`0f1e49ad72f71c4b2f51ad904f92f0cd02593e77d41d10caf34fe2e00a3b095c`，状态为
+`incomplete_diagnostic_only`、`formal_primary_claim_allowed=false`。这是优化稳定性诊断，不是正式
+模型主比较；同一协议不得补跑或调门。

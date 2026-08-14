@@ -17,8 +17,9 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
   [docs/stage1_results.md](docs/stage1_results.md)。
 - Stage 1B v1 是 pre-audit 诊断产物；v2 在 0 个完成 epoch 时中止；v3 尚未正式执行，
   已被第四轮审查后的 v4 取代。
-- Stage 1B v4 已准备但尚未运行。它仍只有 correctness 标签，因此只是
-  outcome-only 容量/优化对照，不能验证或否证 CLIR 的三个机制。
+- Stage 1B v4 outcome-only 3×3 已在提交 `b1c4fae` 上完整执行。9 个 cell 中只有
+  `seed=42/encoded_swift` 通过全部健康门，其余 8 个都在 final-train 常数先验门失败；正式汇总为
+  `incomplete_diagnostic_only`，不得形成主效果结论。
 - 当前冻结 train/validation 中，consistency、hallucination、progress、dual-prior 和
   reconstruction 的真实监督覆盖全部为 0。仓库不会从 correctness 伪造这些标签，也不会用
   全零向量冒充缺失监督。
@@ -41,6 +42,12 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
 第四轮审查的逐项处理见
 [docs/code_review_panzhixin_fourth_change_resolution.md](docs/code_review_panzhixin_fourth_change_resolution.md)。
 
+正式运行产物位于 `run_artifacts/stage1b_v4`。`summary.json` SHA256 为
+`0f1e49ad72f71c4b2f51ad904f92f0cd02593e77d41d10caf34fe2e00a3b095c`；它记录 9 个已尝试
+cell、1 个纳入 cell、8 个显式训练健康失败和 0 个未知 cell。唯一纳入的 encoded SWIFT cell
+在 k=`1/2/4/8/16` 的 BoN accuracy 为 `0.884/0.894/0.902/0.916/0.912`，但单 seed 数字只作
+诊断，不可解释为稳定 baseline 结果，更不可用于判断 CLIR 机制。
+
 ## 代码结构
 
 | 路径 | 职责 |
@@ -49,11 +56,13 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
 | `src/clir_data.py` | JSONL/feature 数据集、严格 token 对齐与 collate |
 | `src/clir_real_data.py` | 真实数据协议、checker、hash 与评估契约 |
 | `src/clir_supervision.py` | 外部机制监督的身份绑定、校验与覆盖审计 |
+| `src/clir_rewrite.py` | 可逆 rewrite pilot 的身份、变换、answer gate 与 pair 审计 |
 | `train_clir.py` | 可恢复训练、健康门、checkpoint 与 run provenance |
 | `score_clir.py` | reward 打分和 score-distribution 健康证据 |
 | `evaluate_clir.py` | ordered-prefix BoN、baseline、bootstrap 与排序健康门 |
 | `summarize_clir.py` | 多 seed 汇总、配对比较与显式失败矩阵 |
 | `scripts/run_stage1b_validation.py` | Stage 1B v3/v4 的唯一正式 launcher |
+| `scripts/run_semantic_rewrite_pilot.py` | train-only semantics rewrite 工程 pilot |
 | `tests/` | 模型、数据、恢复、门禁、评估和 launcher 回归测试 |
 
 Best-of-N 选择只在 `evaluate_clir.py` 中进行；`score_clir.py` 只发布逐候选分数和 provenance，
@@ -106,8 +115,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 "$P" scripts/run_stage1b_validation.py --stage train --device cuda
 ```
 
-正式执行必须满足 clean commit、完整矩阵原子 preflight 和用户明确授权。未经授权不要运行
-`--stage preflight --execute`，也不要启动任一 GPU cell。
+v4 已完成一次冻结执行；不要在同一协议下改阈值、补跑失败 cell 或覆盖产物。只读 preflight 和
+命令审计仍可使用；任何新的正式比较必须发布新协议和新输出目录。
 
 ## 文档索引
 
@@ -115,6 +124,7 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 - [docs/proposal.md](docs/proposal.md)：CLIR 方法设计
 - [docs/runbook_zh.md](docs/runbook_zh.md)：最短可执行手册
 - [docs/clir_supervision_protocol.md](docs/clir_supervision_protocol.md)：真实机制监督接入契约
+- [docs/semantic_rewrite_pilot_v1.md](docs/semantic_rewrite_pilot_v1.md)：当前 rewrite 工程门
 - [docs/stage1b_v4_protocol.md](docs/stage1b_v4_protocol.md)：当前 Stage 1B 协议
 - `docs/stage1b*_protocol.md` 与旧 config：冻结历史，不得原地修改
 - `docs/code_review_panzhixin_*_change.md`：审查证据，不是当前运行说明

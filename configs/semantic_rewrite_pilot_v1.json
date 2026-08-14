@@ -1,0 +1,72 @@
+{
+  "schema_version": "clir-semantic-rewrite-pilot-v1",
+  "evidence_tier": "deterministic_train_only_pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "source": {
+    "manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+    "split": "train",
+    "allowed_future_splits": ["train", "validation"],
+    "checker_version": "clir_gsm8k_numeric_v5"
+  },
+  "selection": {
+    "order": "source_manifest_order",
+    "rows_per_correctness": 2,
+    "correctness_values": [0, 1],
+    "require_distinct_query_ids": true
+  },
+  "identity": {
+    "query_id": "preserve_source_query_id",
+    "semantic_id": "derive_from_source_trajectory_id",
+    "style_id": "declared_view_style",
+    "source_candidate_index": "lineage_only_not_top_level"
+  },
+  "rewrite_policy": {
+    "trajectory_policy": "teacher_forced_exact_rewrite_token_ids",
+    "condition_policy": "reuse_verified_prompt_only_source_condition",
+    "semantic_certificate": "inverse_transform_byte_exact_source_response",
+    "answer_gate": "same_normalized_candidate_answer_and_correctness",
+    "scale_gate": "versioned_llm_generator_plus_answer_evidence_verifier_plus_human_blind_audit"
+  },
+  "views": [
+    {
+      "style_id": "original",
+      "transform": "identity"
+    },
+    {
+      "style_id": "markdown_bullets",
+      "transform": "prefix_every_physical_line_dash_space"
+    },
+    {
+      "style_id": "blockquote",
+      "transform": "prefix_every_physical_line_greater_space"
+    }
+  ],
+  "model": {
+    "repo_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_dtype": "bfloat16",
+    "trust_remote_code": true
+  },
+  "hidden_states": {
+    "layer_policy": "all_outputs_hidden_states",
+    "layer_count": 33,
+    "per_layer_hidden_size": 3072,
+    "feature_dim": 101376,
+    "combine": "concatenate_last_dimension",
+    "trajectory_slice": "exact_output_token_ids",
+    "extractor_applied_additional_final_norm": false,
+    "storage_dtype": "bfloat16"
+  },
+  "outputs": {
+    "root": "run_artifacts/semantic_rewrite_pilot_v1",
+    "plan": "rewrite_plan.jsonl",
+    "views": "views.jsonl",
+    "prepare_report": "prepare_report.json",
+    "extracted": "extracted.jsonl",
+    "extraction_report": "extraction_report.json",
+    "audit_report": "audit_report.json",
+    "feature_dir": "features/trajectories"
+  }
+}

@@ -7,11 +7,10 @@
 
 ## 1. 一句话状态
 
-第四轮审查要求的 P0/P1 代码问题已经修复，Stage 1B v4 已准备但未正式运行；当前数据没有任何
-CLIR 机制监督，所以 v4 只能回答 correctness-only 条件下的容量/优化问题，不能回答 CLIR 机制是否
-有效。`pilot_test` 仍未读取。
-
-在变更完成审计、形成 clean commit 并获得明确算力授权前，不要运行正式 preflight 或 GPU cell。
+第四轮审查要求的 P0/P1 代码问题已经修复，Stage 1B v4 outcome-only 3×3 已在 clean commit
+`b1c4fae` 上执行完成。9 个 cell 中 1 个通过、8 个在 final-train 常数先验门失败，因此结果只允许
+作为优化不稳定性诊断，不能回答 CLIR 机制是否有效。下一阶段已确定为真实 semantics rewrite
+监督；`pilot_test` 仍未读取。
 
 ## 2. 已建立的证据
 
@@ -35,8 +34,13 @@ CLIR 机制监督，所以 v4 只能回答 correctness-only 条件下的容量/�
 - Stage 1B v1 是 pre-audit artifact；v2 没有完成 epoch；v3 没有正式效果结果并已被 v4 取代。
 - 当前 train/validation 的 10 个辅助字段覆盖都是 0，7 个 CLIR 机制组件均不可训练。这个降级由
   launcher 复算并强制，不是文档约定。
+- Stage 1B v4 的 9 个 cell 均实际执行并绑定 commit `b1c4fae49acebe7e03d87a8ae7664a997ad05358`。
+  final summary 为 `incomplete_diagnostic_only`：1 个 included、8 个显式 train health failure、
+  0 个 unknown/unrun；`formal_primary_claim_allowed=false`。
+- 唯一 included cell 是 `seed=42/encoded_swift`：score population std `1.3618`、query 内 pairwise
+  accuracy `0.6680`，BoN@16 `0.912`。单 seed 不能形成稳定 baseline 或模型间主比较。
 
-## 3. 当前冻结的 Stage 1B v4
+## 3. 已冻结完成的 Stage 1B v4
 
 机器协议：`configs/stage1b_validation_v4.json`。说明：`docs/stage1b_v4_protocol.md`。
 
@@ -50,6 +54,11 @@ CLIR 机制监督，所以 v4 只能回答 correctness-only 条件下的容量/�
 checker 固定为 `clir_gsm8k_numeric_v5`，label protocol SHA256 为
 `4245dcf4d6f15583d03c1e8088481b597df41a4fe39daf1c2e098e884c3ad8ef`。v4 复用已验证的
 v5 manifest/feature，不重复采集；新结果写入 `run_artifacts/stage1b_v4`。
+
+正式 `summary.json` SHA256 为
+`0f1e49ad72f71c4b2f51ad904f92f0cd02593e77d41d10caf34fe2e00a3b095c`。执行覆盖是 9/9，
+但健康 evaluation 覆盖只有 1/9，所以 `matrix_complete=false`。不要在同一 v4 协议下补跑、改门或
+用 snapshot 替代 final；新实验必须使用新协议与新目录。
 
 ### 矩阵与预算
 
@@ -121,6 +130,7 @@ docs/runbook_zh.md                     最短运行手册
 docs/stage1b_v4_protocol.md            当前 Stage 1B 人类协议
 configs/stage1b_validation_v4.json     当前 Stage 1B 机器协议
 docs/clir_supervision_protocol.md      真实机制监督接入契约
+docs/semantic_rewrite_pilot_v1.md      当前 train-only rewrite 工程 pilot
 
 src/consistency_localized_reward.py    模型与 loss
 src/clir_data.py                       数据契约与 collate
@@ -129,20 +139,17 @@ score_clir.py                          打分与 score 健康门
 evaluate_clir.py                       BoN 与排序健康门
 summarize_clir.py                      多 seed / 失败矩阵汇总
 scripts/run_stage1b_validation.py      唯一正式 launcher
+scripts/run_semantic_rewrite_pilot.py  rewrite prepare/extract/audit 唯一入口
 ```
 
 已删除的 `scripts/diagnose_stage1b.py` 不再是入口：其候选顺序、排序和矩阵检查已由 evaluator、summary
 与 launcher 的强制契约覆盖。不要重新引入另一套诊断口径。
 
-## 7. 下一步需要做出的选择
+## 7. 当前下一步：semantics rewrite
 
-当前有两个合理方向，不能混写成同一个实验：
-
-1. **先跑 v4 outcome-only 3×3**：得到干净的容量/优化对照和训练稳定性证据，但不能验证 CLIR
-   机制。优点是数据与 feature 已就绪；代价是 9-cell GPU 训练/打分预算。
-2. **先构建真实机制监督**：优先实现 rewrite groups、path/onset verifier labels，再扩展
-   progress/advantage 和 key/complete/reconstruction priors；通过覆盖与质量门后发布新的 mechanism
-   protocol。它更直接服务论文核心主张，但需要先做标签设计和人工盲审。
-
-推荐在代码审计通过后先决定论文当前最缺的是“可靠容量对照”还是“机制证据”，再授权对应工作；
-不要默认启动 v4，也不要在 v4 correctness-only 数据上解读 CLIR 专属 head。
+v4 已证明 outcome-only 训练在当前预算下高度不稳定，且没有为 CLIR 机制提供监督。下一步不再重复
+v4，而是在 train 范围先做可逆、确定性的 rewrite 工程 pilot，验证 `semantic_id/style_id`、
+teacher-forced token 对齐、feature 提取和 consistency pair 覆盖；该 pilot 只证明流水线，不作为
+机制效果证据。随后在 train/validation 上接入版本化生成器、answer/evidence relation verifier 和
+人工盲审，再冻结可用于 mechanism experiment 的 rewrite 数据。`query_id` 始终保留原候选池身份，
+`semantic_id` 单独表示源 trajectory 的 rewrite group。

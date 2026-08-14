@@ -105,3 +105,7 @@ preflight 中复算并强制这一 outcome-only 契约，避免将 v4 误报为�
 3. 从 prefix entailment/evidence coverage 生成 progress、advantage 与 key/complete prior；
 4. 冻结 annotation protocol/hash，走本协议的 merge/audit，再为非零 applicable counts 发布
    新的 mechanism protocol。`pilot_test` 在协议锁定前继续保持未读取。
+
+当前已启动 `docs/semantic_rewrite_pilot_v1.md` 定义的 train-only 可逆格式 pilot。它只用于证明
+semantic/style 身份、token 对齐和 consistency pair 流水线，不能替代上述 LLM generator、
+answer/evidence verifier 或人工审核。

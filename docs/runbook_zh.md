@@ -94,6 +94,10 @@ preflight、不启动 GPU：
 
 ## 4. Stage 1B v4：正式执行
 
+状态说明：v4 已在 2026-08-15 完成一次冻结 3×3。9 个 cell 中 1 个完整通过、8 个在训练健康门
+失败，正式 summary 是 diagnostic-only。下面命令保留为可复现运行说明，不授权覆盖现有 artifact；
+任何新正式运行都必须发布新协议与新目录。
+
 正式执行前必须同时满足：
 
 - 用户明确批准 3 variants × 3 seeds 的 GPU 预算；
