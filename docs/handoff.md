@@ -27,14 +27,15 @@ CLIR = SWIFT 的 token reward/gate 架构 + PRISM 的一致性 loss + DPCL 的 d
 
 **代码不依赖、不调用 SWIFT/PRISM/DPCL 任何一方的官方仓库**，全部在本仓库自包含实现，只是架构上参考。
 
-## 2. 现在的状态：Stage 1B v2 数据/协议就绪，正式 v4 训练未开始
+## 2. 现在的状态：第三轮审查已修，Stage 1B v3 待正式执行
 
 这是最重要的一句话，必须先说清楚：
 
 > **历史 correctness-only Stage 1 small-scale real 已跑完，但不能宣称 CLIR backbone
-> 已稳定优于 encoded SWIFT。Stage 1B v2 的代码、v4 标签、500×16 validation 特征和
-> 完整性门已就绪，但当前为 0 个有效正式训练 epoch，没有 Stage 1B v2 checkpoint、
-> metrics、scores 或方法结论。** `pilot_test` 仍未采集或检查。
+> 已稳定优于 encoded SWIFT。第三轮审查确认 Stage 1B v1 的 CLIR 有 2/3 seed 退化到类别
+> 先验，而且数据完全没有 CLIR 专属辅助标签。代码问题和 v5 标签已经处理，Stage 1B v3
+> 已冻结为 outcome-only 容量/优化对照，但当前仍为 0 个正式 v3 epoch。** `pilot_test`
+> 仍未采集或检查。
 
 历史 Stage 1 的 512×8 train、128×16 validation、全 33 层 BF16 特征和 seeds 42/43/44
 的 9 个五 epoch 运行均完成。BoN@16 三 seed 均值为 strict `88.28±2.07%`、encoded
@@ -49,45 +50,54 @@ sample index。旧 BoN@1/2/4/8 prefix 口径因此无效；BoN@16 的候选全�
 发现了 checker、CUDA resume、大张量 LayerNorm、scoring provenance 和 ordered-prefix 验证缺口。
 所以 **Stage 1B v1 全部降级为 pre-audit artifacts**，不允许用于正式结论。
 
-第二轮审计后，正式 checker 升级为 `clir_gsm8k_numeric_v4`：
+第二轮审计后 checker 曾升级为 v4；第三轮审查又发现“非纯数值答案取最后一个数字”仍会把
+答案后面的时长或 ratio 分母当成答案。当前正式 checker 已版本化为
+`clir_gsm8k_numeric_v5`：
 
 - 只忽略空 `\boxed{}`、`\boxed{Answer}` 或 `\boxed{Your Answer}` 这类明确 prompt placeholder；
 - `\boxed{x}`、`\boxed{Impossible}` 等实质性内容仍是候选的最终答案，不能回退到中间算式；
 - 小数/分数与百分数的等价只在有明确数值百分号，或 probability/odds/chance 的百分比
-  上下文时成立。
+  上下文时成立；
+- 非纯数值 span 按 equality、明确 prose cue 或首个数值解析，避免尾随限定词接管答案；
+- leading mixed number 与“小时+分钟”按完整数值解析，`21 1/2` 不会被误当成 `21`。
 
-v4 全量重标结果：
+v5 相对 v4 的全量重标结果：
 
-| split | rows | correct | incorrect | 相对 v3 |
+| split | rows | correct | incorrect | 相对 v4 |
 |---|---:|---:|---:|---:|
-| train | 4,096 | 3,666 | 430 | 2 条 `0→1`，0 条 `1→0` |
-| validation | 8,000 | 7,140 | 860 | 16 条 `0→1`，0 条 `1→0` |
+| train | 4,096 | 3,668 | 428 | 2 条 `0→1`，0 条 `1→0` |
+| validation | 8,000 | 7,155 | 845 | 15 条 `0→1`，0 条 `1→0` |
 
-validation 为 151 mixed、337 all-correct、12 all-wrong query。第二轮审计报告估计 18 条
-validation 假阴性，逐题复核只确认 16 条：`gsm8k-train-05191-cand-002` 把 80 个百分点
-乘 2 美元算成 1.60 美元，`gsm8k-train-03921-cand-010` 给出 3.34 而题意需要 4，所以两者
-继续标 0。
+validation 为 146 mixed、342 all-correct、12 all-wrong query。15 个翻转与第三轮审查的
+逐行清单一致。额外回归测试明确拒绝 `21 1/2→21`、`3 1/3→3` 和错误的
+`3 hours 20 minutes→3`，避免“修漏判”时制造假阳性。
 
 正式训练前已运行完整特征镜像门：12,096 行共引用 13,108 个独立 trajectory/
 condition payload，13,108 个 SHA256 全部匹配，失败数 0，校验 725,761,877,084 bytes
 （约 725.8 GB / 676.0 GiB）。持久化报告为
 `run_artifacts/stage1b_v2/audits/feature_mirror_verification.json`。
 
-本轮工程硬化还包括：log-space noisy-or 边界梯度修复、loss/gradient finite 门、大张量
-LayerNorm/投影分块、CUDA checkpoint/RNG resume、train/score/evaluate SHA256 门、逐行 scoring
-provenance、评估时硬校验 `candidate_index_policy`、固定 vLLM `SamplingParams(seed=...)`，以及只在
-第 5 epoch 做一次不参与选模的 validation。修复提交为 `41bc463`，冻结 v2 协议提交为
-`77af559`，均已推送到 `origin/panzhixin`。在明确指定的 `SWIFT` Python 3.11 环境中，完整测试
-为 `77 passed`。
+第三轮工程硬化包括：安全 `--force`、旧 checkpoint resume 兼容、checkpoint 先于 metrics
+发布、MIL 长度归一化、flat/layer 两类 encoder 的大张量分块、prior 对齐 loss 尺度修正、
+FP32 scoring、类别先验/score-std 两道 collapse 门、严格读取 scoring provenance、显式 tie
+报告与 summary policy gate，以及 vLLM per-query seed。训练可选保留所有 epoch full-state
+checkpoint，正式主结果仍预注册为 final epoch。
 
-曾启动 8/9 个 Stage 1B v2 训练进程，但用户要求先停下对齐状态，所以在第 1 epoch
-完成前全部中止。现有 8 份 run record 均为 `status=failed, completed_epoch=0`，没有 `.pt`
-checkpoint 或 metrics；第 9 组 `seed44/clir` 从未启动。这只是被中断的启动记录，不是训练
-结果；得到用户确认后必须在全新目录从零运行。
+Stage 1B v2 曾启动 8/9 个进程，但全部在第 1 epoch 前中止；这些记录仍不是结果。
+`train_clir.py --force` 只会重启“failed + completed_epoch=0 + 无 checkpoint/metrics”的记录，
+不会覆盖部分或已完成训练。v3 使用新的 `run_artifacts/stage1b_v3`，因此不需要删除旧记录。
 
-当前的唯一正式 Stage 1B 口径是 `configs/stage1b_validation_v2.json`，人类可读版是
-`docs/stage1b_v2_protocol.md`。`configs/stage1b_validation_v1.json`、checker v3 和 Stage 1B v1 仅用于
-历史追溯。
+当前唯一可执行的新口径是 `configs/stage1b_validation_v3.json`，人类可读版是
+`docs/stage1b_v3_protocol.md`。`scripts/run_stage1b_validation.py` 是唯一正式 launcher：先对
+完整 3×3 矩阵做协议、manifest、feature report、辅助监督零覆盖、输出冲突和 clean-git 原子
+预检，再允许逐 cell 执行。v1/v2 配置与产物仅用于历史追溯。
+
+真实辅助监督的接入底座已经完成，但标签生成尚未完成：
+`scripts/merge_clir_supervision.py` 用 `id/query_id/output_token_ids SHA256` 绑定外部 annotation，
+拒绝覆盖、补零和 correctness-derived proxy；`scripts/audit_clir_supervision.py` 复算字段覆盖、
+consistency pairs、path/onset、joint prior 与 reconstruction eligibility。当前 v5 train/validation
+实测都是 10 个辅助字段 0 行、7 个机制组件不可用，和 outcome-only 定位一致。完整契约见
+`docs/clir_supervision_protocol.md`。
 
 验收数值：trajectory 为 `[162,101376]` / `[250,101376]`，condition 为
 `[113,101376]`，`101376 = 33 * 3072`；全部 finite、bfloat16，两条候选共享同一 condition
@@ -114,18 +124,18 @@ validation 上各跑完 1 epoch、打分和 BoN@1/2/4/8。该验证池 7 题全�
 
 checker v3 在 6,144 条 Stage 1 candidates 上与 SWIFT commit `41f7c9f` 的固定官方
 `evaluate_math` 一致 5,589/6,144；555 个分歧全部是 v3 判对而官方判错。这是历史 parity
-证据，不能当成 v4 parity。正式 Stage 1B v2 报告必须将 v4 主标签与固定官方 checker
-的 parity 分开报告，不得把 v4 描述成“官方原始标签”。
+证据，不能当成 v5 parity。正式 Stage 1B v3 报告必须将 v5 主标签与固定官方 checker
+的 parity 分开报告，不得把 v5 描述成“官方原始标签”。
 
 ### 2.1 已经实现、且验证过能跑通的部分
 
 以下内容已在当前 `SWIFT` 环境（Python 3.11.15、`torch==2.3.1+cu121`、CUDA 可用）
 实际跑过：
 
-- 显式使用 `/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python -m pytest -q`：
-  `77 passed`。不要直接调用 shell 里的系统 `pytest`；后者曾落到 Python 3.12/系统分片插件，
+- 显式使用 `/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python -m pytest -q`。
+  不要直接调用 shell 里的系统 `pytest`；后者曾落到 Python 3.12/系统分片插件，
   在 collection 前就因找不到 `src` 失败，那不是代码回归。
-- 测试覆盖 exact IDs、全层拼接、严格 token 长度、checker v4、三种模型变体、
+- 测试覆盖 exact IDs、全层拼接、严格 token 长度、checker v5、三种模型变体、
   log-space noisy-or 长路径/边界梯度、大张量分块、checkpoint resume、feature mirror、
   ordered-prefix 评估和跨 seed 汇总。
 - 端到端流程：`examples/create_toy_clir_data.py` → `train_clir.py`（带全部 CLI 参数）→ `score_clir.py`，全程无崩溃、无 NaN。
@@ -139,13 +149,16 @@ docs/proposal.md                     研究方法设计文档（公式、符号�
 docs/handoff.md                      本文件：交接文档
 docs/pilot_protocol.md               Phi-3.5-mini + GSM8K 第一阶段冻结协议
 configs/phi35_gsm8k_pilot_v1.json   协议的机器可读副本
-configs/phi35_gsm8k_pilot_v3.json   当前 checker v4 / ordered-prefix 组件协议
-configs/stage1b_validation_v2.json   当前唯一正式 Stage 1B 训练/评估口径
-docs/stage1b_v2_protocol.md          Stage 1B v2 审计修订协议（人类可读）
+configs/phi35_gsm8k_pilot_v4.json   当前 checker v5 / per-query seed / FP32 评估组件协议
+configs/stage1b_validation_v3.json   当前 Stage 1B outcome-only 容量/优化对照口径
+docs/stage1b_v3_protocol.md          Stage 1B v3 第三轮审查修订协议（人类可读）
+docs/clir_supervision_protocol.md    外部 CLIR annotation 身份绑定、合并与覆盖审计契约
+docs/code_review_panzhixin_third_change_resolution.md  第三轮审查 17 项闭环与最终验证记录
 requirements.txt                     依赖版本（核心库对齐 SWIFT，见下方说明）
 src/consistency_localized_reward.py  模型定义 + 所有 loss（核心文件，750 行）
 src/clir_data.py                     JSONL 数据集、collate、SemanticGroupBatchSampler（509 行）
 src/clir_real_data.py                原始 token-ID 契约、GSM8K checker、全层对齐提取
+src/clir_supervision.py              外部辅助监督 schema、严格合并与组件覆盖审计
 train_clir.py                        训练入口（229 行）
 score_clir.py                        打分 + Best-of-N 选择入口（130 行）
 evaluate_clir.py                     单 seed query-level BoN/random/oracle/bootstrap
@@ -154,6 +167,9 @@ scripts/generate_gsm8k_rollouts.py  保留原始 IDs 的 vLLM 候选生成
 scripts/extract_hidden_states.py    exact-ID teacher-forced 全层特征提取
 scripts/audit_swift_checker_parity.py  对固定 SWIFT checkout 复跑 checker parity
 scripts/verify_feature_mirror.py     按 manifest 内 SHA256 全量验证本地特征镜像
+scripts/run_stage1b_validation.py    Stage 1B v3 原子预检与精确命令 launcher
+scripts/merge_clir_supervision.py    将版本化外部 annotation 合入不可变 trajectory manifest
+scripts/audit_clir_supervision.py    审计辅助字段与机制 applicable coverage
 scripts/gate_reward_architecture.py    三种 reward 变体的真实维度前向/反向 gate
 examples/create_toy_clir_data.py     合成（随机）toy 数据生成脚本，仅用于 smoke test
 tests/test_clir_smoke.py             模型/toy/数值稳定性测试
@@ -305,38 +321,43 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 2. **`_condition_token_features` 里"有 condition 的行过 LayerNorm、没 condition 的行不过"造成的轻微分布不一致**（3.2 节）。如果真实数据里"有没有 condition"本身有意义，需要评估这个不一致有没有影响。
 3. **`gate`/`reconstruction` 两项 dual-prior loss 不跟随 `prior_phase` 交替**（3.6 节），是否需要让它们也分 phase，目前没有定论。
 4. Best-of-N 选择目前是纯 pointwise：训练目标只有单条轨迹的 BCE + 各种辅助 loss，没有 pairwise/listwise 目标。SWIFT 原论文里 pairwise/DPO/InfoNCA/NCA 都试过，效果和 BCE 接近但没有明显更好，所以优先级不高，但如果要和 SWIFT 做严格对齐实验，这块需要补。
-5. **全层编码器与 CLIR backbone 的小规模效果已测，但增量不稳定。** BoN@16 的
-   strict→encoded 为 `+0.26±3.61` 个百分点，encoded→CLIR 为 `+0.78±2.07` 个百分点，
-   两者都发生 seed 方向翻转。下一轮必须扩大 informative mixed-query validation，并监控
-   learned layer attention；不能把两段增益合并归因于 CLIR。
+5. **当前真实数据没有任何 CLIR 专属监督。** Stage 1B v1 的 consistency、hallucination、
+   progress 和 dual-prior loss 的 applicable count 全为 0；CLIR 2/3 seed 又退化到类别先验。
+   因此 v3 只能回答 outcome-only backbone 的容量/优化问题。真正的 CLIR 机制实验必须先
+   构建 rewrite、verifier/localization 与 dual-prior targets，不能从 correctness 标签推断出来。
 
 ## 6. 下一步必须做的事（按优先级）
 
-**P0（在用户确认后，从零运行 Stage 1B v2 正式矩阵）**
+**P0（先锁定修复，再决定是否执行 Stage 1B v3 容量对照）**
 
-1. 不要再生成或抽取数据：500×16 validation、v4 标签和 13,108 个特征 payload 已经就绪并通过
+1. 不要再生成或抽取数据：500×16 validation、v5 标签和 13,108 个特征 payload 已经就绪并通过
    全量 SHA256 门。不要读取 `pilot_test`。
-2. 将现有 8 份 `completed_epoch=0` 中断记录当作启动审计，不要 resume，不要计入实验数。
-   用户确认后，在新输出目录运行 `strict_swift` / `encoded_swift` / `clir` × seeds 42/43/44。
-3. 严格使用 `configs/stage1b_validation_v2.json`：5 epochs、final checkpoint、batch size 2、BF16、
-   LR 1e-4、第 5 epoch 验证；打分固定 batch size 2 + BF16，k=1/2/4/8/16，query-level
-   10,000 次 bootstrap。
-4. 所有方法共享 `clir_gsm8k_numeric_v4` 标签；单独报告与固定官方 SWIFT checker 的 parity。
-   每个 checkpoint 和 scored manifest 都必须校验预期 SHA256/provenance/candidate policy。
-5. class weighting、pairwise/listwise objective、epoch、解码温度或主路径层数若要改变，必须新建版本化协议。
-   不得因存储压力把主路径静默降成最后 4 层。
+2. 先形成 clean commit，再运行
+   `scripts/run_stage1b_validation.py --stage preflight --execute`。preflight 未通过时不得提交任何
+   cell；launcher 会拒绝手工默认值漂移和半矩阵启动。
+3. 若明确批准正式算力，严格使用 v3：5 epochs、batch 2、BF16 train、LR 1e-4、grad clip 1.0，
+   final checkpoint 为主结果且保留所有 epoch；score 使用 FP32，k=1/2/4/8/16，10,000 次
+   query bootstrap。类别先验 2% 或 score std 0.1 门失败的 run 不进入评估。
+4. 报告标题和结论必须写成“outcome-only capacity/optimization control”。即便 CLIR 胜出，也
+   不能归因于 consistency/localization/dual-prior；即便失败，也不能否证这些机制。
+5. class weighting、pairwise/listwise objective、epoch、阈值、解码策略或主路径层数若改变，
+   必须发布新协议，不得编辑 v3。
 
-**P1（Stage 1B 结论锁定之后，逐步加 CLIR 的三个模块）**
+**P1（继续实现真正的 CLIR 专属监督生成；导入/审计底座已完成）**
 
-5. **LLM rewrite augmentation 流水线**：给每条原始 trajectory 生成 K 个"改写题干风格/长度/context 顺序/domain 表面形式"的版本，用 verifier 过滤掉改变了答案或证据关系的改写，产出 `semantic_id`/`style_id`/`domain_id` 元数据。做完这一步才能真正测试 PRISM 一致性 loss 有没有用。
-6. **幻觉标注流水线**：至少要有 path-level 的 `path_hallucinated`（弱监督），有条件的话再加 token-level 的 `hallucination_onset`（强监督）。可以用 verifier/LLM judge 对着 query+context 检查每一步 claim 有没有支持依据。
-7. **dual-prior target 生成**：`key_prior_target`/`complete_prior_target`/`complete_reconstruction_target` 目前都要外部提供，需要设计怎么从 query/context entailment 或 verifier score 生成弱 prior（可以参考 `docs/proposal.md` 里 Dual-Prior Localization View 一节的思路）。
+6. **LLM rewrite augmentation 流水线**：给每条原始 trajectory 生成 K 个"改写题干风格/长度/context 顺序/domain 表面形式"的版本，用 verifier 过滤掉改变了答案或证据关系的改写，产出 `semantic_id`/`style_id`/`domain_id` 元数据。做完这一步才能真正测试 PRISM 一致性 loss 有没有用。
+7. **幻觉标注流水线**：至少要有 path-level 的 `path_hallucinated`（弱监督），有条件的话再加 token-level 的 `hallucination_onset`（强监督）。可以用 verifier/LLM judge 对着 query+context 检查每一步 claim 有没有支持依据。
+8. **dual-prior target 生成**：`key_prior_target`/`complete_prior_target`/`complete_reconstruction_target` 目前都要外部提供，需要设计怎么从 query/context entailment 或 verifier score 生成弱 prior（可以参考 `docs/proposal.md` 里 Dual-Prior Localization View 一节的思路）。
+9. 所有生成器先在 train/validation 小样本人工盲审，再按 `docs/clir_supervision_protocol.md`
+   固定 annotation protocol/hash、合并并运行 `--require` 覆盖门；不得用 correctness 反推缺失字段，
+   不得原地修改 Stage 1B v3。只有非零 applicable counts 与标签质量门同时通过，才发布新的
+   mechanism protocol。
 
 **P2（跑完第一轮实验之后再看）**
 
-8. 把训练目标从纯 pointwise BCE 扩展成 pairwise/listwise（DPO/InfoNCA/NCA），和 SWIFT 论文附录 E.1 的消融对齐。
-9. 在冻结的扩大版 validation 和最终锁定的 test 上运行完整组件实验，报告 Best-of-N accuracy、幻觉率和 worst-augmentation accuracy；small-scale correctness-only 结果见 `docs/stage1_results.md`。
-10. 解决第 5 节列的开放问题（token_values 拆分、condition LayerNorm 不一致、gate/reconstruction 要不要分 phase）。
+10. 把训练目标从纯 pointwise BCE 扩展成 pairwise/listwise（DPO/InfoNCA/NCA），和 SWIFT 论文附录 E.1 的消融对齐。
+11. 在冻结的扩大版 validation 和最终锁定的 test 上运行完整组件实验，报告 Best-of-N accuracy、幻觉率和 worst-augmentation accuracy；small-scale correctness-only 结果见 `docs/stage1_results.md`。
+12. 解决第 5 节列的开放问题（token_values 拆分、condition LayerNorm 不一致、gate/reconstruction 要不要分 phase）。
 
 ## 7. Bug 修复历史（给想知道"为什么现在长这样"的人）
 
@@ -362,6 +383,12 @@ pad/trim 逻辑之前调用严格校验：trajectory 的 `T`、output ID 数和�
 | 16 | prompt placeholder box 造成 checker 假阴性，百分数宽松等价又可假阳性 | 所有 boxed 文本一视同仁，缺少百分比上下文门 | checker v4 只忽略明确 placeholder，收紧 percent equivalence | train/validation 全量重标 + 手工复核 18 个候选分歧，确认 16 个假阴性 |
 | 17 | `[batch,time,101376]` 在 CUDA LayerNorm 可超过 32-bit indexing 上限 | 原始宽度张量整体进入某些 CUDA kernel | 在 LayerNorm/投影前按元素上限分块，再还原形状 | 真实宽度 forward/backward 和分块回归测试 |
 | 18 | CUDA resume、输入完整性和 scoring provenance 不足 | checkpoint 直接加载到 CUDA；没有预期 hash 门/逐行证据 | CPU 加载后恢复 RNG；train/score/evaluate 增加 SHA256 门；打分逐行记录 provenance | resume/hash/provenance 回归测试 + 725.8 GB 特征全量校验 |
+| 19 | 零 epoch 失败记录让 8/9 矩阵无法重启 | 输出守卫不区分审计记录与真实产物 | `--force` 仅接受 failed/epoch0 且无 checkpoint/metrics；launcher 整矩阵原子预检 | force 正反例回归测试 |
+| 20 | BF16 score 随 batch 形状翻转，provenance 写了却不读 | GEMM 数值路径变化；跨阶段缺少消费侧 gate | v3 score 固定 FP32；evaluate/summary 严格验证 checkpoint、variant、input、dtype、batch 与协议 | evaluation/summary provenance 与混入拒绝测试 |
+| 21 | 非纯数值 boxed answer 取最后数字 | 尾随时长、数量或 ratio 分母接管答案 | checker v5 用 governed/first number，并保留 mixed number/compound duration 完整值 | 全量 relabel：validation 正好 15 个真 `0→1`，另有假阳性回归测试 |
+| 22 | MIL 与 prior 对齐 loss 在真实 T 下量级错误 | negative MIL 求和；distribution MSE 再按 token 平均 | MIL 按有效长度归一化；prior 对齐按 trajectory 求 token error 总和再跨 trajectory 平均 | 长路径、部分 mask 与梯度测试 |
+| 23 | vLLM resume/分片会因 batch 成员变化改写候选 | 一个共享 SamplingParams seed 不保证成员不变性 | 用 base seed + query_id SHA256 派生每 query SamplingParams seed | 纯函数和生成参数回归测试 |
+| 24 | v2 无可执行命令且 7 个 CLI 默认值偏离协议 | 机器配置从未被入口消费 | v3 launcher 映射所有冻结字段、记录协议 SHA、要求 clean-git/preflight/显式 execute | launcher contract 测试 + 真实 manifest dry preflight |
 
 **目前没有已知的、未修复的逻辑 bug。** 第 5 节列的是设计层面的开放问题，不是逻辑错误。
 
@@ -381,27 +408,30 @@ SWIFT 文件里与 vLLM 冲突的 `numpy==2.2.6`；这也与本地 SWIFT 复现�
 pip install -r requirements.txt
 
 # 2. 跑测试，确认环境没问题（不要调用系统 pytest）
-/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python -m pytest -q  # 当前 77 passed
+/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python -m pytest -q
 
 # 3. 生成 toy 数据（纯随机数，只用来验证管线通不通，不能用来判断方法有没有效）
+PROJECT_ROOT="$(pwd)"
+RUN_DIR="$PROJECT_ROOT/run_artifacts/toy"
+mkdir -p "$RUN_DIR"
 python examples/create_toy_clir_data.py \
-  --output_jsonl examples/toy_clir.jsonl \
-  --feature_dir examples/features \
+  --output_jsonl "$RUN_DIR/toy_clir.jsonl" \
+  --feature_dir "$RUN_DIR/features" \
   --hidden_dim 8
 
 # 4. 训练
 python train_clir.py \
-  --train_jsonl examples/toy_clir.jsonl \
-  --output_model outputs/clir_toy.pt \
+  --train_jsonl "$RUN_DIR/toy_clir.jsonl" \
+  --output_model "$RUN_DIR/clir_toy.pt" \
   --hidden_dim 8 --projection_dim 4 --batch_size 4 --epochs 3 --lr 1e-3 \
   --group_by_semantic_id --prior_phase_mode alternate \
   --condition_attention_temperature 1.0 --progress_score_weight 0.5
 
 # 5. 打分 + Best-of-N
 python score_clir.py \
-  --input_jsonl examples/toy_clir.jsonl \
-  --model outputs/clir_toy.pt \
-  --output_jsonl outputs/clir_toy_scores.jsonl \
+  --input_jsonl "$RUN_DIR/toy_clir.jsonl" \
+  --model "$RUN_DIR/clir_toy.pt" \
+  --output_jsonl "$RUN_DIR/clir_toy_scores.jsonl" \
   --batch_size 4
 ```
 
@@ -414,6 +444,6 @@ python score_clir.py \
   跑 `-m pytest -q tests/test_clir_smoke.py`，改完再跑一遍。别指望“看起来对”就是真的对；
   第 6 项 bug 就是一个纯静态阅读很难发现、必须实际跑数据才能验证的例子。
 - 按"维护规则"（`README.md` 最后一节），改完代码要同步更新 `README.md` 的对应章节；如果改动大到影响这份交接文档里描述的架构/状态，也请同步更新这份 `docs/handoff.md`，不要让它过时——过时的交接文档比没有更糟。
-- 第 6 节当前 P0 是“用户确认后从零运行 Stage 1B v2 的 3 variants × 3 seeds”。
-  数据生成/特征抽取/校验都已经完成，不要反复重跑它们来代替正式 baseline，也不要在
-  Stage 1B 结论锁定前先继续打磨 CLIR 辅助头。
+- 第 6 节当前 P0 是“clean commit 后先跑 Stage 1B v3 原子 preflight，再由用户决定是否投入
+  正式 3 variants × 3 seeds 算力”。数据生成/特征抽取/校验都已经完成，不要重复采集；
+  同时不要把 outcome-only v3 容量对照误写成 CLIR 机制实验。

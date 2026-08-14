@@ -1,6 +1,9 @@
 from pathlib import Path
+import subprocess
+import sys
 from unittest.mock import patch
 
+import pytest
 import torch
 from torch.utils.data import DataLoader
 
@@ -14,6 +17,9 @@ from src.consistency_localized_reward import (
     path_no_hallucination_log_probability,
 )
 from train_clir import make_config, parse_args
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_clir_forward_and_loss():
@@ -46,6 +52,28 @@ def test_clir_forward_and_loss():
     assert outputs["condition_relevance"].shape == (4, 6)
     assert losses["total"].ndim == 0
     losses["total"].backward()
+
+
+def test_toy_generator_relative_paths_load_without_double_prefix(tmp_path: Path):
+    subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "examples" / "create_toy_clir_data.py"),
+            "--output_jsonl",
+            "examples/toy_clir.jsonl",
+            "--feature_dir",
+            "examples/features",
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    manifest = tmp_path / "examples" / "toy_clir.jsonl"
+    dataset = CLIRTrajectoryDataset(manifest)
+
+    assert len(dataset) == 6
+    assert dataset[0]["hidden_states"].shape == (5, 8)
 
 
 def test_condition_changes_prior_distribution():
@@ -110,7 +138,7 @@ def test_dual_prior_partial_mask_preserves_full_attention_mass():
         phase="key",
     )
 
-    expected = torch.tensor(((0.7 - 0.2) ** 2 + (0.1 - 0.2) ** 2) / 2)
+    expected = torch.tensor((0.7 - 0.2) ** 2 + (0.1 - 0.2) ** 2)
     assert torch.isclose(losses["distill"], expected)
     assert torch.isclose(losses["gate"], expected)
 
@@ -328,7 +356,7 @@ def test_log_space_noisy_or_keeps_long_negative_path_gradient():
     loss.backward()
 
     assert torch.isfinite(loss)
-    assert loss.item() > 100.0
+    assert loss.item() == pytest.approx(torch.log(torch.tensor(2.0)).item(), rel=1e-6)
     assert logits.grad is not None
     assert logits.grad.norm().item() > 0.0
 
@@ -337,6 +365,19 @@ def test_log_space_noisy_or_keeps_long_negative_path_gradient():
     assert probability.item() == 1.0
     assert torch.isfinite(log_survival).all()
     assert log_survival.item() < -100.0
+
+
+def test_log_space_noisy_or_exact_zero_survival_has_finite_positive_gradient():
+    logits = torch.full((1, 4), -200.0, requires_grad=True)
+    mask = torch.ones_like(logits)
+
+    loss = path_level_hallucination_mil(logits, mask, torch.tensor([1.0]))
+    loss.backward()
+
+    assert torch.isfinite(loss)
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+    assert logits.grad.abs().sum().item() > 0.0
 
 
 def test_log_space_noisy_or_has_finite_gradient_near_zero_path_probability():

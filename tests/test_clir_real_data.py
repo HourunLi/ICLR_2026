@@ -255,18 +255,22 @@ def test_gsm8k_checker_v4_ignores_only_literal_boxed_placeholders():
     after_placeholder = check_gsm8k_response(
         r"The final answer, presented as \boxed{Your Answer}, is: $2000 in 5 days.",
         "#### 2000",
+        checker_version="clir_gsm8k_numeric_v4",
     )
     earlier_numeric_box = check_gsm8k_response(
         r"Final answer: \boxed{45}. Formatting may also be written as \boxed{}.",
         "#### 45",
+        checker_version="clir_gsm8k_numeric_v4",
     )
     substantive_text_answer = check_gsm8k_response(
         r"The calculation gives 13, but the final answer is \boxed{x}.",
         "#### 13",
+        checker_version="clir_gsm8k_numeric_v4",
     )
     numeric_box_remains_authoritative = check_gsm8k_response(
         r"Final answer: \boxed{26}. This was computed in 14 steps.",
         "#### 26",
+        checker_version="clir_gsm8k_numeric_v4",
     )
 
     assert after_placeholder["correctness"] == 1
@@ -284,10 +288,12 @@ def test_gsm8k_checker_v4_requires_numeric_evidence_for_decimal_percent_equivale
     explicit_equivalence = check_gsm8k_response(
         r"The probability is 0.24, or 24%. Final answer: \boxed{0.24}.",
         "#### 24",
+        checker_version="clir_gsm8k_numeric_v4",
     )
     unrelated_percent_word = check_gsm8k_response(
         r"The percentage calculation is discussed above. Final answer: \boxed{0.12 years}.",
         "#### 12",
+        checker_version="clir_gsm8k_numeric_v4",
     )
     historical_v3 = check_gsm8k_response(
         r"The percentage calculation is discussed above. Final answer: \boxed{0.12 years}.",
@@ -297,6 +303,7 @@ def test_gsm8k_checker_v4_requires_numeric_evidence_for_decimal_percent_equivale
     probability_fraction = check_gsm8k_response(
         r"The probability is 80% * 40% * 75% = 24/100, so the odds are \boxed{\frac{6}{25}}.",
         "#### 24",
+        checker_version="clir_gsm8k_numeric_v4",
     )
 
     assert explicit_equivalence["correctness"] == 1
@@ -304,6 +311,83 @@ def test_gsm8k_checker_v4_requires_numeric_evidence_for_decimal_percent_equivale
     assert unrelated_percent_word["correctness"] == 0
     assert historical_v3["correctness"] == 1
     assert probability_fraction["correctness"] == 1
+
+
+@pytest.mark.parametrize(
+    ("response", "reference", "normalized"),
+    [
+        (r"Final answer: \boxed{Tina makes $990.00 for working 10 hours every day for 5 days.}", "990", "$990.00"),
+        (r"Final answer: \boxed{Bob pays $15 for the 10 nose sprays.}", "15", "$15"),
+        (r"Final answer: \boxed{Carter can read 30 pages in 1 hour.}", "30", "30"),
+        (r"Final answer: \boxed{40 frogs hatch out of the 800 eggs.}", "40", "40"),
+        (r"Final answer: \boxed{10:1}.", "10", "10"),
+        (r"Final answer: \boxed{work from 3 steps = $29}.", "29", "$29"),
+        (r"Final answer: \boxed{Haley's height after 10 years will be 50 inches}.", "50", "50"),
+        (r"Final answer: \boxed{The 5 bottles will be $25 more expensive in 2 months}.", "25", "$25"),
+        (r"Final answer: \boxed{Yola's weight 2 years ago: 170 pounds}.", "170", "170"),
+        (r"Final answer: \boxed{Ratio: 10:1}.", "10", "10"),
+    ],
+)
+def test_gsm8k_checker_v5_uses_governed_number_in_boxed_answer_span(
+    response: str,
+    reference: str,
+    normalized: str,
+):
+    result = check_gsm8k_response(response, f"#### {reference}")
+
+    assert result["checker_version"] == "clir_gsm8k_numeric_v5"
+    assert result["correctness"] == 1
+    assert result["normalized_candidate_answer"] == normalized
+
+
+def test_gsm8k_checker_v5_does_not_accept_trailing_qualifier_as_answer():
+    response = r"Final answer: \boxed{Bob pays $15 for the 10 nose sprays.}"
+
+    current = check_gsm8k_response(response, "#### 10")
+    frozen_v4 = check_gsm8k_response(
+        response,
+        "#### 10",
+        checker_version="clir_gsm8k_numeric_v4",
+    )
+
+    assert current["correctness"] == 0
+    assert current["normalized_candidate_answer"] == "$15"
+    # Checker versions are immutable: v4 retains its historical behavior.
+    assert frozen_v4["correctness"] == 1
+    assert frozen_v4["normalized_candidate_answer"] == "10"
+
+
+@pytest.mark.parametrize(
+    ("answer", "reference", "normalized"),
+    [
+        (r"21\frac{1}{2}", "21", r"\frac{43}{2}"),
+        (r"3\frac{1}{3}", "3", r"\frac{10}{3}"),
+        ("3 hours 20 minutes", "3", r"\frac{10}{3}"),
+        (r"3 \text{ hours } 20 \text{ minutes}", "3", r"\frac{10}{3}"),
+    ],
+)
+def test_gsm8k_checker_v5_preserves_composite_numeric_answers(
+    answer: str,
+    reference: str,
+    normalized: str,
+):
+    result = check_gsm8k_response(
+        rf"Final answer: \boxed{{{answer}}}.",
+        f"#### {reference}",
+    )
+
+    assert result["correctness"] == 0
+    assert result["normalized_candidate_answer"] == normalized
+
+
+def test_gsm8k_checker_v5_matches_composite_numeric_answer_value():
+    result = check_gsm8k_response(
+        r"Final answer: \boxed{21\frac{1}{2}}.",
+        "#### 21.5",
+    )
+
+    assert result["correctness"] == 1
+    assert result["normalized_candidate_answer"] == r"\frac{43}{2}"
 
 
 def test_component_protocol_hashes_isolate_evaluation_edits():

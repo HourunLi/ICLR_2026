@@ -32,7 +32,7 @@ from src.clir_stage_a import (
 )
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v3.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v4.json"
 
 
 def parse_args() -> argparse.Namespace:

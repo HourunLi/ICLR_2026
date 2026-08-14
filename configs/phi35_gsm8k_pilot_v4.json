@@ -1,0 +1,100 @@
+{
+  "protocol_version": "phi35-gsm8k-pilot-v4",
+  "evidence_tier": "pipeline pilot",
+  "supersedes": "configs/phi35_gsm8k_pilot_v3.json",
+  "swift_repository_commit": "41f7c9f7e13734267450870f977e5dd7d62ac23e",
+  "model": {
+    "repo_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_dtype": "bfloat16",
+    "trust_remote_code": true
+  },
+  "dataset": {
+    "repo_id": "openai/gsm8k",
+    "subset": "main",
+    "revision": "740312add88f781978c0658806c59bc2815b9866",
+    "swift_parity_test_limit": 500,
+    "final_test_scope": "full"
+  },
+  "prompt": {
+    "template": "Solve the following math problem step-by-step.\nSimplify your answer as much as possible. Present your final answer as \\boxed{Your Answer}.\n{question}"
+  },
+  "generation": {
+    "backend": "vllm",
+    "train_candidates": 8,
+    "pilot_eval_candidates": 16,
+    "formal_eval_candidates": 64,
+    "temperature": 1.0,
+    "top_p": 0.9,
+    "max_new_tokens": 1024,
+    "max_model_length": 4096,
+    "seed": 42,
+    "seed_scope": "per_query_sha256_v1",
+    "stop_sequences": ["\n###\nProblem: "],
+    "terminal_token_policy": "as_returned",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "serialization_order": "ascending_candidate_index"
+  },
+  "hidden_states": {
+    "layer_policy": "all_outputs_hidden_states",
+    "include_embedding_output": true,
+    "include_all_transformer_blocks": true,
+    "hidden_states_source": "model_outputs.hidden_states_as_returned",
+    "extractor_applied_additional_final_norm": false,
+    "last_returned_state_norm_semantics": "phi3_final_entry_is_post_model_final_rmsnorm",
+    "combine": "concatenate_last_dimension",
+    "trajectory_slice": "exact_output_token_ids",
+    "condition_slice": "all_prompt_token_ids",
+    "condition_forward": "prompt_only_once_per_query",
+    "storage_dtype": "bfloat16"
+  },
+  "reward_architecture": {
+    "input_dim": 101376,
+    "layer_layout": {
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072
+    },
+    "primary_encoder": {
+      "type": "layer_transformer",
+      "model_dim": 768,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "dropout": 0.0
+    },
+    "required_variants": {
+      "strict_swift": "raw all-layer features followed directly by Linear(101376, 2)",
+      "encoded_swift": "shared layer-transformer encoder followed by the SWIFT gate/reward head",
+      "clir": "shared layer-transformer encoder followed by condition fusion and CLIR heads"
+    },
+    "flat_linear_policy": "development_ablation_only",
+    "complete_reconstruction_target": {
+      "status": "absent_in_stage1",
+      "required_source": "independently_generated_fixed_evidence_or_answer_summary",
+      "required_dim": 768,
+      "candidate_self_pooling_forbidden": true,
+      "loss_when_absent": 0.0
+    }
+  },
+  "correctness": {
+    "checker": "clir_gsm8k_numeric_v5",
+    "boxed_placeholder_policy": "ignore_only_empty_answer_or_your_answer_and_fallback_to_governed_suffix",
+    "percent_policy": "fraction_to_percentage_points_requires_matching_explicit_percent_or_probability_percent_context",
+    "unit_suffix_policy": "non_numeric_answer_span_uses_governed_or_first_numeric_literal_but_preserves_leading_mixed_numbers_and_compound_hour_minute_values",
+    "swift_parity_checker": "generate.generate_utils.evaluate_math",
+    "swift_parity_required": true,
+    "swift_parity_is_diagnostic_not_primary_label": true
+  },
+  "evaluation": {
+    "pilot_primary": "bon_at_16_accuracy",
+    "pilot_k": [1, 2, 4, 8, 16],
+    "formal_primary": "bon_at_64_accuracy",
+    "formal_k": [1, 2, 4, 8, 16, 32, 64],
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "required_baselines": ["bon_at_1", "random", "swift", "oracle"],
+    "confidence_interval_unit": "query",
+    "scoring_compute_dtype": "float32"
+  }
+}

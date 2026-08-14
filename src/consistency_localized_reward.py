@@ -135,6 +135,11 @@ class IdentityFeatureEncoder(nn.Module):
 class FlatLinearFeatureEncoder(nn.Module):
     """Unstructured full-width projection used as a development ablation."""
 
+    # Apply the same conservative indexing bound as the primary layer-axis
+    # encoder.  Both LayerNorm and the following projection consume the raw
+    # width and can otherwise cross CUDA kernels' 32-bit indexing limits.
+    max_transform_elements = 2**31 - 1
+
     def __init__(self, input_dim: int, model_dim: int) -> None:
         super().__init__()
         self.input_norm = nn.LayerNorm(input_dim)
@@ -142,8 +147,23 @@ class FlatLinearFeatureEncoder(nn.Module):
         self.output_norm = nn.LayerNorm(model_dim)
 
     def forward(self, hidden_states: Tensor) -> Tuple[Tensor, Optional[Tensor]]:
-        encoded = self.projection(self.input_norm(hidden_states))
-        return self.output_norm(F.gelu(encoded)), None
+        if hidden_states.ndim != 3 or hidden_states.shape[-1] != self.input_norm.normalized_shape[0]:
+            raise ValueError(
+                "flat linear encoder expects [batch, time, input_dim], got "
+                f"{tuple(hidden_states.shape)}"
+            )
+        batch, time, input_dim = hidden_states.shape
+        rows = hidden_states.reshape(batch * time, input_dim)
+        rows_per_chunk = max(1, self.max_transform_elements // input_dim)
+        if rows.shape[0] <= rows_per_chunk:
+            encoded = self.projection(self.input_norm(rows))
+        else:
+            encoded = torch.cat(
+                [self.projection(self.input_norm(chunk)) for chunk in rows.split(rows_per_chunk)],
+                dim=0,
+            )
+        encoded = self.output_norm(F.gelu(encoded))
+        return encoded.reshape(batch, time, -1), None
 
 
 class LayerAxisFeatureEncoder(nn.Module):
@@ -956,8 +976,27 @@ def path_level_hallucination_mil(
     log_no_hallucination = (
         F.logsigmoid(-logits) * row_mask.to(dtype=logits.dtype)
     ).sum(dim=1)
-    positive_loss = -_log1mexp(log_no_hallucination)
-    negative_loss = -log_no_hallucination
+    exact_zero = log_no_hallucination == 0
+    safe_log_no_hallucination = torch.where(
+        exact_zero,
+        torch.full_like(log_no_hallucination, -1.0),
+        log_no_hallucination,
+    )
+    positive_loss = -_log1mexp(safe_log_no_hallucination)
+    # When every tiny token probability underflows out of log survival, use
+    # the first-order log-sum of token probabilities.  This keeps the positive
+    # path loss and gradient finite instead of producing inf/NaN at log(q)=0.
+    token_log_probability = F.logsigmoid(logits).masked_fill(~row_mask, float("-inf"))
+    positive_loss = torch.where(
+        exact_zero,
+        -torch.logsumexp(token_log_probability, dim=1),
+        positive_loss,
+    )
+    # A negative path supervises every valid token.  Normalize that sum so its
+    # scale does not grow linearly with trajectory length and swamp sibling
+    # outcome/localization objectives when weak labels are enabled.
+    valid_lengths = row_mask.sum(dim=1).to(dtype=logits.dtype)
+    negative_loss = -log_no_hallucination / valid_lengths
     return torch.where(labels, positive_loss, negative_loss).mean()
 
 
@@ -1125,7 +1164,13 @@ def attention_mse(prediction: Tensor, target: Tensor, mask: Tensor) -> Tensor:
     mask_bool = mask.to(device=prediction.device).bool()
     if not mask_bool.any():
         return prediction.new_zeros(())
-    return F.mse_loss(prediction[mask_bool], target.to(prediction)[mask_bool])
+    squared_error = (prediction - target.to(prediction)).pow(2)
+    valid_rows = mask_bool.any(dim=1)
+    # Priors are full-trajectory probability distributions.  Sum token errors
+    # within each trajectory, then average trajectories; averaging every token
+    # made these objectives vanish as sequence length grew.  The labeled subset
+    # is still not renormalized, preserving the partial-label contract.
+    return (squared_error * mask_bool.to(squared_error)).sum(dim=1)[valid_rows].mean()
 
 
 @torch.no_grad()

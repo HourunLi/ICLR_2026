@@ -33,7 +33,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     torch.manual_seed(args.seed)
-    feature_dir = Path(args.feature_dir)
+    output_jsonl = Path(args.output_jsonl).resolve()
+    feature_dir = Path(args.feature_dir).resolve()
     feature_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -74,8 +75,8 @@ def main() -> None:
                 }
             )
 
-    write_jsonl(args.output_jsonl, rows)
-    print(f"wrote {args.output_jsonl}")
+    write_jsonl(output_jsonl, rows)
+    print(f"wrote {output_jsonl}")
 
 
 if __name__ == "__main__":

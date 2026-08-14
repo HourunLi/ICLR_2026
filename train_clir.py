@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 from contextlib import nullcontext
 import json
+import math
 from pathlib import Path
 import random
 from typing import Any, Dict, Mapping
@@ -36,6 +37,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_feature_root", default=None, help="Base directory for validation feature paths.")
     parser.add_argument("--output_model", required=True, help="Atomic latest/full-state checkpoint path.")
     parser.add_argument("--resume_from", default=None, help="Full-state checkpoint to resume.")
+    parser.add_argument(
+        "--experiment_protocol_config",
+        default=None,
+        help="Optional frozen experiment protocol recorded in the run and checkpoint.",
+    )
+    parser.add_argument(
+        "--epoch_checkpoint_dir",
+        default=None,
+        help="Optional directory in which to retain one immutable full checkpoint per epoch.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Restart only a failed zero-epoch run record when no checkpoint or metrics exist. "
+            "Completed/partial training artifacts are never overwritten."
+        ),
+    )
     parser.add_argument("--metrics_jsonl", default=None)
     parser.add_argument("--run_json", default=None)
     parser.add_argument("--expected_train_sha256", default=None)
@@ -77,6 +96,21 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Clip the global gradient norm when > 0; zero disables clipping.",
+    )
+    parser.add_argument(
+        "--prior_collapse_tolerance",
+        type=float,
+        default=0.0,
+        help=(
+            "Flag the final run as collapsed when train correctness BCE is within this "
+            "relative fraction of the constant class-prior entropy; zero disables the gate."
+        ),
+    )
+    parser.add_argument(
+        "--fail_on_prior_collapse",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Exit non-zero after saving a checkpoint when the preregistered prior-collapse gate fails.",
     )
     parser.add_argument("--val_fraction", type=float, default=0.0,
                         help="Legacy row split only; formal Stage A runs must use --val_jsonl.")
@@ -458,7 +492,18 @@ def _restore_rng_state(state: Mapping[str, Any]) -> None:
     np.random.set_state(state["numpy"])
     torch.set_rng_state(state["torch"].cpu())
     if torch.cuda.is_available() and state.get("cuda") is not None:
-        torch.cuda.set_rng_state_all([cuda_state.cpu() for cuda_state in state["cuda"]])
+        saved_cuda_states = list(state["cuda"])
+        if not saved_cuda_states:
+            raise ValueError("Checkpoint has no CUDA RNG state for a CUDA resume")
+        # A checkpoint may have been written while more GPUs were visible than
+        # are exposed to the resumed single-device process.  Restore every
+        # overlapping device explicitly instead of letting set_rng_state_all
+        # index past the current device set.  Device 0, which this trainer uses,
+        # remains bit-exact.
+        for device_index, cuda_state in enumerate(
+            saved_cuda_states[: torch.cuda.device_count()]
+        ):
+            torch.cuda.set_rng_state(cuda_state.cpu(), device=device_index)
 
 
 RESUME_PINNED_ARGS = (
@@ -476,20 +521,164 @@ RESUME_PINNED_ARGS = (
     "group_by_semantic_id",
     "prior_phase_mode",
     "val_every_n_epochs",
+    "prior_collapse_tolerance",
+    "fail_on_prior_collapse",
 )
+
+
+LEGACY_RESUME_DEFAULTS: Dict[str, Any] = {
+    "num_workers": 0,
+    "pin_memory": False,
+    "persistent_workers": False,
+    "max_grad_norm": 0.0,
+    "val_every_n_epochs": 1,
+    "prior_collapse_tolerance": 0.0,
+    "fail_on_prior_collapse": False,
+}
 
 
 def _validate_resume_training_args(
     checkpoint_args: Mapping[str, Any],
     current_args: argparse.Namespace,
 ) -> None:
-    mismatches = {
-        key: {"checkpoint": checkpoint_args.get(key), "current": getattr(current_args, key)}
-        for key in RESUME_PINNED_ARGS
-        if checkpoint_args.get(key) != getattr(current_args, key)
-    }
+    mismatches: Dict[str, Dict[str, Any]] = {}
+    for key in RESUME_PINNED_ARGS:
+        if key in checkpoint_args:
+            checkpoint_value = checkpoint_args[key]
+        elif key in LEGACY_RESUME_DEFAULTS:
+            checkpoint_value = LEGACY_RESUME_DEFAULTS[key]
+        else:
+            checkpoint_value = "<missing>"
+        current_value = getattr(current_args, key)
+        if checkpoint_value != current_value:
+            mismatches[key] = {
+                "checkpoint": checkpoint_value,
+                "current": current_value,
+            }
     if mismatches:
         raise ValueError(f"Resume training arguments differ: {json.dumps(mismatches, sort_keys=True)}")
+
+
+def _load_force_restart_record(
+    output: Path,
+    metrics_path: Path,
+    run_path: Path,
+) -> Dict[str, Any]:
+    """Validate and return the sole failed zero-epoch artifact for ``--force``."""
+
+    if output.exists() or metrics_path.exists():
+        raise FileExistsError(
+            "--force never overwrites a checkpoint or metrics history; use --resume_from "
+            "or a new output directory"
+        )
+    if not run_path.exists():
+        return {}
+    try:
+        with run_path.open(encoding="utf-8") as handle:
+            previous = json.load(handle)
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ValueError(f"Cannot validate existing run record {run_path}: {exc}") from exc
+    if previous.get("status") != "failed" or int(previous.get("completed_epoch", -1)) != 0:
+        raise FileExistsError(
+            "--force only restarts a run record with status=failed and completed_epoch=0"
+        )
+    return previous
+
+
+def _read_metric_rows(path: Path) -> list[Dict[str, Any]]:
+    with path.open(encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle if line.strip()]
+
+
+def _reconcile_metrics_history(
+    metrics_path: Path,
+    checkpoint_metrics: Any,
+    completed_epoch: int,
+) -> tuple[list[Dict[str, Any]], Dict[str, Any] | None]:
+    """Recover an interrupted metrics/checkpoint publication from checkpoint truth."""
+
+    if not isinstance(checkpoint_metrics, list) or len(checkpoint_metrics) != completed_epoch:
+        raise ValueError("Checkpoint metrics history does not match completed_epoch")
+    expected = [dict(row) for row in checkpoint_metrics]
+    if not metrics_path.exists():
+        atomic_write_jsonl(metrics_path, expected)
+        return expected, {"action": "restored_missing_metrics_from_checkpoint"}
+
+    recorded = _read_metric_rows(metrics_path)
+    common = min(len(recorded), len(expected))
+    if recorded[:common] != expected[:common]:
+        raise ValueError("Metrics history disagrees with checkpoint-embedded metrics")
+    if recorded == expected:
+        return expected, None
+
+    atomic_write_jsonl(metrics_path, expected)
+    return expected, {
+        "action": "reconciled_metrics_to_checkpoint",
+        "recorded_rows": len(recorded),
+        "checkpoint_rows": len(expected),
+    }
+
+
+def _constant_prior_health(
+    *,
+    positive_count: int,
+    example_count: int,
+    final_correctness_bce: float,
+    tolerance: float,
+) -> Dict[str, Any]:
+    if example_count <= 0 or not 0 <= positive_count <= example_count:
+        raise ValueError("Invalid training correctness counts for health gate")
+    prevalence = positive_count / example_count
+    if prevalence in {0.0, 1.0}:
+        prior_entropy = 0.0
+        relative_distance = None
+        passed = tolerance <= 0.0
+        reason = "degenerate_class_distribution"
+    else:
+        prior_entropy = -(
+            prevalence * math.log(prevalence)
+            + (1.0 - prevalence) * math.log(1.0 - prevalence)
+        )
+        relative_distance = abs(final_correctness_bce - prior_entropy) / prior_entropy
+        passed = tolerance <= 0.0 or relative_distance > tolerance
+        reason = "disabled" if tolerance <= 0.0 else "outside_prior_entropy_band" if passed else "within_prior_entropy_band"
+    return {
+        "schema_version": "clir-training-health-v1",
+        "gate": "constant_class_prior_bce",
+        "enabled": tolerance > 0.0,
+        "passed": passed,
+        "reason": reason,
+        "positive_count": positive_count,
+        "example_count": example_count,
+        "positive_prevalence": prevalence,
+        "constant_prior_bce": prior_entropy,
+        "observed_train_correctness_bce": final_correctness_bce,
+        "relative_distance_from_prior_bce": relative_distance,
+        "relative_tolerance": tolerance,
+    }
+
+
+def _final_training_health(
+    metric_rows: list[Mapping[str, Any]],
+    *,
+    positive_count: int,
+    example_count: int,
+    tolerance: float,
+) -> Dict[str, Any]:
+    if not metric_rows:
+        raise ValueError("Cannot publish a completed run without checkpoint metrics")
+    recorded = metric_rows[-1].get("training_health")
+    if isinstance(recorded, Mapping):
+        return dict(recorded)
+    train = metric_rows[-1].get("train")
+    if not isinstance(train, Mapping) or not isinstance(train.get("losses"), Mapping):
+        raise ValueError("Final checkpoint lacks train losses for health reconstruction")
+    return _constant_prior_health(
+        positive_count=positive_count,
+        example_count=example_count,
+        final_correctness_bce=float(train["losses"]["final"]),
+        tolerance=tolerance,
+    )
 
 
 def _atomic_torch_save(value: Any, path: Path) -> None:
@@ -499,8 +688,26 @@ def _atomic_torch_save(value: Any, path: Path) -> None:
     temporary.replace(path)
 
 
+def _experiment_protocol_state(path: str | None) -> Dict[str, Any] | None:
+    if path is None:
+        return None
+    protocol_path = Path(path).resolve()
+    with protocol_path.open(encoding="utf-8") as handle:
+        protocol = json.load(handle)
+    schema_version = protocol.get("schema_version")
+    if not isinstance(schema_version, str) or not schema_version:
+        raise ValueError("Experiment protocol requires a non-empty schema_version")
+    return {
+        "path": str(protocol_path),
+        "sha256": file_sha256(protocol_path),
+        "schema_version": schema_version,
+    }
+
+
 def main() -> None:
     args = parse_args()
+    if args.force and args.resume_from:
+        raise ValueError("--force and --resume_from are mutually exclusive")
     if args.val_jsonl and args.val_fraction > 0:
         raise ValueError("Use explicit --val_jsonl or legacy --val_fraction, not both")
     if args.val_feature_root and not args.val_jsonl:
@@ -511,11 +718,27 @@ def main() -> None:
         raise ValueError("val_every_n_epochs must be positive")
     if args.max_grad_norm < 0:
         raise ValueError("max_grad_norm must be non-negative")
+    if not 0.0 <= args.prior_collapse_tolerance < 1.0:
+        raise ValueError("prior_collapse_tolerance must be in [0, 1)")
+    if args.fail_on_prior_collapse and args.prior_collapse_tolerance <= 0.0:
+        raise ValueError("fail_on_prior_collapse requires a positive prior_collapse_tolerance")
     set_seed(args.seed)
     device = resolve_device(args.device)
     output = Path(args.output_model).resolve()
     metrics_path = Path(args.metrics_jsonl).resolve() if args.metrics_jsonl else output.with_suffix(output.suffix + ".metrics.jsonl")
     run_path = Path(args.run_json).resolve() if args.run_json else output.with_suffix(output.suffix + ".run.json")
+    epoch_checkpoint_dir = (
+        Path(args.epoch_checkpoint_dir).resolve() if args.epoch_checkpoint_dir else None
+    )
+    experiment_protocol = _experiment_protocol_state(args.experiment_protocol_config)
+    restarted_from: Dict[str, Any] | None = None
+    if not args.resume_from and (metrics_path.exists() or run_path.exists() or output.exists()):
+        if not args.force:
+            raise FileExistsError(
+                "Training outputs already exist; use --resume_from, --force for a failed "
+                "zero-epoch record, or a new output directory"
+            )
+        restarted_from = _load_force_restart_record(output, metrics_path, run_path)
 
     train_dataset = CLIRTrajectoryDataset(
         args.train_jsonl,
@@ -543,6 +766,7 @@ def main() -> None:
     overlap = train_queries & val_queries
     if overlap:
         raise ValueError(f"Train/validation query leakage detected: {sorted(overlap)[:5]}")
+    train_positive_count = sum(int(train_dataset.rows[index]["correctness"]) for index in train_indices)
 
     config = make_config(args)
     validate_dataset_feature_contract(train_dataset, config, "train")
@@ -587,6 +811,7 @@ def main() -> None:
     }
     start_epoch = 0
     metric_rows: list[Dict[str, Any]] = []
+    metrics_recovery: Dict[str, Any] | None = None
     if args.resume_from:
         checkpoint = torch.load(args.resume_from, map_location="cpu", weights_only=False)
         if checkpoint.get("config") != config.__dict__:
@@ -597,23 +822,34 @@ def main() -> None:
             raise ValueError("Resume checkpoint lacks full optimizer/RNG state")
         if not isinstance(checkpoint.get("training_args"), Mapping):
             raise ValueError("Resume checkpoint lacks recorded training arguments")
+        if checkpoint.get("experiment_protocol") != experiment_protocol:
+            raise ValueError("Resume checkpoint experiment protocol differs from current CLI config")
         _validate_resume_training_args(checkpoint["training_args"], args)
         model.load_state_dict(checkpoint["state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_epoch = int(checkpoint["completed_epoch"])
         _restore_rng_state(checkpoint["rng_state"])
-        if metrics_path.exists():
-            with metrics_path.open("r", encoding="utf-8") as handle:
-                metric_rows = [json.loads(line) for line in handle if line.strip()]
-        if len(metric_rows) != start_epoch:
-            raise ValueError("Metrics history length does not match completed_epoch")
-    elif metrics_path.exists() or run_path.exists() or output.exists():
-        raise FileExistsError("Training outputs already exist; use --resume_from with the full checkpoint")
+        metric_rows, metrics_recovery = _reconcile_metrics_history(
+            metrics_path,
+            checkpoint.get("metrics"),
+            start_epoch,
+        )
 
     if isinstance(getattr(train_loader, "batch_sampler", None), SemanticGroupBatchSampler):
         train_loader.batch_sampler.epoch = start_epoch
-    if start_epoch >= args.epochs:
-        raise ValueError(f"Checkpoint already completed {start_epoch} epochs; target is {args.epochs}")
+    if start_epoch > args.epochs:
+        raise ValueError(f"Checkpoint completed {start_epoch} epochs; target is only {args.epochs}")
+    if epoch_checkpoint_dir is not None:
+        conflicting_snapshots = [
+            epoch_checkpoint_dir / f"epoch_{epoch:03d}.pt"
+            for epoch in range(start_epoch + 1, args.epochs + 1)
+            if (epoch_checkpoint_dir / f"epoch_{epoch:03d}.pt").exists()
+        ]
+        if conflicting_snapshots:
+            raise FileExistsError(
+                "Future epoch checkpoint already exists: "
+                f"{conflicting_snapshots[0]}"
+            )
 
     run_record: Dict[str, Any] = {
         "schema_version": "clir-training-run-v1",
@@ -630,14 +866,53 @@ def main() -> None:
         "model_dim": config.model_dim,
         "trainable_parameters": count_trainable_parameters(model),
         "data_state": data_state,
+        "experiment_protocol": experiment_protocol,
+        "epoch_checkpoint_dir": str(epoch_checkpoint_dir) if epoch_checkpoint_dir else None,
+        "epoch_checkpoints": (
+            [
+                str(epoch_checkpoint_dir / f"epoch_{epoch:03d}.pt")
+                for epoch in range(1, start_epoch + 1)
+                if (epoch_checkpoint_dir / f"epoch_{epoch:03d}.pt").is_file()
+            ]
+            if epoch_checkpoint_dir is not None
+            else []
+        ),
         "code": git_state(Path(__file__).resolve().parent),
     }
+    if restarted_from:
+        run_record["restarted_from_failed_zero_epoch"] = restarted_from
+    if metrics_recovery:
+        run_record["metrics_recovery"] = metrics_recovery
     atomic_write_json(run_path, run_record)
     print(
         f"model_variant={config.model_variant} encoder_type={config.encoder_type} "
         f"input_dim={config.hidden_dim} model_dim={config.model_dim} "
         f"trainable_parameters={count_trainable_parameters(model)} resume_epoch={start_epoch}"
     )
+
+    # The checkpoint is published before metrics/run JSON.  If a process died
+    # between those writes at the final epoch, an idempotent resume at the same
+    # target must reconstruct the secondary artifacts instead of declaring the
+    # authoritative checkpoint unusable.
+    if start_epoch == args.epochs:
+        run_record["completed_epoch"] = start_epoch
+        run_record["health_gate"] = _final_training_health(
+            metric_rows,
+            positive_count=train_positive_count,
+            example_count=len(train_indices),
+            tolerance=args.prior_collapse_tolerance,
+        )
+        run_record["recovered_completed_checkpoint"] = True
+        run_record["status"] = "completed"
+        if args.fail_on_prior_collapse and not run_record["health_gate"]["passed"]:
+            run_record["status"] = "health_gate_failed"
+        atomic_write_json(run_path, run_record)
+        if run_record["status"] == "health_gate_failed":
+            raise RuntimeError(
+                "Recovered training checkpoint failed the preregistered constant-prior collapse gate"
+            )
+        print(f"recovered completed checkpoint {output}")
+        return
 
     try:
         for epoch in range(start_epoch + 1, args.epochs + 1):
@@ -661,8 +936,13 @@ def main() -> None:
                 "train": train_metrics,
                 "validation": val_metrics,
             }
+            metric_record["training_health"] = _constant_prior_health(
+                positive_count=train_positive_count,
+                example_count=len(train_indices),
+                final_correctness_bce=float(train_metrics["losses"]["final"]),
+                tolerance=args.prior_collapse_tolerance,
+            )
             metric_rows.append(metric_record)
-            atomic_write_jsonl(metrics_path, metric_rows)
             checkpoint = {
                 "schema_version": "clir-full-checkpoint-v1",
                 "state_dict": model.state_dict(),
@@ -673,9 +953,15 @@ def main() -> None:
                 "data_state": data_state,
                 "training_args": vars(args),
                 "metrics": metric_rows,
+                "experiment_protocol": experiment_protocol,
                 "code": git_state(Path(__file__).resolve().parent),
             }
             _atomic_torch_save(checkpoint, output)
+            if epoch_checkpoint_dir is not None:
+                epoch_checkpoint = epoch_checkpoint_dir / f"epoch_{epoch:03d}.pt"
+                _atomic_torch_save(checkpoint, epoch_checkpoint)
+                run_record["epoch_checkpoints"].append(str(epoch_checkpoint))
+            atomic_write_jsonl(metrics_path, metric_rows)
             run_record["completed_epoch"] = epoch
             atomic_write_json(run_path, run_record)
             message = f"epoch={epoch} prior_phase={prior_phase} train_total={train_metrics['losses'].get('total', 0.0):.4f}"
@@ -690,6 +976,18 @@ def main() -> None:
         raise
 
     run_record["status"] = "completed"
+    run_record["health_gate"] = _final_training_health(
+        metric_rows,
+        positive_count=train_positive_count,
+        example_count=len(train_indices),
+        tolerance=args.prior_collapse_tolerance,
+    )
+    if args.fail_on_prior_collapse and not run_record["health_gate"]["passed"]:
+        run_record["status"] = "health_gate_failed"
+        atomic_write_json(run_path, run_record)
+        raise RuntimeError(
+            "Training completed but failed the preregistered constant-prior collapse gate"
+        )
     atomic_write_json(run_path, run_record)
     print(f"saved {output}")
 

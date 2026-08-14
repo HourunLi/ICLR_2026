@@ -17,6 +17,9 @@ from src.clir_stage_a import atomic_write_json
 
 
 DEFAULT_VARIANTS = ("strict_swift", "encoded_swift", "clir")
+EXPECTED_EVALUATION_SCHEMA = "clir-query-evaluation-v2"
+EXPECTED_CANDIDATE_SUBSET = "first_k_by_vllm_completion_output_index"
+EXPECTED_CANDIDATE_INDEX_POLICY = "vllm_completion_output_index"
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,15 +98,68 @@ def _validate_reports(
     seeds = sorted(int(seed) for seed in reports)
     reference: Mapping[str, Any] | None = None
     reference_query_ids: set[str] | None = None
+    reference_scoring_contract: tuple[Any, ...] | None = None
+    checkpoint_owners: Dict[str, tuple[int, str]] = {}
     for seed in seeds:
         seed_reports = reports[seed]
         missing = [variant for variant in variants if variant not in seed_reports]
         if missing:
             raise ValueError(f"Seed {seed} is missing variants: {missing}")
+        checkpoint_hashes: set[str] = set()
         for variant in variants:
             report = seed_reports[variant]
-            if report.get("schema_version") != "clir-query-evaluation-v1":
+            if report.get("schema_version") != EXPECTED_EVALUATION_SCHEMA:
                 raise ValueError(f"Unsupported evaluation schema for seed {seed}/{variant}")
+            if report.get("candidate_subset") != EXPECTED_CANDIDATE_SUBSET:
+                raise ValueError(
+                    f"Candidate subset mismatch for seed {seed}/{variant}: "
+                    f"{report.get('candidate_subset')!r}"
+                )
+            if report.get("candidate_index_policy") != EXPECTED_CANDIDATE_INDEX_POLICY:
+                raise ValueError(
+                    f"Candidate index policy mismatch for seed {seed}/{variant}: "
+                    f"{report.get('candidate_index_policy')!r}"
+                )
+            if report.get("reward_model_variant") != variant:
+                raise ValueError(
+                    f"Reward model variant mismatch for seed {seed}/{variant}"
+                )
+            provenance = report.get("reward_scoring_provenance")
+            if not isinstance(provenance, Mapping):
+                raise ValueError(f"Missing scoring provenance for seed {seed}/{variant}")
+            checkpoint_sha256 = provenance.get("checkpoint_sha256")
+            if not isinstance(checkpoint_sha256, str) or len(checkpoint_sha256) != 64:
+                raise ValueError(f"Invalid checkpoint SHA256 for seed {seed}/{variant}")
+            if checkpoint_sha256 in checkpoint_hashes:
+                raise ValueError(
+                    f"Seed {seed} reuses one checkpoint across multiple variants"
+                )
+            checkpoint_hashes.add(checkpoint_sha256)
+            previous_owner = checkpoint_owners.get(checkpoint_sha256)
+            if previous_owner is not None:
+                raise ValueError(
+                    "Evaluation matrix reuses one checkpoint across cells: "
+                    f"{previous_owner} and {(seed, variant)}"
+                )
+            checkpoint_owners[checkpoint_sha256] = (seed, variant)
+            scoring_contract = (
+                provenance.get("input_sha256"),
+                provenance.get("batch_size"),
+                provenance.get("amp_dtype"),
+                provenance.get("compute_dtype"),
+                provenance.get("min_score_std"),
+                (
+                    provenance.get("experiment_protocol", {}).get("sha256")
+                    if isinstance(provenance.get("experiment_protocol"), Mapping)
+                    else None
+                ),
+            )
+            if reference_scoring_contract is None:
+                reference_scoring_contract = scoring_contract
+            elif scoring_contract != reference_scoring_contract:
+                raise ValueError(
+                    "Evaluation reports do not share one scoring input/batch/dtype contract"
+                )
             k_values = [int(k) for k in report["k"]]
             if primary_k not in k_values:
                 raise ValueError(f"Primary k={primary_k} is absent for seed {seed}/{variant}")
@@ -362,6 +418,8 @@ def main() -> None:
         inputs[str(seed)] = {}
         for variant in args.variants:
             path = evaluation_dir / f"seed_{seed}" / f"{variant}.json"
+            if path.resolve() == output:
+                raise ValueError("Summary output must differ from every evaluation input")
             with path.open(encoding="utf-8") as handle:
                 reports[seed][variant] = json.load(handle)
             inputs[str(seed)][variant] = {

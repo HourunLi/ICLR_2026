@@ -45,6 +45,7 @@ SUPPORTED_GSM8K_CHECKERS = {
     "clir_gsm8k_numeric_v2",
     "clir_gsm8k_numeric_v3",
     "clir_gsm8k_numeric_v4",
+    "clir_gsm8k_numeric_v5",
 }
 
 PROTOCOL_HASH_SCHEMA = "clir-protocol-component-hashes-v1"
@@ -289,6 +290,133 @@ def _last_numeric_expression(
     return max(candidates, key=lambda item: (item[0], item[1]))[2].strip().rstrip(". ")
 
 
+def _first_numeric_expression(
+    text: str,
+    *,
+    exclude_unit_exponents: bool = False,
+) -> Optional[str]:
+    """Return the first numeric expression in an answer span.
+
+    Phi commonly emits boxed answer sentences such as ``$15 for 10 sprays``
+    or ratios such as ``10:1``.  The answer is the first literal in those
+    spans; selecting the last literal silently turns the qualifier into the
+    answer.  LaTeX fractions retain priority over their nested plain numbers.
+    """
+
+    if exclude_unit_exponents:
+        text = re.sub(r"\^\s*(?:\{\s*[-+]?\d+\s*\}|[-+]?\d+)", "", text)
+    patterns = (
+        r"\\(?:d?frac|tfrac)\s*\{\s*-?\d+\s*\}\s*\{\s*-?\d+\s*\}",
+        r"(?<![A-Za-z])[-+]?\$?\d[\d,]*(?:\.\d+)?(?:\s*/\s*[-+]?\d[\d,]*)?%?",
+    )
+    candidates: list[tuple[int, int, str]] = []
+    for priority, pattern in enumerate(patterns):
+        for match in re.finditer(pattern, text):
+            candidates.append((match.start(), priority, match.group(0)))
+    if not candidates:
+        return None
+    return min(candidates, key=lambda item: (item[0], item[1]))[2].strip().rstrip(". ")
+
+
+def _answer_span_numeric_expression(
+    text: str,
+    *,
+    exclude_unit_exponents: bool = False,
+) -> Optional[str]:
+    """Extract the governed number from a non-numeric final-answer span.
+
+    Equality spans retain the historical right-hand-side behavior needed for
+    answers such as ``work = $29``.  Other prose/ratio spans use their first
+    numeric literal so trailing durations, counts, and ratio denominators do
+    not replace the answer.
+    """
+
+    if "=" in text:
+        right_hand_side = text.rsplit("=", 1)[1]
+        composite = _first_composite_numeric_expression(right_hand_side)
+        if composite is not None:
+            return composite
+        return _last_numeric_expression(
+            right_hand_side,
+            exclude_unit_exponents=exclude_unit_exponents,
+        )
+    composite = _first_composite_numeric_expression(text)
+    if composite is not None:
+        return composite
+    governed = _prose_cue_numeric_expression(text)
+    if governed is not None:
+        return governed
+    return _first_numeric_expression(
+        text,
+        exclude_unit_exponents=exclude_unit_exponents,
+    )
+
+
+def _first_composite_numeric_expression(text: str) -> Optional[str]:
+    """Preserve the value of a mixed number or compound duration.
+
+    Selecting the first literal is correct for answer-plus-qualifier spans such
+    as ``$15 for 10 sprays``, but not for values such as ``21\\frac{1}{2}``
+    or ``3 hours 20 minutes``.  Only a composite beginning at the first numeric
+    literal is eligible, so a later qualifier cannot take over the answer.
+    The returned improper fraction is already understood by ``_numeric_value``.
+    """
+
+    mixed_number = re.search(
+        r"([-+]?\d+)\s*\\(?:d?frac|tfrac)\s*\{\s*(\d+)\s*\}\s*\{\s*(\d+)\s*\}",
+        text,
+    )
+    duration = re.search(
+        r"([-+]?\d+(?:\.\d+)?)\s*(?:\\text\{\s*)?(?:hours?|hrs?)\b\s*\}?"
+        r"\s*(?:and\s+)?(\d+(?:\.\d+)?)\s*"
+        r"(?:\\text\{\s*)?(?:minutes?|mins?)\b\s*\}?",
+        text,
+        flags=re.IGNORECASE,
+    )
+    candidates: list[tuple[int, Fraction]] = []
+    if mixed_number is not None:
+        whole = int(mixed_number.group(1))
+        denominator = int(mixed_number.group(3))
+        if denominator != 0:
+            fraction = Fraction(int(mixed_number.group(2)), denominator)
+            value = Fraction(whole) + (-fraction if whole < 0 else fraction)
+            candidates.append((mixed_number.start(), value))
+    if duration is not None:
+        try:
+            hours = Fraction(Decimal(duration.group(1)))
+            minutes = Fraction(Decimal(duration.group(2)))
+        except InvalidOperation:
+            pass
+        else:
+            candidates.append((duration.start(), hours + minutes / 60))
+    if not candidates:
+        return None
+
+    start, value = min(candidates, key=lambda item: item[0])
+    if _first_numeric_expression(text[:start]) is not None:
+        return None
+    return rf"\frac{{{value.numerator}}}{{{value.denominator}}}"
+
+
+def _prose_cue_numeric_expression(text: str) -> Optional[str]:
+    """Extract a number governed by prose without mistaking ratio colons.
+
+    A colon is an answer cue only when its left neighbor is alphabetic, so
+    ``weight: 170`` and ``Ratio: 10:1`` select 170 and 10 respectively while
+    the numeric ratio colon cannot select the trailing 1.
+    """
+
+    numeric = (
+        r"(?:\\(?:d?frac|tfrac)\s*\{\s*-?\d+\s*\}\s*\{\s*-?\d+\s*\}"
+        r"|[-+]?\$?\d[\d,]*(?:\.\d+)?(?:\s*/\s*[-+]?\d[\d,]*)?%?)"
+    )
+    pattern = rf"(?i)(?:answer\s*(?:is|:)|(?:is|be|equals)|(?<=[A-Za-z])\s*:)[ ]*({numeric})"
+    matches = list(re.finditer(pattern, text))
+    if not matches:
+        return None
+    return matches[-1].group(1).strip().rstrip(". ")
+
+
 def _answer_cue_numeric_expression(text: str) -> Optional[str]:
     """Extract a number directly governed by an answer/is/be/equality cue."""
 
@@ -387,7 +515,7 @@ def check_gsm8k_response(
     response: str,
     raw_reference: str,
     *,
-    checker_version: str = "clir_gsm8k_numeric_v4",
+    checker_version: str = "clir_gsm8k_numeric_v5",
 ) -> Dict[str, Any]:
     if checker_version not in SUPPORTED_GSM8K_CHECKERS:
         raise ValueError(
@@ -397,13 +525,18 @@ def check_gsm8k_response(
     is_v3_or_later = checker_version in {
         "clir_gsm8k_numeric_v3",
         "clir_gsm8k_numeric_v4",
+        "clir_gsm8k_numeric_v5",
     }
-    is_v4 = checker_version == "clir_gsm8k_numeric_v4"
+    is_v4_or_later = checker_version in {
+        "clir_gsm8k_numeric_v4",
+        "clir_gsm8k_numeric_v5",
+    }
+    is_v5 = checker_version == "clir_gsm8k_numeric_v5"
     reference = extract_gsm8k_reference(raw_reference)
     parsed = extract_gsm8k_candidate_answer(
         response,
         exclude_unit_exponents=is_v3_or_later,
-        ignore_boxed_placeholders=is_v4,
+        ignore_boxed_placeholders=is_v4_or_later,
     )
     if parsed is None:
         return {
@@ -427,7 +560,16 @@ def check_gsm8k_response(
     )
     normalization = "direct"
     if not parsed_values:
-        numeric_expression = _answer_cue_numeric_expression(parsed) if is_v3_or_later else None
+        numeric_expression = (
+            _answer_span_numeric_expression(
+                parsed,
+                exclude_unit_exponents=True,
+            )
+            if is_v5
+            else _answer_cue_numeric_expression(parsed)
+            if is_v3_or_later
+            else None
+        )
         if numeric_expression is None:
             numeric_expression = _last_numeric_expression(
                 parsed,
@@ -453,7 +595,7 @@ def check_gsm8k_response(
         if literal is not None and abs(literal) <= 1:
             proposed = literal * 100
             if (
-                not is_v4
+                not is_v4_or_later
                 or proposed in _explicit_percentage_points(response)
                 or _has_probability_percent_context(response)
             ):

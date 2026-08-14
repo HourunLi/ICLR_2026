@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
 from pathlib import Path
@@ -41,7 +42,7 @@ from src.clir_stage_a import (
 )
 
 
-DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v3.json"
+DEFAULT_PROTOCOL = PROJECT_ROOT / "configs" / "phi35_gsm8k_pilot_v4.json"
 
 
 def parse_args() -> argparse.Namespace:
@@ -94,6 +95,14 @@ def ordered_vllm_candidates(request_output: Any, expected_count: int) -> list[An
             f"expected 0..{expected_count - 1}, got {sorted(indices)}"
         )
     return sorted(candidates, key=lambda candidate: int(candidate.index))
+
+
+def derive_query_sampling_seed(base_seed: int, query_id: str) -> int:
+    """Derive a stable request-local vLLM seed independent of batch membership."""
+
+    payload = f"clir-vllm-query-seed-v1:{base_seed}:{query_id}".encode("utf-8")
+    # Stay in the signed 31-bit range accepted by all supported RNG backends.
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big") % (2**31)
 
 
 def main() -> None:
@@ -282,14 +291,34 @@ def main() -> None:
             }
         )
 
-    sampling = SamplingParams(
-        n=n_rollouts,
-        temperature=float(generation_cfg["temperature"]),
-        top_p=float(generation_cfg["top_p"]),
-        max_tokens=int(generation_cfg["max_new_tokens"]),
-        stop=list(generation_cfg.get("stop_sequences", [])) or None,
-        seed=int(generation_cfg["seed"]),
-    )
+    seed_scope = str(generation_cfg.get("seed_scope", "LLM_and_SamplingParams"))
+    if seed_scope not in {"LLM_and_SamplingParams", "per_query_sha256_v1"}:
+        raise ValueError(f"Unsupported generation.seed_scope: {seed_scope!r}")
+
+    def make_sampling(seed: int) -> Any:
+        return SamplingParams(
+            n=n_rollouts,
+            temperature=float(generation_cfg["temperature"]),
+            top_p=float(generation_cfg["top_p"]),
+            max_tokens=int(generation_cfg["max_new_tokens"]),
+            stop=list(generation_cfg.get("stop_sequences", [])) or None,
+            seed=seed,
+        )
+
+    if seed_scope == "per_query_sha256_v1":
+        sampling = []
+        for query in query_metadata:
+            query_seed = derive_query_sampling_seed(
+                int(generation_cfg["seed"]),
+                query["query_id"],
+            )
+            query["sampling_seed"] = query_seed
+            sampling.append(make_sampling(query_seed))
+    else:
+        shared_seed = int(generation_cfg["seed"])
+        sampling = make_sampling(shared_seed)
+        for query in query_metadata:
+            query["sampling_seed"] = shared_seed
     request_outputs = llm.generate(prompts, sampling, use_tqdm=True)
     chat_template_hash = canonical_json_sha256(tokenizer.chat_template or "")
     common_provenance = {
@@ -359,6 +388,8 @@ def main() -> None:
                     "max_new_tokens": generation_cfg["max_new_tokens"],
                     "max_model_length": generation_cfg["max_model_length"],
                     "seed": generation_cfg["seed"],
+                    "sampling_seed": query["sampling_seed"],
+                    "seed_scope": seed_scope,
                     "terminal_token_policy": generation_cfg["terminal_token_policy"],
                     "candidate_index_policy": "vllm_completion_output_index",
                     "cumulative_logprob": float(candidate.cumulative_logprob),

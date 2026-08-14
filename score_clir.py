@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import nullcontext
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Tuple
 
@@ -31,6 +32,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input_jsonl", required=True, help="JSONL file to score.")
     parser.add_argument("--model", required=True, help="CLIR checkpoint from train_clir.py.")
     parser.add_argument("--output_jsonl", required=True, help="Where to write scored rows.")
+    parser.add_argument(
+        "--experiment_protocol_config",
+        default=None,
+        help="Optional frozen experiment protocol; must match the training checkpoint.",
+    )
     parser.add_argument("--feature_root", default=None, help="Base directory for relative feature paths.")
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_workers", type=int, default=0)
@@ -46,6 +52,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip_feature_finite_check", action="store_true")
     parser.add_argument("--expected_input_sha256", default=None)
     parser.add_argument("--expected_checkpoint_sha256", default=None)
+    parser.add_argument(
+        "--min_score_std",
+        type=float,
+        default=0.0,
+        help="Fail before writing scores when population score std is below this health threshold.",
+    )
+    parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
 
@@ -76,6 +89,22 @@ def load_model(path: str | Path, device: torch.device) -> torch.nn.Module:
     return model
 
 
+def _experiment_protocol_state(path: str | None) -> Dict[str, Any] | None:
+    if path is None:
+        return None
+    protocol_path = Path(path).resolve()
+    with protocol_path.open(encoding="utf-8") as handle:
+        protocol = json.load(handle)
+    schema_version = protocol.get("schema_version")
+    if not isinstance(schema_version, str) or not schema_version:
+        raise ValueError("Experiment protocol requires a non-empty schema_version")
+    return {
+        "path": str(protocol_path),
+        "sha256": file_sha256(protocol_path),
+        "schema_version": schema_version,
+    }
+
+
 @torch.no_grad()
 def main() -> None:
     args = parse_args()
@@ -85,8 +114,22 @@ def main() -> None:
         raise ValueError("num_workers must be non-negative")
     if args.persistent_workers and args.num_workers == 0:
         raise ValueError("persistent_workers requires num_workers > 0")
+    if args.min_score_std < 0:
+        raise ValueError("min_score_std must be non-negative")
+    input_path = Path(args.input_jsonl).resolve()
+    model_path = Path(args.model).resolve()
+    output_path = Path(args.output_jsonl).resolve()
+    if output_path in {input_path, model_path}:
+        raise ValueError("Scoring output must differ from the input manifest and checkpoint")
+    if output_path.exists() and not args.overwrite:
+        raise FileExistsError(f"Refusing to overwrite existing scored manifest: {output_path}")
     device = resolve_device(args.device)
-    model, checkpoint = load_model_with_checkpoint(args.model, device)
+    model, checkpoint = load_model_with_checkpoint(model_path, device)
+    experiment_protocol = _experiment_protocol_state(args.experiment_protocol_config)
+    if checkpoint.get("experiment_protocol") != experiment_protocol:
+        raise ValueError(
+            "Scoring experiment protocol differs from the training checkpoint"
+        )
     model_variant = model.config.model_variant
     dataset = CLIRTrajectoryDataset(
         args.input_jsonl,
@@ -107,8 +150,6 @@ def main() -> None:
         raise ValueError("--amp_dtype bfloat16 currently requires CUDA")
 
     rows: List[Dict] = [dict(row) for row in dataset.rows]
-    model_path = Path(args.model).resolve()
-    input_path = Path(args.input_jsonl).resolve()
     checkpoint_sha256 = file_sha256(model_path)
     input_sha256 = file_sha256(input_path)
     if args.expected_checkpoint_sha256 and checkpoint_sha256 != args.expected_checkpoint_sha256:
@@ -121,7 +162,8 @@ def main() -> None:
             f"Input manifest SHA256 mismatch: expected {args.expected_input_sha256}, got {input_sha256}"
         )
     scoring_provenance: Dict[str, Any] = {
-        "schema_version": "clir-reward-scoring-v1",
+        "schema_version": "clir-reward-scoring-v2",
+        "model_variant": model_variant,
         "checkpoint_path": str(model_path),
         "checkpoint_sha256": checkpoint_sha256,
         "checkpoint_schema_version": checkpoint.get("schema_version"),
@@ -130,8 +172,11 @@ def main() -> None:
         "input_sha256": input_sha256,
         "batch_size": args.batch_size,
         "amp_dtype": args.amp_dtype,
+        "compute_dtype": "bfloat16" if args.amp_dtype == "bfloat16" else "float32",
         "device": str(device),
         "score_code": git_state(PROJECT_ROOT),
+        "experiment_protocol": experiment_protocol,
+        "min_score_std": args.min_score_std,
     }
     scored_row_indices: List[int] = []
     scored_scores: List[float] = []
@@ -218,6 +263,23 @@ def main() -> None:
             scored_scores.append(row["reward_score"])
             scored_query_ids.append(str(query_ids_raw[local_idx]))
 
+    score_tensor = torch.tensor(scored_scores, dtype=torch.float64)
+    score_distribution = {
+        "count": len(scored_scores),
+        "mean": float(score_tensor.mean()),
+        "population_std": float(score_tensor.std(unbiased=False)),
+        "min": float(score_tensor.min()),
+        "max": float(score_tensor.max()),
+    }
+    if score_distribution["population_std"] < args.min_score_std:
+        raise RuntimeError(
+            "Scoring health gate failed: population std "
+            f"{score_distribution['population_std']:.8g} is below {args.min_score_std:.8g}"
+        )
+    scoring_provenance["score_distribution"] = score_distribution
+    for row in rows:
+        row["reward_scoring_provenance"] = dict(scoring_provenance)
+
     query_to_int: Dict[str, int] = {}
     encoded_groups = []
     for query_id in scored_query_ids:
@@ -234,8 +296,8 @@ def main() -> None:
         if model_variant == "clir":
             row["clir_selected_best_of_n"] = idx in selected_indices
 
-    atomic_write_jsonl(args.output_jsonl, rows)
-    print(f"wrote {args.output_jsonl}")
+    atomic_write_jsonl(output_path, rows)
+    print(f"wrote {output_path}")
 
 
 if __name__ == "__main__":

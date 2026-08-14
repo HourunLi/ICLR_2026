@@ -88,7 +88,8 @@ find "$RUN_DIR/features" -maxdepth 1 -type f | sort
 
 JSONL 应有 6 行，`features` 下应有 12 个 `.pt` 文件。
 
-这里故意给 `--output_jsonl` 和 `--feature_dir` 传绝对路径。不要照旧手册混用 `examples/toy_clir.jsonl` 和 `examples/features` 这样的相对路径；JSONL 内的特征路径还会被数据加载器解析一次，混用相对路径容易得到错误的 `examples/examples/features/...`。
+这里使用绝对路径便于审计。toy generator 现在也会在落盘前解析为绝对路径，因此相对参数
+不再产生 `examples/examples/features/...`；旧版本生成的历史 manifest 仍应重新生成。
 
 ## 4. 训练 toy 模型
 
@@ -203,7 +204,8 @@ python -m pytest -q tests/test_clir_smoke.py tests/test_clir_real_data.py
 
 ### 找不到 `.pt`，路径里出现 `examples/examples/features`
 
-这是相对路径被重复拼接。回到第 3 节，使用绝对的 `RUN_DIR` 重新生成 toy JSONL 和特征文件。
+这是旧版 toy manifest 的相对路径被重复拼接。回到第 3 节用当前 generator 重新生成；当前
+版本会把 feature path 写成绝对路径，并有回归测试覆盖相对参数调用。
 
 ### `CUDA initialization` 或 NVIDIA driver 报错
 
@@ -290,7 +292,7 @@ python score_clir.py \
 python -c "import json, pathlib; p=pathlib.Path('$RUN_DIR/clir_toy_scores.jsonl'); rows=[json.loads(line) for line in p.read_text().splitlines()]; print('rows:', len(rows)); print('scored:', sum('clir_score' in row for row in rows)); print('selected:', sum(row['clir_selected_best_of_n'] for row in rows))"
 ```
 
-本手册中的 toy 闭环已在 `SWIFT` 环境中实际验证；当前全仓库 28 个测试全部通过，成功生成 6 条
+本手册中的 toy 闭环已在 `SWIFT` 环境中实际验证；截至 2026-08-14，全仓库 124 个测试全部通过，成功生成 6 条
 toy 数据，训练 3 个 epoch，完成 6 条打分，并为 3 个 query 各选出 1 条候选。
 
 ## 9. 第一条 Phi-3.5-mini + GSM8K 真实对齐 gate
@@ -512,3 +514,76 @@ python summarize_clir.py \
 ```
 
 development-32 及其 24/8 派生 split 只用于工程验收，不允许作为正式 validation 或效果证据。
+
+## 12. Stage 1B v3 原子预检与矩阵执行
+
+第三轮审查后的唯一新口径是 `configs/stage1b_validation_v3.json`。它是 outcome-only
+容量/优化对照，不是 CLIR 专属机制实验。不要继续执行 v2，也不要手敲 `train_clir.py` 默认值。
+
+先运行只读预检并打印九条完整训练命令：
+
+```bash
+cd "$PROJECT_ROOT"
+python scripts/run_stage1b_validation.py --stage preflight
+python scripts/run_stage1b_validation.py --stage train --device cuda
+```
+
+正式运行必须同时满足：本次代码已形成 clean commit、用户明确确认 3×3 GPU 开销、输出矩阵
+无冲突。写入正式 preflight：
+
+```bash
+python scripts/run_stage1b_validation.py --stage preflight --execute
+```
+
+调度器中的每个 job 显式给出一个 seed/variant。示例：
+
+```bash
+python scripts/run_stage1b_validation.py \
+  --stage train --seed 42 --variant clir --device cuda --execute
+python scripts/run_stage1b_validation.py \
+  --stage score --seed 42 --variant clir --device cuda --execute
+python scripts/run_stage1b_validation.py \
+  --stage evaluate --seed 42 --variant clir --execute
+```
+
+九个 cell 都通过 train prior-collapse gate、FP32 score-std gate 与 provenance evaluation 后再汇总：
+
+```bash
+python scripts/run_stage1b_validation.py --stage summarize --execute
+```
+
+launcher 会固定 batch/LR/AMP/workers/gradient clipping/bootstrap 等字段，训练与打分产物记录同一
+experiment protocol SHA256。完整语义、阈值与结论边界见 `docs/stage1b_v3_protocol.md`。
+
+## 13. 外部 CLIR 监督的合并与覆盖审计
+
+Stage 1B v3 manifest 已确认没有 CLIR 辅助标签。不要用 correctness 复制、全零 vector 或
+模型自己的 hidden state 填补这些字段。外部 rewrite/verifier annotation 完成并冻结 hash 后，
+用独立输出文件合并：
+
+```bash
+python scripts/merge_clir_supervision.py \
+  --input-jsonl /absolute/path/base.v5.jsonl \
+  --annotations-jsonl /absolute/path/annotations.v1.jsonl \
+  --output-jsonl /absolute/path/supervised.v1.jsonl \
+  --output-report /absolute/path/supervised.v1.merge.json \
+  --expected-input-sha256 <base_sha256> \
+  --expected-annotations-sha256 <annotations_sha256> \
+  --expected-reconstruction-dim 768
+```
+
+然后按新实验预注册的组件运行 coverage gate：
+
+```bash
+python scripts/audit_clir_supervision.py \
+  --input-jsonl /absolute/path/supervised.v1.jsonl \
+  --expected-input-sha256 <supervised_sha256> \
+  --expected-reconstruction-dim 768 \
+  --require consistency path_hallucination onset_localization \
+            token_advantage progress dual_prior reconstruction \
+  --output-json /absolute/path/supervised.v1.coverage.json
+```
+
+只在实验实际声称使用某组件时才把它列入 `--require`。schema、字段含义、token-ID hash 绑定、
+稀疏标签规则和质量门见 `docs/clir_supervision_protocol.md`。通过后必须发布新的 mechanism
+protocol；不得把监督字段合入或原地修改 outcome-only Stage 1B v3。

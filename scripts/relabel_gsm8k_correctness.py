@@ -34,11 +34,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--label-protocol-config", default=None)
     parser.add_argument(
         "--checker-version",
-        default="clir_gsm8k_numeric_v4",
+        default="clir_gsm8k_numeric_v5",
         choices=(
             "clir_gsm8k_numeric_v2",
             "clir_gsm8k_numeric_v3",
             "clir_gsm8k_numeric_v4",
+            "clir_gsm8k_numeric_v5",
         ),
     )
     parser.add_argument("--overwrite", action="store_true")

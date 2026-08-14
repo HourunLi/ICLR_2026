@@ -2,11 +2,20 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 
+import pytest
 import torch
 
 from src.clir_data import CLIRTrajectoryDataset, write_jsonl
-from train_clir import split_indices
+from train_clir import (
+    LEGACY_RESUME_DEFAULTS,
+    RESUME_PINNED_ARGS,
+    _constant_prior_health,
+    _reconcile_metrics_history,
+    _validate_resume_training_args,
+    split_indices,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -110,6 +119,44 @@ def test_validation_interval_keeps_final_epoch_validation(tmp_path: Path):
     assert checkpoint["metrics"][2]["validation"] is not None
 
 
+def test_epoch_checkpoints_and_experiment_protocol_are_recorded(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    output = tmp_path / "model.pt"
+    epoch_dir = tmp_path / "epochs"
+    protocol = tmp_path / "protocol.json"
+    protocol.write_text(
+        json.dumps({"schema_version": "test-experiment-v1"}),
+        encoding="utf-8",
+    )
+
+    subprocess.run(
+        _command(train, val, output, 2)
+        + [
+            "--epoch_checkpoint_dir", str(epoch_dir),
+            "--experiment_protocol_config", str(protocol),
+        ],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    first = torch.load(epoch_dir / "epoch_001.pt", map_location="cpu", weights_only=False)
+    second = torch.load(epoch_dir / "epoch_002.pt", map_location="cpu", weights_only=False)
+    final = torch.load(output, map_location="cpu", weights_only=False)
+    run = json.loads(Path(f"{output}.run.json").read_text(encoding="utf-8"))
+    assert first["completed_epoch"] == 1
+    assert second["completed_epoch"] == 2
+    assert final["experiment_protocol"]["schema_version"] == "test-experiment-v1"
+    assert run["epoch_checkpoints"] == [
+        str((epoch_dir / "epoch_001.pt").resolve()),
+        str((epoch_dir / "epoch_002.pt").resolve()),
+    ]
+
+
 def test_resume_rejects_changed_optimizer_contract(tmp_path: Path):
     train = tmp_path / "train.jsonl"
     val = tmp_path / "val.jsonl"
@@ -157,3 +204,146 @@ def test_legacy_val_fraction_splits_whole_query_groups(tmp_path: Path):
     assert len(val_queries) == 2
     assert train_queries.isdisjoint(val_queries)
     assert len(train_indices) + len(val_indices) == len(rows)
+
+
+def test_force_restarts_only_failed_zero_epoch_record(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    output = tmp_path / "model.pt"
+    run_path = Path(f"{output}.run.json")
+    previous = {
+        "schema_version": "clir-training-run-v1",
+        "status": "failed",
+        "completed_epoch": 0,
+        "error_type": "KeyboardInterrupt",
+    }
+    run_path.write_text(json.dumps(previous), encoding="utf-8")
+
+    subprocess.run(
+        _command(train, val, output, 1) + ["--force"],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    current = json.loads(run_path.read_text(encoding="utf-8"))
+    assert current["status"] == "completed"
+    assert current["restarted_from_failed_zero_epoch"] == previous
+
+    refused = subprocess.run(
+        _command(train, val, output, 1) + ["--force"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert refused.returncode != 0
+    assert "never overwrites a checkpoint" in refused.stderr
+
+
+def test_resume_uses_declared_defaults_for_legacy_missing_arguments():
+    current_values = {
+        "batch_size": 2,
+        "lr": 1e-3,
+        "weight_decay": 0.0,
+        "val_fraction": 0.0,
+        "seed": 7,
+        "amp_dtype": "none",
+        "skip_feature_finite_check": False,
+        "group_by_semantic_id": False,
+        "prior_phase_mode": "joint",
+        **LEGACY_RESUME_DEFAULTS,
+    }
+    current = SimpleNamespace(**current_values)
+    checkpoint_args = {
+        key: value
+        for key, value in current_values.items()
+        if key not in LEGACY_RESUME_DEFAULTS
+    }
+
+    _validate_resume_training_args(checkpoint_args, current)
+
+    changed = SimpleNamespace(**{**current_values, "val_every_n_epochs": 5})
+    with pytest.raises(ValueError, match="val_every_n_epochs"):
+        _validate_resume_training_args(checkpoint_args, changed)
+
+
+def test_metrics_history_recovers_only_from_checkpoint_truth(tmp_path: Path):
+    metrics = tmp_path / "metrics.jsonl"
+    checkpoint_rows = [{"epoch": 1}, {"epoch": 2}]
+    metrics.write_text(
+        "\n".join(json.dumps(row) for row in [*checkpoint_rows, {"epoch": 3}]) + "\n",
+        encoding="utf-8",
+    )
+
+    recovered, audit = _reconcile_metrics_history(metrics, checkpoint_rows, 2)
+
+    assert recovered == checkpoint_rows
+    assert audit == {
+        "action": "reconciled_metrics_to_checkpoint",
+        "recorded_rows": 3,
+        "checkpoint_rows": 2,
+    }
+    assert [json.loads(line) for line in metrics.read_text().splitlines()] == checkpoint_rows
+
+
+def test_final_checkpoint_resume_recovers_missing_secondary_artifacts(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    output = tmp_path / "model.pt"
+    command = _command(train, val, output, 1)
+    subprocess.run(
+        command,
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    metrics = Path(f"{output}.metrics.jsonl")
+    run_path = Path(f"{output}.run.json")
+    metrics.unlink()
+    run_path.unlink()
+
+    subprocess.run(
+        command + ["--resume_from", str(output)],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    run = json.loads(run_path.read_text(encoding="utf-8"))
+    assert run["status"] == "completed"
+    assert run["completed_epoch"] == 1
+    assert run["recovered_completed_checkpoint"] is True
+    assert run["metrics_recovery"] == {
+        "action": "restored_missing_metrics_from_checkpoint"
+    }
+    assert len(metrics.read_text(encoding="utf-8").splitlines()) == 1
+
+
+def test_constant_prior_health_gate_detects_review_collapse_case():
+    collapsed = _constant_prior_health(
+        positive_count=3666,
+        example_count=4096,
+        final_correctness_bce=0.3366,
+        tolerance=0.02,
+    )
+    learned = _constant_prior_health(
+        positive_count=3666,
+        example_count=4096,
+        final_correctness_bce=0.2032,
+        tolerance=0.02,
+    )
+
+    assert collapsed["constant_prior_bce"] == pytest.approx(0.33589, abs=5e-5)
+    assert collapsed["passed"] is False
+    assert learned["passed"] is True
+    assert set(RESUME_PINNED_ARGS) >= {
+        "prior_collapse_tolerance",
+        "fail_on_prior_collapse",
+    }

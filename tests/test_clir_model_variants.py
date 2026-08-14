@@ -109,6 +109,26 @@ def test_layer_encoder_chunks_normalization_without_changing_outputs():
     )
 
 
+def test_flat_linear_encoder_chunks_raw_width_transform_without_changing_outputs():
+    torch.manual_seed(9)
+    config = RewardConfig(
+        hidden_dim=24,
+        model_variant="encoded_swift",
+        encoder_type="flat_linear",
+        model_dim=12,
+    )
+    model = build_reward_model(config).eval()
+    hidden_states = torch.randn(2, 5, config.hidden_dim)
+    mask = torch.ones(2, 5)
+
+    with torch.no_grad():
+        reference = model(hidden_states, mask=mask)
+        model.input_encoder.max_transform_elements = config.hidden_dim * 2
+        chunked = model(hidden_states, mask=mask)
+
+    assert torch.allclose(chunked["scores"], reference["scores"], atol=1e-6, rtol=1e-6)
+
+
 @pytest.mark.parametrize(
     ("variant", "encoder_type"),
     [
