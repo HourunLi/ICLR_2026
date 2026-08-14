@@ -35,7 +35,7 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - 已添加 `requirements.txt`，核心库版本对齐 SWIFT 官方仓库的 pin（细节见"运行代码"一节）。
 - 当前模型包含：
   - SWIFT-style token reward / gate aggregation；
-  - token-level query/context cross-attention conditional fusion；
+  - token-level query/context cross-attention conditional fusion，通过独立的 `condition_attention_dim` 瓶颈维度做投影，参数量对 `hidden_dim` 保持线性（而不是平方级）；
   - condition relevance 与 condition attention 输出，供定位诊断使用；
   - gate-weighted `token_values` + trajectory residual 的最终 score logit；
   - PRISM-style semantic/style consistency loss；
@@ -80,6 +80,10 @@ CLIR 在 SWIFT-style hidden-state reward backbone 上加入三类监督：
 - **仍需观察，本轮未改动：`token_values` 把 `token_rewards` 和 `progress` 合并后再做幻觉相关监督**。`hallucination_localization_losses` / `pseudo_onset_tail_loss` 现在监督的是 `token_values = token_rewards + progress_score_weight * progress`，而 `progress` 同时还被 `progress_targets` 单独回归。当 `progress_targets` 和 `token_advantage` 来自同一份数据（目前 toy 数据就是这样）时，`token_rewards` 与 `progress` 之间没有显式的分工约束，真实数据接入后需要重新评估要不要拆开监督。这是设计取舍问题，不是逻辑 bug。
 
 本轮复查没有发现新的逻辑 bug。
+
+这一轮源于一个问题："要不要把训练代码改成多卡形式，毕竟是大模型可能跑不起来"。排查下来发现问题不在要不要多卡，而在条件化模块本身：`condition_query`/`condition_key`/`condition_value`（`Linear(hidden_dim, hidden_dim)`）、`condition_fusion` 第一层（`Linear(4*hidden_dim+1, hidden_dim)`）、`complete_reconstructor`（两层 `Linear(hidden_dim, hidden_dim)`）参数量都是 `hidden_dim` 的平方级。`hidden_dim` 在这个项目里对应 SWIFT 论文里"拼接所有 transformer 层"的量级（Llama-3.1-8B 是 33 层 × 4096 = 135,168），toy 数据的 `hidden_dim=8` 完全掩盖了这个问题。实测：修复前在这个真实量级下，光条件化模块就要**约 1827 亿参数**（比 GPT-3 还大），而 SWIFT 自己在同样输入维度下整个 reward model 只要 2.7×10⁵ 参数——完全违背"轻量级 reward model"的立项初衷，而且这个规模不管加多少张卡都不该拿几千条样本去训。
+
+- **已修复并复核：条件化模块参数量对 `hidden_dim` 是平方级**。新增 `condition_attention_dim`（`RewardConfig` 字段，默认 256，已接入 `train_clir.py` 的 `--condition_attention_dim` CLI 参数），`condition_query`/`condition_key`/`condition_value`/新增的 `condition_hidden_proj` 先把 `hidden_dim` 投影到这个小维度，交互特征和 `condition_fusion` 都在小维度里算，最后用新增的 `condition_delta_out` 投影回 `hidden_dim`；`complete_reconstructor` 同理改成 `hidden_dim -> condition_attention_dim -> hidden_dim` 的沙漏结构。实测同样 `hidden_dim=135,168` 的量级，修复后整个模型约 2.79 亿参数，是修复前的约 1/655，单卡（甚至 CPU）都能正常训练。加了 `test_condition_module_params_scale_linearly_with_hidden_dim` 防止这个问题再次出现，`pytest tests/test_clir_smoke.py` 11/11 通过；`condition_relevance`/`condition_attention`/`token_features` 等外部契约的 shape 全部不变，其余 10 个已有测试无需修改即全部通过；也重新跑了一遍 toy 端到端流程（带 `--condition_attention_dim`）确认无回归。细节见 `docs/handoff.md` 第 3.2 节和 7.2 节。
 
 ## 未来解决方向
 
@@ -134,6 +138,7 @@ python train_clir.py \
   --output_model outputs/clir_toy.pt \
   --hidden_dim 8 \
   --projection_dim 4 \
+  --condition_attention_dim 4 \
   --batch_size 4 \
   --epochs 3 \
   --lr 1e-3 \
@@ -147,6 +152,7 @@ python train_clir.py \
 
 - `--group_by_semantic_id` 默认开启，用于保证同语义不同风格 rewrite 更容易进入同一 batch，从而触发 PRISM consistency。
 - `--prior_phase_mode alternate` 默认开启，奇数 epoch 训练 key-prior phase，偶数 epoch 训练 complete-prior phase；也可设为 `joint`、`key` 或 `complete`。
+- `--condition_attention_dim`（默认 256）是条件化 attention/fusion/reconstruction 模块的瓶颈维度，让这几层的参数量对 `hidden_dim` 保持线性而不是平方级；真实 `hidden_dim` 很大（SWIFT 那种拼接多层的量级）时不设这个会导致模型参数量爆炸，toy 数据 `hidden_dim` 很小时可以调小（比如上面例子里的 4）。
 - `--condition_attention_temperature` 控制 generated-token 到 query/context condition tokens 的 attention sharpness。
 - `--progress_score_weight` 控制 progress head 进入最终 `token_values` 的权重。
 - `query_id` 用于 Best-of-N candidate 分组；`semantic_id` 用于 rewrite/augmentation consistency 分组；`style_id` 或 `domain_id` 用于 spurious attribute 分组。
@@ -180,7 +186,7 @@ python score_clir.py \
 pytest tests/test_clir_smoke.py
 ```
 
-已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（10/10）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
+已在装有 `torch`（2.13, CPU）/ `pytest` 的环境中实测通过（11/11）；同时跑通了 `create_toy_clir_data.py -> train_clir.py -> score_clir.py` 端到端流程，无崩溃、无 NaN。如果所在环境没有 `torch` / `pytest`，至少应先跑一遍语法检查：
 
 ```bash
 python -m py_compile \

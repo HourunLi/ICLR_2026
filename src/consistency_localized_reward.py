@@ -11,7 +11,10 @@ It uses SWIFT as an architectural reference, not as a dependency:
 Inputs are pre-extracted hidden states with shape [batch, time, hidden_dim].
 Optional condition states can encode query/context and are fused into token
 features through token-level attention before reward and localization heads are
-applied.
+applied. hidden_dim is expected to be large (SWIFT-style concatenation of many
+transformer layers), so the condition attention/fusion/reconstruction layers are
+routed through a small `condition_attention_dim` bottleneck to keep this model's
+parameter count linear in hidden_dim rather than quadratic.
 """
 
 from __future__ import annotations
@@ -28,6 +31,7 @@ import torch.nn.functional as F
 class RewardConfig:
     hidden_dim: int
     projection_dim: int = 256
+    condition_attention_dim: int = 256
     consistency_margin: float = 0.2
     negative_tail_margin: float = 0.5
     pseudo_onset_threshold: float = 0.5
@@ -59,15 +63,26 @@ class ConsistencyLocalizedReward(nn.Module):
     def __init__(self, config: RewardConfig) -> None:
         super().__init__()
         self.config = config
-        self.condition_query = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
-        self.condition_key = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
-        self.condition_value = nn.Linear(config.hidden_dim, config.hidden_dim, bias=False)
+        attn_dim = config.condition_attention_dim
+        # Every condition-attention/fusion/reconstruction layer below is sized
+        # against attn_dim, not hidden_dim. hidden_dim is meant to be a SWIFT-style
+        # concatenation of many transformer layers (e.g. ~1.3e5 for a 33-layer 8B
+        # model), so any Linear(hidden_dim, hidden_dim) here would be quadratic in
+        # hidden_dim -- at that scale a naive hidden_dim x hidden_dim design turns
+        # this "lightweight" reward model into ~1.8e11 parameters (bigger than
+        # GPT-3) instead of the few hundred million it should be. Routing through
+        # a small bottleneck keeps every one of these terms linear in hidden_dim.
+        self.condition_query = nn.Linear(config.hidden_dim, attn_dim, bias=False)
+        self.condition_key = nn.Linear(config.hidden_dim, attn_dim, bias=False)
+        self.condition_value = nn.Linear(config.hidden_dim, attn_dim, bias=False)
+        self.condition_hidden_proj = nn.Linear(config.hidden_dim, attn_dim, bias=False)
         self.condition_fusion = nn.Sequential(
-            nn.LayerNorm(config.hidden_dim * 4 + 1),
-            nn.Linear(config.hidden_dim * 4 + 1, config.hidden_dim),
+            nn.LayerNorm(attn_dim * 4 + 1),
+            nn.Linear(attn_dim * 4 + 1, attn_dim),
             nn.GELU(),
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(attn_dim, attn_dim),
         )
+        self.condition_delta_out = nn.Linear(attn_dim, config.hidden_dim)
         self.feature_norm = nn.LayerNorm(config.hidden_dim)
         self.token_reward_head = nn.Linear(config.hidden_dim, 2)
         self.hallucination_head = nn.Linear(config.hidden_dim, 1)
@@ -76,9 +91,9 @@ class ConsistencyLocalizedReward(nn.Module):
         self.key_prior_head = nn.Linear(config.hidden_dim, 1)
         self.complete_prior_head = nn.Linear(config.hidden_dim, 1)
         self.complete_reconstructor = nn.Sequential(
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(config.hidden_dim, attn_dim),
             nn.GELU(),
-            nn.Linear(config.hidden_dim, config.hidden_dim),
+            nn.Linear(attn_dim, config.hidden_dim),
         )
         self.projector = nn.Sequential(
             nn.LayerNorm(config.hidden_dim),
@@ -349,17 +364,18 @@ class ConsistencyLocalizedReward(nn.Module):
         matched_keys = torch.matmul(attention, keys)
         relevance = (queries * matched_keys).sum(dim=-1) * mask * has_condition[:, None].to(hidden_states.dtype)
 
+        hidden_proj = self.condition_hidden_proj(hidden_states)
         fusion_input = torch.cat(
             [
-                hidden_states,
+                hidden_proj,
                 context,
-                hidden_states * context,
-                hidden_states - context,
+                hidden_proj * context,
+                hidden_proj - context,
                 relevance.unsqueeze(-1),
             ],
             dim=-1,
         )
-        delta = self.condition_fusion(fusion_input)
+        delta = self.condition_delta_out(self.condition_fusion(fusion_input))
         active_rows = has_condition[:, None, None].to(hidden_states.dtype)
         conditioned = self.feature_norm(hidden_states + delta * mask.unsqueeze(-1) * active_rows)
         token_features = torch.where(has_condition[:, None, None], conditioned, hidden_states)
