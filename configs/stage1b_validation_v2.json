@@ -1,0 +1,160 @@
+{
+  "schema_version": "clir-stage1b-validation-v2",
+  "evidence_tier": "expanded real validation",
+  "supersedes": "configs/stage1b_validation_v1.json",
+  "purpose": "audit-amended Stage 1B with checker v4 and reproducible scoring, frozen before inspecting formal metrics",
+  "protocol_components": {
+    "acquisition": {
+      "config": "configs/phi35_gsm8k_pilot_v2.json",
+      "protocol_sha256": "739628100286cd1a608e90e79e25f552994fd9c120d1c49947c19f770eba7211",
+      "acquisition_protocol_sha256": "8d4afea952304c672f3aaff37c7d9f4c6e7e8f0b427d431cfdfd5f2c86911ca0",
+      "status": "reuse already acquired Stage 1B v1 features without regeneration"
+    },
+    "labels": {
+      "config": "configs/phi35_gsm8k_pilot_v3.json",
+      "checker": "clir_gsm8k_numeric_v4",
+      "label_protocol_sha256": "e73ee0a150af07a9f8ab28084af0c6aa0ec54cea877e0c34046bda72dba2f8b3"
+    },
+    "evaluation": {
+      "config": "configs/phi35_gsm8k_pilot_v3.json",
+      "evaluation_protocol_sha256": "a5dc24d2c6229a4e44586e1ebe55e89b02c0472c221849d24f11bc83fa30dc76"
+    }
+  },
+  "split_manifest": "configs/splits/gsm8k_phi35_v2.json",
+  "split_manifest_sha256": "8cb622a38dafff36d041d66a69577d682ba5b4f11e33ab37dd1a62f0936c6d69",
+  "validation_membership_sha256": "544c895b85b0c540b7a04068822ff75983a52148b5b493ef0ab03217e09c2da6",
+  "audit_amendment": {
+    "trigger": "second-round code review discovered boxed prompt-placeholder false negatives before formal metrics were inspected",
+    "code_commit": "41bc463624cab38eb463a6daa5c7f10fe2c33137",
+    "v3_outputs_status": "pre-audit only; never eligible for the formal Stage 1B conclusion",
+    "checker_v4_policy": {
+      "boxed_placeholder": "ignore only empty, Answer, or Your Answer boxes; substantive text boxes remain authoritative",
+      "percent": "fraction-to-percentage-point equivalence requires an explicit matching percent or probability-percent context"
+    },
+    "train_transitions": {
+      "0_to_1": 2,
+      "1_to_0": 0
+    },
+    "validation_transitions": {
+      "0_to_1": 16,
+      "1_to_0": 0
+    },
+    "review_claimed_validation_false_negatives": 18,
+    "independently_confirmed_validation_false_negatives": 16,
+    "excluded_review_cases": [
+      "gsm8k-train-05191-cand-002: computes 80 percentage points times $2 as $1.60 instead of $160",
+      "gsm8k-train-03921-cand-010: reports 3.34 instead of the reference averaging procedure's 4"
+    ]
+  },
+  "manifests": {
+    "train": {
+      "canonical": "run_artifacts/stage1b_v2/labels/train_extracted.v4.jsonl",
+      "canonical_sha256": "c698dfa8ddac5981066a6bd63532987e8366ad9f3332ed8b3184f18f59ff4d0f",
+      "local_sha256": "2ce546c1ff9bb966f11978ce0ce51edd2a4f552ee29b6f8f97e8d727c72e6745",
+      "rows": 4096,
+      "queries": 512,
+      "candidates_per_query": 8,
+      "correct": 3666,
+      "incorrect": 430
+    },
+    "validation": {
+      "canonical": "run_artifacts/stage1b_v2/labels/validation_extracted.v4.jsonl",
+      "canonical_sha256": "dcd9ae9e6a38efd5af5ff919a99b52bf5ac8577f1e6a6fe7f6f2036657ad3bae",
+      "local_sha256": "42d83ab29bcbf7070f5480b6f209f522aa402d841d850c6fea3c9835c999d801",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16,
+      "correct": 7140,
+      "incorrect": 860,
+      "mixed_queries": 151,
+      "all_correct_queries": 337,
+      "all_wrong_queries": 12
+    }
+  },
+  "feature_integrity_gate": {
+    "command": "scripts/verify_feature_mirror.py",
+    "required": true,
+    "failure_policy": "do not train or score if any referenced payload is missing or has a mismatched SHA256",
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "rows": 12096,
+    "unique_payloads": 13108,
+    "verified_payloads": 13108,
+    "total_bytes": 725761877084,
+    "failure_count": 0,
+    "verification_code_commit": "41bc463624cab38eb463a6daa5c7f10fe2c33137",
+    "verification_code_dirty": false
+  },
+  "models": {
+    "variants": ["strict_swift", "encoded_swift", "clir"],
+    "shared_encoder_for_encoded_swift_and_clir": {
+      "encoder_type": "layer_transformer",
+      "model_dim": 768,
+      "num_feature_layers": 33,
+      "per_layer_dim": 3072,
+      "layer_encoder_dim": 256,
+      "layer_encoder_blocks": 2,
+      "layer_encoder_heads": 8,
+      "layer_pool_queries": 4,
+      "projection_dim": 256,
+      "encoder_dropout": 0.0
+    }
+  },
+  "training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "checkpoint_selection": "final_epoch",
+    "early_stopping": false,
+    "validation_every_n_epochs": 5,
+    "batch_size": 2,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 0.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 0,
+    "pin_memory": false,
+    "persistent_workers": false,
+    "group_by_semantic_id": false,
+    "class_reweighting": false,
+    "objective": "pointwise_correctness_bce",
+    "prior_phase_mode": "joint",
+    "auxiliary_target_policy": "all absent CLIR auxiliary targets remain masked with zero applicable count",
+    "unused_condition_policy": "strict_swift and encoded_swift do not load condition payloads"
+  },
+  "scoring": {
+    "batch_size": 2,
+    "amp_dtype": "bfloat16",
+    "checkpoint_sha256_required": true,
+    "input_manifest_sha256_required": true,
+    "per_row_provenance_required": true
+  },
+  "evaluation": {
+    "membership": "validation",
+    "query_count": 500,
+    "k": [1, 2, 4, 8, 16],
+    "primary_metric": "reward_bon_accuracy@16",
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 10000,
+    "confidence_level": 0.95,
+    "aggregate_definition": "mean across training seeds within each query, then bootstrap queries",
+    "required_diagnostics": [
+      "all_query_and_mixed_query_accuracy",
+      "correct_vs_wrong_score_margin",
+      "score_length_correlation",
+      "selection_stability_across_seeds",
+      "layer_attention_entropy_and_top_layers"
+    ]
+  },
+  "decision_rule": {
+    "stable_clir_increment_requires": [
+      "encoded_swift_to_clir_delta_positive_in_at_least_two_of_three_seeds",
+      "mean_encoded_swift_to_clir_delta_positive",
+      "query_paired_aggregate_bootstrap_95pct_ci_lower_bound_above_zero"
+    ],
+    "failure_interpretation": "retain as no stable correctness-only backbone gain; do not inspect pilot_test"
+  },
+  "test_policy": "do not acquire or inspect pilot_test until the validation protocol and conclusion are locked",
+  "status": "frozen_before_v4_retraining_and_before_formal_metric_inspection"
+}
