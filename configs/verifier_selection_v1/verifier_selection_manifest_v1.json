@@ -1,0 +1,38 @@
+{
+  "candidate_verifier_outputs_used": false,
+  "counts": {
+    "base_sources": 16,
+    "decisions": {
+      "accept": 24,
+      "reject": 32,
+      "review": 8
+    },
+    "domains": {
+      "code_rules": 16,
+      "evidence": 16,
+      "logic_procedure": 16,
+      "quantitative": 16
+    },
+    "items": 64,
+    "source_correctness": {
+      "0": 32,
+      "1": 32
+    },
+    "styles": {
+      "explanatory_conversational": 32,
+      "terse_formal": 32
+    }
+  },
+  "evidence_tier": "pipeline_pilot",
+  "pilot_test_used": false,
+  "schema_version": "clir-verifier-selection-manifest-v1",
+  "secondary_annotator_may_read": [
+    "verifier_selection_items_v1.jsonl",
+    "verifier_selection_annotation_guide_v1.md",
+    "verifier_selection_secondary_prompt_v1.md"
+  ],
+  "secondary_annotator_must_not_read": [
+    "verifier_selection_labels_primary_v1.jsonl",
+    "verifier_selection_manifest_v1.json"
+  ]
+}

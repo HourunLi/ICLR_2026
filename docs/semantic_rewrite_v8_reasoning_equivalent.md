@@ -32,6 +32,11 @@ v8 将 rewrite 关系从“逐行、逐数字保持的同轨迹表面改写”�
 `tests/test_clir_reasoning_rewrite.py` 覆盖其核心 fail-closed 行为。该状态只证明纯函数契约通过测试，不代表
 任何几十 B verifier 已被选择、运行或校准。
 
+同日，`configs/verifier_selection_v1/` 已生成模型盲的 64-pair 双标注 selection package：16 个 base
+sources × 4 个受控 variants，覆盖四个领域、32 correct/32 incorrect source、两个 style 各 32 条，primary
+分布为 24 accept/32 reject/8 review。匿名 items 不携带 source correctness 或 gold 字段；secondary 只能
+读取 items、annotation guide 和隔离 prompt。当前等待独立 secondary annotation，尚未运行任何候选 verifier。
+
 ## 1. 关系定义
 
 ### 1.1 接受的变化
