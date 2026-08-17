@@ -49,6 +49,7 @@ class RewardConfig:
 
     final_weight: float = 1.0
     consistency_weight: float = 1.0
+    negative_consistency_weight: float = 1.0
     score_consistency_weight: float = 0.1
     hallucination_weight: float = 1.0
     mil_weight: float = 0.25
@@ -123,6 +124,8 @@ class RewardConfig:
             raise ValueError("layer_pool_queries must be positive")
         if not 0.0 <= self.encoder_dropout < 1.0:
             raise ValueError("encoder_dropout must be in [0, 1)")
+        if self.negative_consistency_weight < 0.0:
+            raise ValueError("negative_consistency_weight must be non-negative")
 
 
 class IdentityFeatureEncoder(nn.Module):
@@ -618,6 +621,7 @@ class ConsistencyLocalizedReward(nn.Module):
                 batch["semantic_ids"],
                 batch["style_ids"],
                 margin=self.config.consistency_margin,
+                negative_weight=self.config.negative_consistency_weight,
                 score_weight=self.config.score_consistency_weight,
                 metadata_mask=batch.get("consistency_mask"),
             )
@@ -831,6 +835,7 @@ def prism_style_consistency_loss(
     semantic_ids: Tensor,
     style_ids: Tensor,
     margin: float,
+    negative_weight: float,
     score_weight: float,
     metadata_mask: Optional[Tensor] = None,
 ) -> Dict[str, Tensor]:
@@ -871,7 +876,7 @@ def prism_style_consistency_loss(
     else:
         negative = zero
 
-    total = positive + negative + score_weight * score_consistency
+    total = positive + negative_weight * negative + score_weight * score_consistency
     return {"positive": positive, "negative": negative, "score": score_consistency, "total": total}
 
 

@@ -74,3 +74,24 @@ Phi raw mean 本身是 `0.99649` positive / `0.98184` control，gap `0.01465`；
 已经较近，`relu(sim-margin)` negative 项有大得多的下降空间，训练优先通过大范围排斥降低 loss，并
 牺牲了部分 positive 和 score consistency。下一实验应冻结数据不变，只比较 loss 级最小改动（例如
 去掉 negative、降低 negative 权重或使用相对/温度化目标）；不得把继续增加 rewrite 数量当作修复。
+
+## Loss-weight ablation v1
+
+为保持历史行为，新增独立 `negative_consistency_weight`，默认 `1.0`。相同 manifest、模型初始化、
+split、batch、seed 和两 epoch 预算下，只改变 negative/score 权重：
+
+| negative / score | positive cosine | positive min | cross-query cosine | gap | mean score delta |
+|---|---:|---:|---:|---:|---:|
+| no consistency | 0.99954 | 0.99890 | 0.99793 | 0.00162 | 0.03656 |
+| 0 / 0.1 | 0.99992 | 0.99983 | 0.99954 | 0.00038 | 0.02350 |
+| 0.05 / 0.1 | 0.99992 | 0.99981 | 0.99944 | 0.00048 | 0.02285 |
+| 0.20 / 0.1 | 0.99981 | 0.99954 | 0.99798 | 0.00183 | 0.02519 |
+| 0.50 / 0.1 | 0.99791 | 0.99355 | 0.92210 | 0.07581 | 0.06036 |
+| **0.50 / 1.0** | **0.99879** | **0.99710** | **0.96633** | **0.03246** | **0.02919** |
+| historical 1.0 / 0.1 | 0.97492 | 0.68218 | 0.32926 | 0.64566 | 0.12138 |
+
+Positive-only 与 negative ≤0.2 都不能阻止全局 collapse。negative=0.5 开始产生有效分离，但原
+score weight 0.1 让同 semantic score delta 恶化。固定 negative=0.5、把 score weight 提至 1.0 后，
+positive 仍高于随机初始化（0.99879 vs 0.99565），cross-query 低于随机初始化（0.96633 vs 0.98040），
+score delta 也低于随机初始化（0.02919 vs 0.05168）。它是当前 tiny pilot 的最佳折中，但仍只是一组
+单 seed、全正例、development 数据的 loss calibration，不授权替换正式默认值或形成效果结论。

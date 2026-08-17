@@ -14,6 +14,7 @@ from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
     dual_prior_losses,
+    prism_style_consistency_loss,
     path_hallucination_probability,
     path_level_hallucination_mil,
     path_no_hallucination_log_probability,
@@ -54,6 +55,27 @@ def test_clir_forward_and_loss():
     assert outputs["condition_relevance"].shape == (4, 6)
     assert losses["total"].ndim == 0
     losses["total"].backward()
+
+
+def test_negative_consistency_weight_preserves_default_and_can_disable_repulsion():
+    representations = torch.tensor(
+        [[1.0, 0.0], [1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]
+    )
+    scores = torch.zeros(4)
+    semantic = torch.tensor([1, 1, 2, 2])
+    styles = torch.tensor([1, 2, 1, 2])
+    default = prism_style_consistency_loss(
+        representations, scores, semantic, styles,
+        margin=0.2, negative_weight=1.0, score_weight=0.1,
+    )
+    disabled = prism_style_consistency_loss(
+        representations, scores, semantic, styles,
+        margin=0.2, negative_weight=0.0, score_weight=0.1,
+    )
+    assert default["negative"].item() == pytest.approx(0.8)
+    assert default["total"].item() == pytest.approx(0.8)
+    assert disabled["negative"].item() == pytest.approx(0.8)
+    assert disabled["total"].item() == pytest.approx(0.0)
 
 
 def test_toy_generator_relative_paths_load_without_double_prefix(tmp_path: Path):

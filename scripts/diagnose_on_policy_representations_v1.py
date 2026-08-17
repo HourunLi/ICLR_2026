@@ -24,6 +24,11 @@ PUBLISHED = ROOT / "run_artifacts/on_policy_pilot0_v1/published_silver_v1/train_
 SOURCE = ROOT / "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl"
 CHECKPOINTS = {
     "no_consistency": ROOT / "run_artifacts/on_policy_pilot0_v1/train_no_consistency_v1/model.pt",
+    "positive_only": ROOT / "run_artifacts/on_policy_pilot0_v1/train_positive_only_v1/model.pt",
+    "negative_0.05": ROOT / "run_artifacts/on_policy_pilot0_v1/train_negative_005_v1/model.pt",
+    "negative_0.20": ROOT / "run_artifacts/on_policy_pilot0_v1/train_negative_020_v1/model.pt",
+    "negative_0.50": ROOT / "run_artifacts/on_policy_pilot0_v1/train_negative_050_v1/model.pt",
+    "negative_0.50_score_1.00": ROOT / "run_artifacts/on_policy_pilot0_v1/train_negative_050_score_100_v1/model.pt",
     "consistency": ROOT / "run_artifacts/on_policy_pilot0_v1/train_consistency_v1/model.pt",
 }
 OUTPUT = ROOT / "run_artifacts/on_policy_pilot0_v1/representation_diagnostic_v1/report.json"

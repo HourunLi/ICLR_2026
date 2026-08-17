@@ -128,6 +128,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument("--final_weight", type=float, default=1.0)
     parser.add_argument("--consistency_weight", type=float, default=1.0)
+    parser.add_argument("--negative_consistency_weight", type=float, default=1.0)
     parser.add_argument("--score_consistency_weight", type=float, default=0.1)
     parser.add_argument("--hallucination_weight", type=float, default=1.0)
     parser.add_argument("--mil_weight", type=float, default=0.25)
@@ -177,6 +178,7 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         projection_dim=args.projection_dim,
         final_weight=args.final_weight,
         consistency_weight=args.consistency_weight,
+        negative_consistency_weight=args.negative_consistency_weight,
         score_consistency_weight=args.score_consistency_weight,
         hallucination_weight=args.hallucination_weight,
         mil_weight=args.mil_weight,
