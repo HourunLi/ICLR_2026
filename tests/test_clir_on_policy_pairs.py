@@ -84,3 +84,13 @@ def test_silver_acceptance_is_fail_closed_and_prompt_projection_is_blind():
     assert "correctness" not in projected
     assert "normalized_outcome" not in projected
     assert "row_sha256" not in projected
+
+
+def test_published_manifest_drop_list_covers_all_mechanism_supervision():
+    from scripts.materialize_on_policy_pilot0_v1 import DROP_FIELDS
+
+    assert {
+        "hallucination_onset", "path_hallucinated", "token_advantage",
+        "progress_targets", "key_prior_target", "complete_prior_target",
+        "complete_reconstruction_target",
+    } <= DROP_FIELDS
