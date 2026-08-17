@@ -2,6 +2,7 @@ import hashlib
 from pathlib import Path
 
 from scripts.audit_verifier_selection_v1 import load_jsonl, validate_labels
+from scripts.run_verifier_selection_v1 import parse_candidate_annotation, prompt_for
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,3 +56,26 @@ def test_secondary_and_adjudicated_gold_are_complete():
     assert sum(row["decision"] == "accept" for row in gold) == 32
     assert sum(row["decision"] == "reject" for row in gold) == 32
     assert all(row["gold_decision"] == row["secondary_decision"] for row in adjudications)
+
+
+def test_candidate_prompt_is_model_blind_and_item_bound():
+    item = load_jsonl(DATA / "verifier_selection_items_v1.jsonl")[0]
+    guide = (DATA / "verifier_selection_annotation_guide_v1.md").read_text(
+        encoding="utf-8"
+    )
+    messages = prompt_for(item, guide)
+    rendered = "\n".join(message["content"] for message in messages)
+    assert item["item_id"] in rendered
+    assert item["source_trajectory"] in rendered
+    assert "verifier_selection_gold" not in rendered
+    assert "labels_primary" not in rendered
+
+
+def test_candidate_parser_allows_only_one_exact_json_fence():
+    assert parse_candidate_annotation('{"a":1}') == ({"a": 1}, "strict_json")
+    assert parse_candidate_annotation('```json\n{"a":1}\n```') == (
+        {"a": 1},
+        "single_json_fence",
+    )
+    with __import__("pytest").raises(ValueError):
+        parse_candidate_annotation('Here:\n```json\n{"a":1}\n```')
