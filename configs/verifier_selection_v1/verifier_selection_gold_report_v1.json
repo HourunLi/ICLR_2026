@@ -1,0 +1,11 @@
+{
+  "adjudications_sha256": "98cff92b4ae8c2de13533013f5750d2bf382b19ff5ef50ca7c92c586a91405b4",
+  "decision_adjudications": 12,
+  "decision_agreements": 52,
+  "gold_field_source": "secondary_after_schema_validation_and_manual_decision_adjudication",
+  "gold_sha256": "60bc77e155f7767100639268b9bac8f63eecae4566119ea1861431e486cf3624",
+  "items": 64,
+  "primary_preserved": true,
+  "schema_version": "clir-verifier-selection-gold-report-v1",
+  "secondary_preserved": true
+}

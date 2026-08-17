@@ -41,3 +41,17 @@ def test_secondary_prompt_enforces_annotation_isolation():
     assert "verifier_selection_labels_primary_v1.jsonl" in prompt
     assert "Do not read or search" in prompt
     assert "Do not report label counts" in prompt
+
+
+def test_secondary_and_adjudicated_gold_are_complete():
+    items = load_jsonl(DATA / "verifier_selection_items_v1.jsonl")
+    secondary = load_jsonl(DATA / "verifier_selection_labels_secondary_v1.jsonl")
+    gold = load_jsonl(DATA / "verifier_selection_gold_v1.jsonl")
+    adjudications = load_jsonl(DATA / "verifier_selection_adjudications_v1.jsonl")
+    validate_labels(items, secondary, primary=False)
+    validate_labels(items, gold, primary=False)
+    assert len(adjudications) == 12
+    assert {row["decision"] for row in gold} == {"accept", "reject"}
+    assert sum(row["decision"] == "accept" for row in gold) == 32
+    assert sum(row["decision"] == "reject" for row in gold) == 32
+    assert all(row["gold_decision"] == row["secondary_decision"] for row in adjudications)

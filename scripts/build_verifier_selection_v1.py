@@ -322,9 +322,13 @@ def main() -> None:
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
 
-    hash_targets = sorted(
-        path for path in OUT.iterdir() if path.name != "SHA256SUMS" and path.is_file()
-    )
+    hash_targets = [
+        OUT / "verifier_selection_annotation_guide_v1.md",
+        OUT / "verifier_selection_items_v1.jsonl",
+        OUT / "verifier_selection_labels_primary_v1.jsonl",
+        OUT / "verifier_selection_manifest_v1.json",
+        OUT / "verifier_selection_secondary_prompt_v1.md",
+    ]
     (OUT / "SHA256SUMS").write_text(
         "".join(f"{sha256(path)}  {path.name}\n" for path in hash_targets), encoding="utf-8"
     )

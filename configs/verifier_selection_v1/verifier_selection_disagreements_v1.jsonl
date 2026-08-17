@@ -1,0 +1,12 @@
+{"base_source_id": "VB001", "domain": "quantitative", "item_id": "VS002", "primary_decision": "reject", "secondary_decision": "accept"}
+{"base_source_id": "VB001", "domain": "quantitative", "item_id": "VS004", "primary_decision": "review", "secondary_decision": "accept"}
+{"base_source_id": "VB003", "domain": "quantitative", "item_id": "VS012", "primary_decision": "review", "secondary_decision": "reject"}
+{"base_source_id": "VB005", "domain": "code_rules", "item_id": "VS018", "primary_decision": "reject", "secondary_decision": "accept"}
+{"base_source_id": "VB005", "domain": "code_rules", "item_id": "VS020", "primary_decision": "review", "secondary_decision": "accept"}
+{"base_source_id": "VB007", "domain": "code_rules", "item_id": "VS028", "primary_decision": "review", "secondary_decision": "reject"}
+{"base_source_id": "VB009", "domain": "evidence", "item_id": "VS034", "primary_decision": "reject", "secondary_decision": "accept"}
+{"base_source_id": "VB009", "domain": "evidence", "item_id": "VS036", "primary_decision": "review", "secondary_decision": "accept"}
+{"base_source_id": "VB011", "domain": "evidence", "item_id": "VS044", "primary_decision": "review", "secondary_decision": "reject"}
+{"base_source_id": "VB013", "domain": "logic_procedure", "item_id": "VS050", "primary_decision": "reject", "secondary_decision": "accept"}
+{"base_source_id": "VB013", "domain": "logic_procedure", "item_id": "VS052", "primary_decision": "review", "secondary_decision": "accept"}
+{"base_source_id": "VB015", "domain": "logic_procedure", "item_id": "VS060", "primary_decision": "review", "secondary_decision": "reject"}
