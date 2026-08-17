@@ -1,0 +1,17 @@
+{
+  "schema_version": "clir-on-policy-equivalence-pilot-config-v1",
+  "route": "A_on_policy_equivalence_mining",
+  "evidence_tier": "pipeline_pilot",
+  "source_manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+  "source_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+  "split_manifest": "configs/splits/gsm8k_phi35_v2.json",
+  "split_manifest_sha256": "064339ea2d7dd952aae038526e36db21fc32f704e1361a63e083c68e832c3adf",
+  "membership": "development_32",
+  "correctness": 1,
+  "max_pairs_per_query": 4,
+  "ranking": "descending_absolute_output_token_count_gap_then_candidate_indices",
+  "output_root": "run_artifacts/on_policy_pilot0_v1/candidate_build",
+  "relation_status": "unverified_high_recall_candidate",
+  "reasoning_equivalence_claim_allowed": false,
+  "pilot_test_access_allowed": false
+}
