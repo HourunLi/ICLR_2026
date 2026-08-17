@@ -2,7 +2,8 @@
 
 最后更新：2026-08-17
 
-状态：待实现设计；尚未冻结 generator/verifier checkpoint、source manifest、prompt、阈值或 blind protocol。
+状态：第一阶段纯函数契约已实现；尚未实现模型 launcher，且未冻结 generator/verifier checkpoint、source
+manifest、prompt、阈值或 blind protocol。
 
 证据层级：`pipeline pilot`。本文不构成 rewrite 质量、consistency loss 合理性或 CLIR 机制效果证据。
 
@@ -25,6 +26,11 @@ v8 将 rewrite 关系从“逐行、逐数字保持的同轨迹表面改写”�
 - v1--v7 artifact 和原 v8 span-locking 审计方案保留为历史，不覆盖、不改写成已实现事实。
 
 原 span-locking 方案由本文 supersede 为未来可选的 `surface_equivalent` 路径，不再是 v8 主路径。
+
+截至 2026-08-17，`src/clir_reasoning_rewrite.py` 已实现严格 verifier JSON/parser、双向 claim schema、
+可选 domain-checker 契约、程序派生的 `accepted/rejected/review_required` 状态，以及第一版通用软风险探针；
+`tests/test_clir_reasoning_rewrite.py` 覆盖其核心 fail-closed 行为。该状态只证明纯函数契约通过测试，不代表
+任何几十 B verifier 已被选择、运行或校准。
 
 ## 1. 关系定义
 
@@ -624,4 +630,3 @@ provenance，不能包含隐藏的 acceptance 逻辑。
 7. v9-blind 的 source 数、完整 group 门槛和 unseal 流程；
 8. original view 是否与两个 rewrite 一起写入 consistency manifest；
 9. 何时对 B relation 与当前 representation loss 的兼容性做 ablation。
-
