@@ -21,6 +21,7 @@ CHECKER_SCHEMA = "clir-reasoning-rewrite-domain-checker-v1"
 
 CLAIM_RELATIONS = {
     "equivalent",
+    "entailed_elaboration",
     "preserved_implicitly",
     "omitted",
     "contradicted",
@@ -29,6 +30,7 @@ CLAIM_RELATIONS = {
 }
 CONFIDENCE_VALUES = {"high", "medium", "low"}
 MODEL_DECISIONS = {"accept", "reject", "review"}
+STYLE_IDS = {"terse_formal", "explanatory_conversational"}
 
 _TOP_LEVEL_KEYS = {
     "schema_version",
@@ -36,6 +38,7 @@ _TOP_LEVEL_KEYS = {
     "rewrite_to_source",
     "global_relation",
     "error_alignment",
+    "style_assessment",
     "risk_review",
     "confidence",
     "decision",
@@ -81,6 +84,7 @@ _ERROR_KEYS = {
     "same_downstream_effect",
 }
 _RISK_REVIEW_KEYS = {"risk_id", "resolved", "explanation"}
+_STYLE_ASSESSMENT_KEYS = {"target_style", "satisfied", "evidence"}
 
 _POSITIVE_GLOBAL_KEYS = {
     "same_task_and_goal",
@@ -146,6 +150,57 @@ def parse_strict_json_object(text: str) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("Verifier output must be one JSON object")
     return parsed
+
+
+def parse_tagged_rewritten_response(text: str) -> str:
+    """Extract one complete trajectory from the strict generator wrapper."""
+
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("Generator output must be non-empty text")
+    payload = text.strip()
+    opening = "<rewritten_response>"
+    closing = "</rewritten_response>"
+    if payload.count(opening) != 1 or payload.count(closing) != 1:
+        raise ValueError("Generator output must contain exactly one rewrite wrapper")
+    if not payload.startswith(opening) or not payload.endswith(closing):
+        raise ValueError("Generator output contains non-whitespace outside the wrapper")
+    response = payload[len(opening) : -len(closing)]
+    if response.startswith("\n"):
+        response = response[1:]
+    if response.endswith("\n"):
+        response = response[:-1]
+    if not response.strip():
+        raise ValueError("Generator rewrite is empty")
+    return response
+
+
+_GENERATOR_SYSTEM_PROMPT = """You are rewriting an existing reasoning trajectory, not solving the problem again. Create a meaningfully different presentation and organization while preserving the same core premises, reasoning method, key inferences, intermediate conclusions, final conclusion, qualifications, and any original reasoning error. You may merge, split, or reorder explanatory steps only when logical dependencies remain unchanged. You may make an omitted reasoning bridge explicit only when it is directly entailed by the source's existing premises and method. Do not introduce a new premise, external fact, example, analogy, hypothetical scenario, different solution method, correction, or new error. If the source explicitly states a final conclusion, the rewrite must explicitly state an equivalent final conclusion; if it does not, do not add one. Return exactly one <rewritten_response>...</rewritten_response> wrapper and nothing else."""
+
+_STYLE_INSTRUCTIONS = {
+    "terse_formal": "Rewrite in a concise, formal style. You may merge closely related steps and remove purely redundant wording, but preserve every essential premise, inference, intermediate conclusion, qualification, final conclusion, and original error. Do not replace the reasoning with a shorter alternative solution.",
+    "explanatory_conversational": "Rewrite in a clear, conversational, explanatory style. You may split dense steps, add transitions, and make an omitted reasoning bridge explicit when it is directly entailed by the source's existing premises and reasoning method. Do not add examples, analogies, hypothetical scenarios, new premises, external evidence, a different solution method, a correction, or a new error.",
+}
+
+
+def build_generator_messages(
+    *, problem: str, source_trajectory: str, style_id: str
+) -> list[dict[str, str]]:
+    """Build the full-context v8 generator request without correctness leakage."""
+
+    _require_text(problem, "problem")
+    _require_text(source_trajectory, "source_trajectory")
+    if style_id not in STYLE_IDS:
+        raise ValueError(f"Unsupported generator style_id {style_id!r}")
+    user = (
+        f"TARGET STYLE\n{_STYLE_INSTRUCTIONS[style_id]}\n\n"
+        f"PROBLEM\n<problem>\n{problem}\n</problem>\n\n"
+        "SOURCE TRAJECTORY\n<source_trajectory>\n"
+        f"{source_trajectory}\n</source_trajectory>"
+    )
+    return [
+        {"role": "system", "content": _GENERATOR_SYSTEM_PROMPT},
+        {"role": "user", "content": user},
+    ]
 
 
 def _validate_claims(
@@ -260,6 +315,16 @@ def validate_verifier_report(value: Mapping[str, Any]) -> dict[str, Any]:
             if error_alignment[key] is not None:
                 raise ValueError(f"error_alignment.{key} must be null when not applicable")
 
+    style_assessment = report["style_assessment"]
+    if not isinstance(style_assessment, Mapping):
+        raise ValueError("verifier.style_assessment must be an object")
+    style_assessment = dict(style_assessment)
+    _require_exact_keys(style_assessment, _STYLE_ASSESSMENT_KEYS, "style_assessment")
+    if style_assessment["target_style"] not in STYLE_IDS:
+        raise ValueError("style_assessment.target_style has an unsupported value")
+    _require_bool(style_assessment["satisfied"], "style_assessment.satisfied")
+    _require_text(style_assessment["evidence"], "style_assessment.evidence")
+
     risk_review = report["risk_review"]
     if not isinstance(risk_review, list):
         raise ValueError("verifier.risk_review must be a list")
@@ -294,6 +359,7 @@ def validate_verifier_report(value: Mapping[str, Any]) -> dict[str, Any]:
         "rewrite_to_source": rewrite_direction,
         "global_relation": global_relation,
         "error_alignment": error_alignment,
+        "style_assessment": style_assessment,
         "risk_review": normalized_risks,
     }
 
@@ -372,7 +438,8 @@ def derive_acceptance_status(
             verifier["rewrite_to_source"]["all_substantive_claims_supported"]
         )
         and all(
-            not item["substantive"] or item["relation"] == "equivalent"
+            not item["substantive"]
+            or item["relation"] in {"equivalent", "entailed_elaboration"}
             for item in rewrite_claims
         ),
         "positive_global_invariants": all(
@@ -386,6 +453,7 @@ def derive_acceptance_status(
         "high_confidence": verifier["confidence"] == "high",
         "model_accept": verifier["decision"] == "accept",
         "model_issues_empty": not verifier["issues"],
+        "target_style_satisfied": verifier["style_assessment"]["satisfied"],
     }
 
     if checker_result["available"]:
@@ -426,6 +494,7 @@ def derive_acceptance_status(
         or any(item["relation"] in _EXPLICIT_REJECTION_RELATIONS for item in rewrite_claims)
         or any(global_relation[key] for key in _PROHIBITED_GLOBAL_KEYS)
         or verifier["decision"] == "reject"
+        or not verifier["style_assessment"]["satisfied"]
         or (
             checker_result["available"]
             and (
@@ -562,8 +631,10 @@ __all__ = [
     "RISK_PROBE_SCHEMA",
     "VERIFIER_SCHEMA",
     "build_soft_risk_probe",
+    "build_generator_messages",
     "derive_acceptance_status",
     "parse_strict_json_object",
+    "parse_tagged_rewritten_response",
     "validate_domain_checker_result",
     "validate_verifier_report",
 ]

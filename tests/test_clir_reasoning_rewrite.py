@@ -6,9 +6,11 @@ import pytest
 from src.clir_reasoning_rewrite import (
     CHECKER_SCHEMA,
     VERIFIER_SCHEMA,
+    build_generator_messages,
     build_soft_risk_probe,
     derive_acceptance_status,
     parse_strict_json_object,
+    parse_tagged_rewritten_response,
     validate_verifier_report,
 )
 
@@ -63,6 +65,11 @@ def _report(*, incorrect: bool = False) -> dict:
             "same_semantic_error_location": True if incorrect else None,
             "same_downstream_effect": True if incorrect else None,
         },
+        "style_assessment": {
+            "target_style": "terse_formal",
+            "satisfied": True,
+            "evidence": "The rewrite is concise and formal.",
+        },
         "risk_review": [],
         "confidence": "high",
         "decision": "accept",
@@ -90,6 +97,36 @@ def test_strict_json_parser_rejects_duplicate_keys_and_wrappers():
         parse_strict_json_object('{"a": 1, "a": 2}')
     with pytest.raises(ValueError, match="strict JSON"):
         parse_strict_json_object('```json\n{"a": 1}\n```')
+
+
+def test_generator_wrapper_and_prompt_contract_are_strict():
+    assert (
+        parse_tagged_rewritten_response(
+            "<rewritten_response>\nA reorganized trajectory.\n</rewritten_response>"
+        )
+        == "A reorganized trajectory."
+    )
+    with pytest.raises(ValueError, match="outside"):
+        parse_tagged_rewritten_response(
+            "Here it is:\n<rewritten_response>x</rewritten_response>"
+        )
+    with pytest.raises(ValueError, match="exactly one"):
+        parse_tagged_rewritten_response(
+            "<rewritten_response>x</rewritten_response>"
+            "<rewritten_response>y</rewritten_response>"
+        )
+
+    messages = build_generator_messages(
+        problem="What is the result?",
+        source_trajectory="The source may be wrong.",
+        style_id="explanatory_conversational",
+    )
+    serialized = json.dumps(messages)
+    assert "reference answer" not in serialized.lower()
+    assert "correctness label" not in serialized.lower()
+    assert "examples, analogies" in serialized
+    with pytest.raises(ValueError, match="style_id"):
+        build_generator_messages(problem="p", source_trajectory="s", style_id="unknown")
 
 
 def test_verifier_schema_rejects_unknown_fields_and_missing_evidence():
@@ -137,6 +174,22 @@ def test_explicit_omission_and_checker_drift_are_rejected():
     drifted_checker["rewrite_outcome"] = "21"
     result = derive_acceptance_status(_report(), checker=drifted_checker)
     assert result["status"] == "rejected"
+
+
+def test_entailed_elaboration_is_allowed_but_style_failure_rejects():
+    report = _report()
+    claim = report["rewrite_to_source"]["claims"][0]
+    claim["relation"] = "entailed_elaboration"
+    claim["explanation"] = "The multiplication bridge was implicit in the source."
+    accepted = derive_acceptance_status(report, checker=_checker())
+    assert accepted["status"] == "accepted"
+
+    report["style_assessment"]["satisfied"] = False
+    report["style_assessment"]["evidence"] = "The wording is effectively unchanged."
+    report["decision"] = "reject"
+    rejected = derive_acceptance_status(report, checker=_checker())
+    assert rejected["status"] == "rejected"
+    assert "target_style_satisfied" in rejected["failed_checks"]
 
 
 def test_incorrect_source_requires_matching_error_alignment():

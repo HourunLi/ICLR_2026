@@ -43,6 +43,7 @@ v8 将 rewrite 关系从“逐行、逐数字保持的同轨迹表面改写”�
 - 改变物理行数和篇幅；
 - 删除不承载新信息的纯重复复述；
 - 增加不承载新事实的连接、过渡和解释性措辞；
+- 补充由 source 既有前提和推理方法直接蕴含、但原文省略的推导桥梁；
 - 在不改变精度和主张的前提下使用等价表示；
 - 重排彼此独立的解释，或按逻辑依赖重新组织叙述；
 - 把自然语言关系改写为等价的符号表达，或反过来。
@@ -303,12 +304,15 @@ v8-dev 必须切到两次调用；该选择在 blind 前冻结。
 
 - `equivalent`；
 - `preserved_implicitly`；
+- `entailed_elaboration`；
 - `omitted`；
 - `contradicted`；
 - `replaced_by_different_reasoning`；
 - `uncertain`。
 
 `preserved_implicitly` 必须附 rewrite evidence 和解释，不能成为跳过所有中间推导的默认类别。
+`entailed_elaboration` 只用于 rewrite 新增的显式推导桥梁；它必须由 source 既有前提和方法直接蕴含，
+不能引入新前提、新证据、例子、类比、假想场景、不同解法或错误修正。
 
 ### 5.4 Verifier 输出 schema
 
