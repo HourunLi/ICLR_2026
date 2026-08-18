@@ -64,10 +64,12 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 ## 下一道门
 
 Hallucination tail v2c 已冻结为 `completed_keep_t0_defer_tail`，当前 localization 模块选择 T0。dual-prior v1
-代码审计与 64 条盲包已经冻结：共 1210 个 domain-agnostic fixed units，沿用 query-disjoint 48/16 split，
-两位 annotator 都标全部 64 条。先通过 agreement/non-degeneracy gate，再跑 correctness-only、key-only、
-complete-only、joint direct-target 四格；mutual distillation、gate alignment 与 reconstruction 首轮全关。
-完整定义见 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md)。
+代码审计与 64 条盲包已经冻结：共 1210 个 domain-agnostic fixed units，沿用 query-disjoint 48/16 split。
+Mistral-24B primary 已 64/64 完成并通过结构/non-degeneracy，但 key 有明显 late-position skew，且错误路径的
+decisive-flaw 规则执行不稳定，因此 primary 不能单独成为 gold。当前等待独立 secondary 全量双标；通过
+agreement/裁决后再跑 correctness-only、key-only、complete-only、joint direct-target 四格。mutual
+distillation、gate alignment 与 reconstruction 首轮全关。完整定义见
+[Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md)。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、

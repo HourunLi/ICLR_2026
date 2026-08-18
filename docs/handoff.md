@@ -98,6 +98,10 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 - 冻结协议/定义：`configs/dual_prior_evidence_v1/protocol_v1.json`、`annotation_guide_v1.md`；
 - 盲包/lineage：`annotation_items_v1.jsonl`、`annotation_lineage_v1.jsonl`、`package_report_v1.json`；
 - 规模：64 rows / 64 queries / 1210 fixed units，原 query-disjoint 48/16 membership；
+- primary：64/64 schema/token-map valid，`labels_primary_v1.jsonl` SHA256
+  `06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526`；结构合格但有 late-position 与
+  wrong-path guide-alignment 警告，禁止单独采用；
+- primary 审计：`primary_report_v1.json`、`primary_semantic_audit_v1.json`；
 - 第二标注 prompt：`configs/dual_prior_evidence_v1/secondary_prompt_v1.md`；
 - 设计与代码审计：`docs/dual_prior_evidence_pilot_v1.md`。
 
@@ -108,15 +112,15 @@ protocol/audit 中，不在本 handoff 重复展开。
 
 不要再重跑 v2c 或继续扫 absolute tail weight。dual-prior 接下来严格按已冻结 v1 做：
 
-1. 运行/物化 Mistral-24B primary；
-2. 收取独立 secondary 的 64 条 raw JSONL，用 `validate_dual_prior_secondary_v1.py` 校验；
-3. 计算 eligibility 与 key/complete unit-set agreement，逐项裁决 set disagreement；
-4. 物化 exact Phi token targets，审计正例比例、位置 shortcut、`key ⊆ complete` 与 head 可分性；
-5. 跑 D0 correctness-only、D1 key-only、D2 complete-only、D3 joint direct-target；四格都关闭 consistency、
+1. 收取独立 secondary 的 64 条 raw JSONL，用 `validate_dual_prior_secondary_v1.py` 校验；
+2. 计算 eligibility 与 key/complete unit-set agreement，特别检查错误路径的 flaw-vs-terminal 语义，逐项裁决
+   set disagreement；
+3. 物化 exact Phi token gold，审计正例比例、位置 shortcut、`key ⊆ complete` 与 head 可分性；
+4. 跑 D0 correctness-only、D1 key-only、D2 complete-only、D3 joint direct-target；四格都关闭 consistency、
    hallucination、tail、progress、distill、gate alignment 和 reconstruction；
-6. direct target 可学后，才另发协议比较 containment collaboration 与旧 mutual MSE。reconstruction 仍要求
+5. direct target 可学后，才另发协议比较 containment collaboration 与旧 mutual MSE。reconstruction 仍要求
    独立 768-d target，禁止 same-candidate pooling；
-7. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run。
+6. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run。
 
 ## 5. 不可破坏的约束
 

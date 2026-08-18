@@ -66,3 +66,35 @@ def test_protocol_is_standalone_and_secondary_prompt_names_exact_output():
     assert protocol["annotation"]["secondary_output"] in prompt
     assert "exactly 64" in prompt
     assert "key_unit_indices" in prompt and "complete_unit_indices" in prompt
+
+
+def test_primary_is_token_mapped_noncollapsed_but_not_standalone_gold():
+    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    labels_path = _resolve(protocol["outputs"]["primary_labels"])
+    report = json.loads(_resolve(protocol["outputs"]["primary_report"]).read_text(encoding="utf-8"))
+    audit = json.loads(
+        (ROOT / "configs/dual_prior_evidence_v1/primary_semantic_audit_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    labels = read_jsonl(labels_path)
+
+    assert len(labels) == report["rows"] == 64
+    assert file_sha256(labels_path) == report["labels_sha256"]
+    assert report["eligibility_counts"] == {"usable": 64}
+    assert report["usable_target_audit"]["strict_key_subset_complete_rows"] == 64
+    assert report["usable_target_audit"]["key_equals_complete_rows"] == 0
+    for row in labels:
+        assert any(row["key_prior_target"])
+        assert any(row["complete_prior_target"])
+        assert all(
+            key <= complete
+            for key, complete in zip(
+                row["key_prior_target"], row["complete_prior_target"]
+            )
+        )
+    assert audit["position_diagnostic"]["rows_with_every_key_unit_in_last_quarter"] == 42
+    assert audit["wrong_path_guide_alignment_diagnostic"][
+        "key_contains_exact_hallucination_onset"
+    ] == 1
+    assert "not standalone gold" in audit["allowed_conclusion"]

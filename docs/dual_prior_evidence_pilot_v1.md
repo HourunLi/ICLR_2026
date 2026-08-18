@@ -1,6 +1,7 @@
 # Dual-Prior Evidence Pilot v1
 
-状态：标注协议与 64 条盲包已冻结；等待 primary/secondary 双标与 agreement gate，尚未开始训练。
+状态：标注协议与 64 条盲包已冻结；Mistral-24B primary 已完成，等待独立 secondary 与 agreement gate，
+尚未物化 gold 或开始训练。
 
 ## 1. 先解决了什么代码问题
 
@@ -84,6 +85,29 @@ agreement 至少 `.75`。在双方都 usable 的行上，逐行 unit-set F1 再�
 
 所有 set disagreement 在物化训练 gold 前都需要裁决；不能对两个二值 target 求平均后冒充 gold。若 agreement
 失败，则修订 guide/unitization 并发布 v2，不能通过降低门槛覆盖失败。
+
+### 5.1 primary 结果与不能越过的警告
+
+primary 在冻结 commit `22b74f5` 上由 8 张卡各跑 8 条，64/64 strict schema-valid、64/64 usable，全部
+token-map-valid：
+
+- key positive token micro fraction：`.0844`；complete：`.3662`；
+- key unit 中位数 1，complete unit 中位数 5；
+- 64/64 都是严格 `key ⊂ complete`，没有 key=complete；
+- 没有一条只选择最后一个 unit 为 key。
+
+这些说明 target 非空且窄/宽两支没有在标注阶段坍缩。但 primary 不能单独成为 gold，原因也已量化：
+
+- 58/64 只选一个 key unit；所有 key unit 的相对位置中位数 `.8378`，42/64 的全部 key 都在轨迹最后
+  四分之一，必须加入 position-only baseline；
+- 在旧 localization 私有审计中，23 条 hallucinated row 只有 1 条 key 覆盖 exact onset，12 条 key 与任一
+  reviewed problem span 重叠。onset 不是 dual-prior gold，但这个结果说明 primary 常把末端 answer-producing
+  calculation 当 key，没有稳定执行 guide 中“错误路径选决定性 flaw”的规则。
+
+所以当前允许的唯一结论是：结构与 non-degeneracy 通过，语义采用门仍未通过。必须收回独立 secondary，比较
+其在错误路径上究竟选择 flaw 还是 terminal calculation，再裁决 key 的语义；任何训练都不能直接吃 primary。
+机器审计见 `configs/dual_prior_evidence_v1/primary_report_v1.json` 与
+`primary_semantic_audit_v1.json`。
 
 ## 6. 首轮训练矩阵
 

@@ -201,6 +201,12 @@ key/complete 两个 softmax prior 拉成同一分布；这与 `key ⊆ complete`
 decisive flaw 为 key，material attempted chain 为 complete。完整设计见
 `docs/dual_prior_evidence_pilot_v1.md`。
 
+冻结 primary 随后 64/64 结构和 token mapping 均通过，key/complete positive token fraction 为
+`.0844/.3662`，64/64 严格 key 子集，说明标注没有直接坍缩。但 42/64 的 key 全在最后四分之一；23 条旧
+hallucinated private audit 中只有 1 条 key 覆盖 exact onset、12 条重叠任一 reviewed problem span。onset
+不作为 prior gold，这里只诊断 guide alignment：primary 常选末端 calculation 而不是决定性 flaw。因此禁止
+单独采用 primary，必须等待 frozen secondary 并裁决错误路径的 key 语义，同时在训练评价中加入位置基线。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

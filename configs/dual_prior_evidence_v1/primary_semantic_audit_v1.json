@@ -1,0 +1,32 @@
+{
+  "allowed_conclusion": "Primary is structurally valid and nonempty but is not standalone gold; collect the frozen independent secondary labels before any training target is adopted.",
+  "inputs": {
+    "annotation_items_sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+    "hallucination_adjudicated_labels_sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+    "hallucination_sparse_span_labels_sha256": "a5564385561276d340ba97cbaf0775229f8a2ea8a5e79b9bf6bec7bc4d958cb2",
+    "primary_labels_sha256": "06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526",
+    "selection_manifest_sha256": "ae395297abdcd6e5348ba51bcc40eaaed55d0c45c7eeb38a3ec2ba9d28be42b2"
+  },
+  "position_diagnostic": {
+    "interpretation": "A position baseline is mandatory in the training pilot; primary targets alone have a strong late-trajectory skew.",
+    "key_unit_count_rows": {
+      "1": 58,
+      "2": 3,
+      "3": 3
+    },
+    "rows_with_every_key_unit_in_first_quarter": 0,
+    "rows_with_every_key_unit_in_last_quarter": 42,
+    "selected_key_unit_relative_position_mean": 0.7642360336805276,
+    "selected_key_unit_relative_position_median": 0.8378378378378378
+  },
+  "rows": 64,
+  "schema_version": "clir-dual-prior-evidence-primary-semantic-audit-v1",
+  "scope": "diagnostic_only_before_secondary; hallucination onset is not substituted for dual-prior gold",
+  "wrong_path_guide_alignment_diagnostic": {
+    "complete_contains_exact_hallucination_onset": 11,
+    "interpretation": "Primary often selected an answer-producing late calculation instead of the guide's earliest/causally decisive flaw. This does not turn onset into prior gold, but primary labels cannot be adopted without independent secondary annotation and adjudication of the key semantics.",
+    "key_contains_exact_hallucination_onset": 1,
+    "key_overlaps_any_reviewed_unsupported_or_contradicted_span": 12,
+    "previously_adjudicated_hallucinated_rows": 23
+  }
+}
