@@ -50,6 +50,8 @@ def test_localization_metrics_cover_path_tokens_onset_and_tail_values():
     assert metrics["onset"]["within_0"]["rate"] == 1.0
     assert metrics["token_value_shaping"]["tail_margin_violation_rate"] == 0.5
     assert metrics["token_value_shaping"]["mean_tail"] == pytest.approx(-0.5)
+    assert metrics["shortcut_baselines"]["token_absolute_position_ranking"]["roc_auc"] == 0.95
+    assert metrics["shortcut_baselines"]["path_incorrectness_ranking"]["roc_auc"] == 1.0
 
 
 def test_localization_missed_onset_is_penalized_by_row_length():

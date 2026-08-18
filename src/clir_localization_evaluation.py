@@ -279,6 +279,17 @@ def _pearson(first: Sequence[float], second: Sequence[float]) -> float | None:
     return numerator / (left_scale * right_scale)
 
 
+def _ranking_metrics(labels: Sequence[int], scores: Sequence[float]) -> dict[str, Any]:
+    targets = _binary_labels(labels)
+    return {
+        "rows": len(targets),
+        "positive": sum(targets),
+        "negative": len(targets) - sum(targets),
+        "roc_auc": binary_roc_auc(targets, scores),
+        "average_precision": binary_average_precision(targets, scores),
+    }
+
+
 def evaluate_localization_rows(
     rows: Sequence[Mapping[str, Any]],
     *,
@@ -306,6 +317,10 @@ def evaluate_localization_rows(
     correctness: list[int] = []
     token_labels: list[int] = []
     token_scores: list[float] = []
+    token_absolute_positions: list[float] = []
+    token_normalized_positions: list[float] = []
+    within_positive_aucs: list[float] = []
+    within_positive_average_precisions: list[float] = []
     onset_errors: list[int] = []
     detected_onset_errors: list[int] = []
     onset_detected = 0
@@ -352,7 +367,17 @@ def evaluate_localization_rows(
         target = [int(onset >= 0 and position >= onset) for position in range(length)]
         token_labels.extend(target)
         token_scores.extend(probs)
+        token_absolute_positions.extend(float(position) for position in range(length))
+        token_normalized_positions.extend(
+            position / max(length - 1, 1) for position in range(length)
+        )
         if onset >= 0:
+            if onset > 0:
+                row_auc = binary_roc_auc(target, probs)
+                row_ap = binary_average_precision(target, probs)
+                if row_auc is not None and row_ap is not None:
+                    within_positive_aucs.append(row_auc)
+                    within_positive_average_precisions.append(row_ap)
             predicted = next(
                 (
                     position
@@ -437,6 +462,12 @@ def evaluate_localization_rows(
         }
 
     clean_indices = [index for index, value in enumerate(path_labels) if value == 0]
+    incorrect_indices = [
+        index for index, value in enumerate(correctness) if value == 0
+    ]
+    position_absolute = _ranking_metrics(token_labels, token_absolute_positions)
+    position_normalized = _ranking_metrics(token_labels, token_normalized_positions)
+    model_token_ranking = _ranking_metrics(token_labels, token_scores)
     return {
         "rows": len(rows),
         "fixed_default_threshold": threshold,
@@ -457,6 +488,55 @@ def evaluate_localization_rows(
             token_scores,
             threshold=token_threshold,
         ),
+        "shortcut_baselines": {
+            "path_length_ranking": _ranking_metrics(path_labels, lengths),
+            "path_incorrectness_ranking": _ranking_metrics(
+                path_labels,
+                [1 - value for value in correctness],
+            ),
+            "incorrect_only_path_length_ranking": (
+                _ranking_metrics(
+                    [path_labels[index] for index in incorrect_indices],
+                    [lengths[index] for index in incorrect_indices],
+                )
+                if incorrect_indices
+                else None
+            ),
+            "token_absolute_position_ranking": position_absolute,
+            "token_normalized_position_ranking": position_normalized,
+            "model_minus_absolute_position": {
+                "roc_auc": (
+                    model_token_ranking["roc_auc"] - position_absolute["roc_auc"]
+                    if model_token_ranking["roc_auc"] is not None
+                    and position_absolute["roc_auc"] is not None
+                    else None
+                ),
+                "average_precision": (
+                    model_token_ranking["average_precision"]
+                    - position_absolute["average_precision"]
+                    if model_token_ranking["average_precision"] is not None
+                    and position_absolute["average_precision"] is not None
+                    else None
+                ),
+            },
+            "within_positive_row_model_ranking": {
+                "eligible_rows": len(within_positive_aucs),
+                "macro_roc_auc": (
+                    sum(within_positive_aucs) / len(within_positive_aucs)
+                    if within_positive_aucs
+                    else None
+                ),
+                "macro_average_precision": (
+                    sum(within_positive_average_precisions)
+                    / len(within_positive_average_precisions)
+                    if within_positive_average_precisions
+                    else None
+                ),
+                "absolute_position_roc_auc_baseline": (
+                    1.0 if within_positive_aucs else None
+                ),
+            },
+        },
         "onset": onset,
         "token_value_shaping": {
             "negative_tail_margin": negative_tail_margin,

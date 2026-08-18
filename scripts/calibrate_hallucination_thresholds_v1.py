@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from statistics import median
 import sys
 from typing import Any, Mapping, Sequence
 
@@ -36,6 +37,50 @@ def token_targets(rows: Sequence[Mapping[str, Any]]) -> tuple[list[int], list[fl
         )
         scores.extend(probabilities)
     return labels, scores
+
+
+def constant_onset_baselines(
+    train: Sequence[Mapping[str, Any]],
+    dev: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    train_positive = [row for row in train if int(row["hallucination_onset"]) >= 0]
+    dev_positive = [row for row in dev if int(row["hallucination_onset"]) >= 0]
+    absolute_median = float(median([int(row["hallucination_onset"]) for row in train_positive]))
+    normalized_median = float(
+        median(
+            int(row["hallucination_onset"])
+            / max(len(row["clir_token_hallucination_probs"]) - 1, 1)
+            for row in train_positive
+        )
+    )
+
+    def evaluate(mode: str) -> dict[str, Any]:
+        errors: list[int] = []
+        for row in dev_positive:
+            length = len(row["clir_token_hallucination_probs"])
+            predicted = (
+                min(round(absolute_median), length - 1)
+                if mode == "absolute"
+                else round(normalized_median * (length - 1))
+            )
+            errors.append(abs(predicted - int(row["hallucination_onset"])))
+        return {
+            "positive_rows": len(errors),
+            "mean_absolute_error": sum(errors) / len(errors) if errors else None,
+            "median_absolute_error": median(errors) if errors else None,
+            "within_5_rate": (
+                sum(error <= 5 for error in errors) / len(errors) if errors else None
+            ),
+        }
+
+    return {
+        "selected_on_train": {
+            "absolute_token_median": absolute_median,
+            "normalized_position_median": normalized_median,
+        },
+        "dev_absolute_median": evaluate("absolute"),
+        "dev_normalized_median": evaluate("normalized"),
+    }
 
 
 def main() -> None:
@@ -114,6 +159,7 @@ def main() -> None:
             negative_tail_margin=args.negative_tail_margin,
         ),
         "dev_calibrated_once": evaluate_localization_rows(dev, **calibrated_kwargs),
+        "constant_onset_shortcut_baselines": constant_onset_baselines(train, dev),
         "code": code,
         "pilot_test_accessed": False,
         "formal_mechanism_claim_allowed": False,
