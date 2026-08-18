@@ -99,7 +99,19 @@ sparse hallucination head 虽不是 token-value 标量本身，但它与 value �
 可以破坏 sparse-span 表示。当前样本只有 48 条、训练 5 epochs，不能把这解释成 relative-tail family 被
 永久否证；但也不能在三个关键 guard 已失败后通过扫 weight 来追一个新的 selection-exposed 结果。
 
-## 6. 冻结裁决与后续边界
+## 6. 为什么当前不采用 tail，以及后续边界
+
+采用标准不能只是“tail 数值是否下降”，而必须是“tail 是否相对 pre-onset **和 clean** 更有选择性地下降，
+同时不破坏现有 sparse token localization”。按这个标准，两个已经测试的实现分别失败在：
+
+- absolute T2：三 seed 都是 clean 比 tail 下移更多，`tail−clean` locality 为 `0/3` seed 通过；
+- relative R1：虽然修复了统一 shift 并显著改善 `tail−pre`，但仍让 clean 比 tail 下移更多，而且
+  value-risk AP 与 sparse-span AP 分别下降 `.109/.100`。
+
+因此“不采用 tail”的精确含义是：**不采用当前 absolute T2 和 pre-onset-relative R1 两个实现**。它不是
+“tail 没有效果”，也不是“首错后的 continuation 不可能应该低分”，更不是把 full tail 当成错误 token
+标签。机器可读的非采用理由、非理由与重开条件单独冻结在
+`configs/hallucination_localization_v2/tail_non_adoption_record_v2d.json`。
 
 - **保持 T0/S1 sparse-span BCE 为 standalone localization 默认。**
 - 不扩跑 R1，不把它加入 mixed training，不读取 test，不声称改善 Best-of-N。

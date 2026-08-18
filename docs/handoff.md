@@ -46,6 +46,23 @@ Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 �
 | 首错边界 | `hallucination_onset` | 第一个 unsupported/contradicted claim 的首 token | 独立 gate 未通过 |
 | onset 后 value shaping | full-tail margin loss | 从 onset 起降低全部 token value，包括 supported/unreviewed token | absolute T2 因全局 shift 暂缓；relative R1 因无 clean anchor 与 sparse AP 损失失败；不是 token 标签 |
 
+### 为什么当前不采用 tail
+
+当前拒绝的是两个已经跑过的实现，不是整个 full-tail hypothesis：
+
+1. absolute T2 在 selection-unexposed 三 seed 上虽然有 AP/ranking signal，但 `tail−clean` 三个 seed 全部
+   恶化；clean value 每次都比 tail 下移更多，所以不能把收益归因为 tail-local shaping；
+2. relative R1 精确修掉了整行常数平移捷径，也学会了 `tail<pre`，但没有约束 clean row，最终
+   `tail−clean` 仍恶化 `+.925`；
+3. R1 的 value-risk AP 与 sparse-span AP 分别下降 `.109/.100`，超过冻结保护门；不能用事后 weight/margin
+   sweep 覆盖失败；
+4. correctness 没有 catastrophic failure，tail 也不是“完全无效”。不采用的原因是缺少 tail-specific
+   locality 并损伤 intended localization，而不是 tail family 已被永久证伪。
+
+正式机器记录为 `configs/hallucination_localization_v2/tail_non_adoption_record_v2d.json`，SHA256
+`fed23537b52a2665f8b99883f1750658cf1f386a668e65dfe5d491eb43e90f18`。未来重开必须另发显式
+clean-matched positional control 的新协议。
+
 ## 2. 当前采用的研究路线
 
 1. Phi-3.5-mini 同时作为 task model 与 feature model；正式表示保留 embedding + 32 blocks。
@@ -103,6 +120,8 @@ Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 �
   `1543f8169606f86e6eee054e5ee59105e345f875a2d0ebca2f02b89bb5de1361`；
 - 机器结论：`configs/hallucination_localization_v2/relative_tail_result_v2d.json`，SHA256
   `6ced98914c37ee9cea0ac4686d3b1b079c806fd857589070d8774e18c33e71d1`；
+- 非采用裁决：`configs/hallucination_localization_v2/tail_non_adoption_record_v2d.json`，SHA256
+  `fed23537b52a2665f8b99883f1750658cf1f386a668e65dfe5d491eb43e90f18`；
 - 单个新 R1 cell：`run_artifacts/hallucination_localization_v2/pilot_relative_tail_v2d/`；T0 严格复用 v2b；
 - 结论：执行门通过，但 clean-locality、semantic-value 与 sparse-span guards 失败，不扩跑；
 - 完整解释：`docs/hallucination_relative_tail_pilot_v2d.md`。
@@ -128,6 +147,9 @@ protocol/audit 中，不在本 handoff 重复展开。
 ## 4. 下一步
 
 不要再重跑 v2c 或继续扫 absolute tail weight。dual-prior 接下来严格按已冻结 v1 做：
+
+当前 helper 实测 secondary 为 `0/64`，下一条是 `DPA-6a6e03504cc94378`。所以眼前唯一 blocking gate 是
+第二标注，不是训练：
 
 1. 用 `secondary_prompt_resumable_v1a.md` 收取独立 secondary；每条判断都立即 checkpoint，先用 helper
    `status` 查看合法前缀与下一 item，64/64 后用 `finalize` 和 `validate_dual_prior_secondary_v1.py` 校验；

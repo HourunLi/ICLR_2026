@@ -241,6 +241,10 @@ configs/hallucination_localization_v2/relative_tail_result_v2d.json
 docs/hallucination_relative_tail_pilot_v2d.md
 ```
 
+为防止后续把“当前两个实现不采用”误写成“tail 永久否证”，另发布机器可读裁决
+`configs/hallucination_localization_v2/tail_non_adoption_record_v2d.json`。它逐项记录 primary reasons、明确
+non-reasons、当前所有 tail weight 为 0，以及未来只有新 clean-matched 协议才能重开的边界。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

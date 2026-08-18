@@ -60,6 +60,9 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   value-risk AP 与 sparse-span AP 分别下降 `.109/.100`。原因是 loss 只锚定 hallucinated row 内部，仍没有
   clean-row anchor。R1 状态为 `completed_fail_keep_t0`，不扩跑、不扫权重；未来 repair 必须显式控制
   matched clean positional baseline，并处理 shared-encoder interference。
+- 当前不采用的精确对象是 absolute T2 与 pre-onset-relative R1 两个实现，不是永久否证 full-tail family；
+  正式理由与非理由见 `tail_non_adoption_record_v2d.json`。采用标准要求 tail 同时相对 pre 和 clean 局部下降，
+  且不以牺牲 sparse localization 为代价，不能只看“tail 自己变低了”。
 - exact onset 仍未通过：T0/T2 的 fixed MAE 为 `82.5/71.7`，六个 positive 的 `±5` 均为 `0/6`。
   pseudo-tail 继续禁止；full tail 不得称为 token hallucination ground truth。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
@@ -75,6 +78,9 @@ decisive-flaw 规则执行不稳定，因此 primary 不能单独成为 gold。�
 agreement/裁决后再跑 correctness-only、key-only、complete-only、joint direct-target 四格。mutual
 distillation、gate alignment 与 reconstruction 首轮全关。完整定义见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md)。
+
+截至 2026-08-18，checkpoint helper 实测 secondary 为 `0/64`，下一条是
+`DPA-6a6e03504cc94378`；因此现在不能跳过 agreement/adjudication 直接训练。
 
 secondary 当前使用 `secondary_prompt_resumable_v1a.md`：标签语义仍继承冻结 v1，但每判断一条就由
 `checkpoint_dual_prior_secondary_v1.py` 校验、原子落盘并报告下一 item，超时后可从合法前缀继续。

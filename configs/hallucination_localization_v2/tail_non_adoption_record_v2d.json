@@ -1,0 +1,100 @@
+{
+  "schema_version": "clir-hallucination-tail-non-adoption-record-v2d",
+  "decision_id": "clir-hallucination-tail-current-implementations-v2d",
+  "recorded_date": "2026-08-18",
+  "evidence_tier": "pipeline_pilot",
+  "status": "keep_t0_do_not_adopt_current_tail_implementations",
+  "scope": {
+    "not_adopted": [
+      "absolute-margin full-tail T2",
+      "hallucinated-row pre-onset-relative full-tail R1"
+    ],
+    "current_default": "T0: correctness BCE plus unweighted S1 sparse-span BCE, with every tail weight equal to zero",
+    "not_rejected": [
+      "the general hypothesis that a continuation after the first material error may deserve lower reward",
+      "future clean-matched, position-controlled, or encoder-decoupled tail objectives"
+    ]
+  },
+  "primary_non_adoption_reasons": [
+    {
+      "code": "absolute_t2_not_tail_specific",
+      "implementation": "absolute-margin full-tail T2",
+      "reason": "In the selection-unexposed four-fold by three-seed confirmation, zero of three seeds passed the preregistered tail-specific locality gate because tail-minus-clean worsened in every seed.",
+      "evidence": {
+        "tail_minus_clean_delta_by_seed": [
+          0.1517,
+          0.4297,
+          0.1737
+        ],
+        "mean_tail_minus_clean_delta": 0.2517,
+        "seeds_passing_locality": 0,
+        "total_seeds": 3,
+        "mechanism_observation": "Clean mean value shifted downward more than tail mean value in all three seeds, consistent with the unanchored absolute-margin objective using a broad negative-value shift rather than tail-local lowering."
+      }
+    },
+    {
+      "code": "relative_r1_missing_clean_anchor",
+      "implementation": "hallucinated-row pre-onset-relative full-tail R1",
+      "reason": "R1 removed the row-constant-shift shortcut and learned tail-below-pre, but it did not constrain clean trajectories; clean values moved down more than tail values and the preregistered tail-versus-clean locality guard failed.",
+      "evidence": {
+        "relative_margin_violation_t0": 0.5863013698630137,
+        "relative_margin_violation_r1": 0.0910958904109589,
+        "pooled_tail_minus_pre_delta": -1.7115188560130021,
+        "pre_onset_mean_shift": 0.33702894685768237,
+        "tail_mean_shift": -1.3744899091553198,
+        "clean_mean_shift": -2.2996211285697514,
+        "tail_minus_clean_delta": 0.9251312194144314
+      }
+    },
+    {
+      "code": "relative_r1_harms_intended_localization",
+      "implementation": "hallucinated-row pre-onset-relative full-tail R1",
+      "reason": "The auxiliary R1 gradients share the encoder with sparse localization and caused regressions larger than the preregistered tolerances on both semantic token-value localization and sparse-span localization.",
+      "evidence": {
+        "explicit_token_value_risk_average_precision_delta": -0.10917132642408012,
+        "span_hallucination_probability_average_precision_delta": -0.09960133051632558,
+        "allowed_span_average_precision_drop": 0.02,
+        "semantic_value_guard_passed": false,
+        "span_guard_passed": false
+      }
+    },
+    {
+      "code": "preregistered_adoption_gate_failed",
+      "implementation": "both current tail implementations",
+      "reason": "Component adoption requires improvement on its intended tail-local diagnostic without an unacceptable regression in protected localization or correctness metrics. Post-hoc weight, margin, epoch, or threshold scans are not allowed to override a failed frozen gate."
+    }
+  ],
+  "explicit_non_reasons": [
+    "Tail was not rejected because it had zero measurable effect: both T2 and R1 changed value rankings, and R1 strongly improved tail-versus-pre diagnostics.",
+    "Tail was not rejected because correctness catastrophically failed: R1 correctness AUROC stayed within its preregistered tolerance.",
+    "Full tail was not redefined as token hallucination ground truth: it remains a separate post-error continuation-value hypothesis that intentionally includes supported and unreviewed post-onset tokens.",
+    "The full-tail hypothesis family is not permanently falsified by these pipeline-pilot results."
+  ],
+  "operational_consequences": {
+    "standalone_localization_default": "T0/S1 sparse-span BCE",
+    "absolute_tail_weight": 0.0,
+    "relative_tail_weight": 0.0,
+    "pseudo_tail_weight": 0.0,
+    "expand_r1_to_more_folds_or_seeds": false,
+    "scan_failed_tail_weights_or_margins": false,
+    "authorize_mixed_training": false,
+    "authorize_pilot_or_final_test_access": false,
+    "future_reopening_condition": "Publish a new protocol that explicitly controls a matched clean positional baseline and measures or isolates shared-encoder interference with sparse localization."
+  },
+  "evidence_artifacts": {
+    "absolute_tail_result": {
+      "path": "configs/hallucination_localization_v2/tail_cv_result_v2c.json",
+      "sha256": "d8264599b61c221958598d8a087ded7617a9cfdf5b8cdee46716ad4ea2d2a5d9"
+    },
+    "relative_tail_protocol": {
+      "path": "configs/hallucination_localization_v2/relative_tail_protocol_v2d.json",
+      "sha256": "1543f8169606f86e6eee054e5ee59105e345f875a2d0ebca2f02b89bb5de1361"
+    },
+    "relative_tail_result": {
+      "path": "configs/hallucination_localization_v2/relative_tail_result_v2d.json",
+      "sha256": "6ced98914c37ee9cea0ac4686d3b1b079c806fd857589070d8774e18c33e71d1"
+    },
+    "human_readable_report": "docs/hallucination_relative_tail_pilot_v2d.md"
+  },
+  "formal_claim_allowed": false
+}
