@@ -1,0 +1,144 @@
+{
+  "schema_version": "clir-hallucination-localization-training-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Dense-label matched H0-H3 diagnostic for path, contaminated-tail token, onset, and negative-tail value signals; not a Best-of-N efficacy experiment.",
+  "inputs": {
+    "dense_train": {
+      "path": "run_artifacts/hallucination_localization_v1/data_v1/train_dense48_v1.jsonl",
+      "sha256": "6b69bde130fdb20cd775c0ea17da4ce15873907cba105448b46f1e5ff63b3459",
+      "rows": 48,
+      "queries": 48,
+      "clean": 31,
+      "hallucinated": 17
+    },
+    "localization_dev": {
+      "path": "run_artifacts/hallucination_localization_v1/data_v1/localization_dev16_v1.jsonl",
+      "sha256": "93beb33086e4789f0fda451a7b0399d74fe878562c6d80a355215bc0ca4bfa1a",
+      "rows": 16,
+      "queries": 16,
+      "clean": 10,
+      "hallucinated": 6,
+      "query_overlap_with_train": 0
+    },
+    "split_manifest": {
+      "path": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+      "sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e"
+    },
+    "split_report": {
+      "path": "configs/hallucination_localization_v1/training_split_report_v1.json",
+      "sha256": "e5966efcae597ab5b9b086dcf6c048c8992b157c326ae2b36f2b97ee40cf9d13"
+    },
+    "adjudication_report": {
+      "path": "configs/hallucination_localization_v1/adjudication_report_v1.json",
+      "sha256": "83bf8ed2aef696cc83e06bb95a48827eb305597eba32a3ad77c3d2b57d9e88c6"
+    }
+  },
+  "feature_integrity_gate": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "failure_count": 0,
+    "skip_repeated_full_finite_scan": true
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seed": 42,
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "preregistered_final_epoch_5",
+    "early_stopping": false,
+    "prior_collapse_gate": "disabled_for_dense_mechanism_pilot",
+    "negative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "progress_score_weight": 0.5,
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "token_reward": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0
+    }
+  },
+  "cells": {
+    "h0": {
+      "description": "correctness only",
+      "hallucination_weight": 0.0,
+      "mil_weight": 0.0,
+      "tail_weight": 0.0
+    },
+    "h1": {
+      "description": "correctness plus exact contaminated-tail token BCE",
+      "hallucination_weight": 1.0,
+      "mil_weight": 0.0,
+      "tail_weight": 0.0
+    },
+    "h2": {
+      "description": "H1 plus negative-tail value margin",
+      "hallucination_weight": 1.0,
+      "mil_weight": 0.0,
+      "tail_weight": 0.5
+    },
+    "h3": {
+      "description": "correctness plus weak path noisy-or MIL",
+      "hallucination_weight": 0.0,
+      "mil_weight": 0.25,
+      "tail_weight": 0.0
+    }
+  },
+  "evaluation": {
+    "input": "localization_dev",
+    "threshold": 0.5,
+    "threshold_selection": "fixed_not_tuned_on_dev",
+    "path_metrics": ["roc_auc", "average_precision", "balanced_accuracy"],
+    "token_metrics": ["roc_auc", "average_precision", "f1"],
+    "onset_tolerances": [0, 1, 3, 5],
+    "missed_onset_error": "valid_token_length",
+    "report_incorrect_only_path_subgroup": true,
+    "report_noisy_or_length_bias": true,
+    "report_tail_value_margin": true
+  },
+  "pipeline_gate": {
+    "required": [
+      "all_four_cells_complete_without_nonfinite_loss",
+      "all_cells_share_train_dev_hashes_seed_architecture_and_budget",
+      "h1_and_h2_observe_all_48_onset_labels_each_epoch",
+      "h3_observes_all_48_path_labels_each_epoch",
+      "all_scored_dev_rows_bind_to_the_same_frozen_16_row_manifest"
+    ],
+    "interpretation": "Passing establishes an engineering and signal diagnostic only. Six positive dev rows, internal pilot labels, one seed, and dense selected training rows cannot support a general mechanism-efficacy or Best-of-N claim.",
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "launcher": "scripts/run_hallucination_localization_pilot_v1.py",
+    "output_root": "run_artifacts/hallucination_localization_v1/pilot0_dense_v1",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "parallel_cells_allowed": true,
+    "status": "authorized_by_user"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

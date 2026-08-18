@@ -267,7 +267,9 @@ def main() -> None:
         path_probs = None
         path_log_survival = None
         pseudo_onsets = None
+        token_hallucination_probs = None
         if "hallucination_logits" in outputs:
+            token_hallucination_probs = torch.sigmoid(outputs["hallucination_logits"])
             path_probs = path_hallucination_probability(outputs["hallucination_logits"], outputs["mask"])
             path_log_survival = path_no_hallucination_log_probability(
                 outputs["hallucination_logits"], outputs["mask"]
@@ -302,6 +304,18 @@ def main() -> None:
                     path_log_survival[local_idx].detach().cpu()
                 )
                 row["clir_pseudo_onset"] = int(pseudo_onsets[local_idx].detach().cpu())
+                row["clir_token_hallucination_probs"] = [
+                    float(x)
+                    for x in token_hallucination_probs[
+                        local_idx, :valid_length
+                    ].detach().cpu().tolist()
+                ]
+                row["clir_token_values"] = [
+                    float(x)
+                    for x in outputs["token_values"][
+                        local_idx, :valid_length
+                    ].detach().cpu().tolist()
+                ]
                 prior_alignment = torch.sum(gate_attention * outputs["fused_prior"][local_idx])
                 row["clir_prior_gate_alignment"] = float(prior_alignment.detach().cpu())
                 row["clir_condition_relevance"] = [
