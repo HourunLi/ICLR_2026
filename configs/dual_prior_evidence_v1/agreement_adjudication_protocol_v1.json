@@ -1,0 +1,121 @@
+{
+  "schema_version": "clir-dual-prior-agreement-adjudication-protocol-v1",
+  "status": "frozen_before_opening_primary_secondary_agreement_metrics",
+  "prepared_from_commit": "fc500af3363e57068bc7ab4f8cf9d8b9a32cf96f",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Apply the preregistered dual-prior reliability gate, then expose every set disagreement to a role-blinded semantic adjudication before any training gold is materialized.",
+  "inputs": {
+    "parent_protocol": {
+      "path": "configs/dual_prior_evidence_v1/protocol_v1.json",
+      "sha256": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27"
+    },
+    "annotation_guide": {
+      "path": "configs/dual_prior_evidence_v1/annotation_guide_v1.md",
+      "sha256": "51655ff2cffd861f08b890eea28f68c6b12b4cdb8806819b2b3021f66570e576"
+    },
+    "annotation_items": {
+      "path": "configs/dual_prior_evidence_v1/annotation_items_v1.jsonl",
+      "sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+      "rows": 64
+    },
+    "primary_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_primary_v1.jsonl",
+      "sha256": "06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526",
+      "rows": 64
+    },
+    "primary_report": {
+      "path": "configs/dual_prior_evidence_v1/primary_report_v1.json",
+      "sha256": "642f1b87d23eeee5c0a1d9907b8251c0a7d54baeaafaddedbf301dafafc5067b"
+    },
+    "secondary_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_secondary_v1.jsonl",
+      "sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a",
+      "rows": 64
+    },
+    "secondary_report": {
+      "path": "configs/dual_prior_evidence_v1/secondary_report_v1.json",
+      "sha256": "eab69ebbdfb7d2b9b97ce1b0386fe26f272df16b65673331e6f79fb8cf8fa853"
+    },
+    "secondary_provenance": {
+      "path": "configs/dual_prior_evidence_v1/secondary_provenance_v1.json",
+      "sha256": "cb0ccdea878d091d2b43db8e811c0d4d52426009691992d3c3768fa7c8eaaaf2"
+    }
+  },
+  "agreement_metrics": {
+    "eligibility_agreement": "Exact eligibility equality divided by all 64 rows.",
+    "usable_overlap": "Rows for which both annotators selected eligibility=usable.",
+    "row_unit_set_f1": "For a usable-overlap row and one target, 2*|A intersection B|/(|A|+|B|).",
+    "macro_unit_f1": "Unweighted mean of row_unit_set_f1 over usable-overlap rows; candidate rows are not pooled by unit count.",
+    "row_unit_jaccard": "|A intersection B|/|A union B|, reported as a diagnostic only.",
+    "exact_set_agreement": "The two unit-index arrays are identical.",
+    "nested_fraction": "Fraction of usable annotations, across both annotators, satisfying key subset-of complete."
+  },
+  "selection_gate_inherited_without_changes": {
+    "structural_validity_per_annotator": 1.0,
+    "minimum_usable_rows_per_annotator": 48,
+    "minimum_usable_overlap_rows": 40,
+    "minimum_eligibility_agreement": 0.75,
+    "minimum_macro_unit_f1_on_usable_overlap": {
+      "key": 0.45,
+      "complete": 0.6
+    },
+    "required_nested_fraction": 1.0,
+    "source": "configs/dual_prior_evidence_v1/protocol_v1.json#selection_gate"
+  },
+  "disagreement_definition": {
+    "requires_adjudication": "Any row with different eligibility, key_unit_indices, or complete_unit_indices.",
+    "automatic_adoption": "Only rows with identical eligibility and identical key/complete sets may be adopted without semantic adjudication; rationale or confidence differences alone do not change the target.",
+    "failed_agreement_gate": "Do not use adjudication to rescue a failed annotator-agreement gate. Repair guide or unitization under a new version first."
+  },
+  "adjudication_blinding": {
+    "public_fields": [
+      "schema_version",
+      "item_id",
+      "problem",
+      "trajectory",
+      "units",
+      "annotation_a",
+      "annotation_b"
+    ],
+    "forbidden_fields": [
+      "primary_or_secondary_role",
+      "correctness",
+      "reference_answer",
+      "path_hallucinated",
+      "hallucination_onset",
+      "membership",
+      "query_id",
+      "source_id",
+      "token_targets"
+    ],
+    "candidate_order": "For each item, SHA256('clir-dual-prior-adjudication-v1:' + item_id) parity deterministically decides whether primary is A or B; the mapping is stored only in private lineage.",
+    "semantic_rule": "Re-evaluate the problem and trajectory under annotation_guide_v1. Adopt A, adopt B, or synthesize a new whole-unit nested target; do not majority-vote or average binary targets."
+  },
+  "adjudication_output_contract": {
+    "schema_version": "clir-dual-prior-evidence-adjudication-v1",
+    "required_fields": [
+      "schema_version",
+      "item_id",
+      "resolution",
+      "eligibility",
+      "key_unit_indices",
+      "complete_unit_indices",
+      "confidence",
+      "rationale"
+    ],
+    "resolution_values": [
+      "adopt_a",
+      "adopt_b",
+      "synthesize"
+    ],
+    "durability": "One validated adjudication row must be checkpointed immediately before judging the next disagreement."
+  },
+  "outputs": {
+    "agreement_report": "configs/dual_prior_evidence_v1/agreement_report_v1.json",
+    "adjudication_items": "configs/dual_prior_evidence_v1/adjudication_items_v1.jsonl",
+    "adjudication_lineage": "configs/dual_prior_evidence_v1/adjudication_lineage_v1.jsonl"
+  },
+  "training_gold_authorized_before_adjudication": false,
+  "pilot_or_final_test_access_allowed": false,
+  "formal_claim_allowed": false
+}
