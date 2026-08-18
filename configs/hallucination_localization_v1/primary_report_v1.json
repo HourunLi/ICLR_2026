@@ -1,0 +1,49 @@
+{
+  "confidence_counts": {
+    "high": 64
+  },
+  "correctness_path_cross_tab_private_diagnostic": {
+    "correctness_0__clean": 16,
+    "correctness_0__hallucinated": 16,
+    "correctness_1__clean": 29,
+    "correctness_1__hallucinated": 3
+  },
+  "evidence_tier": "pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "hallucinated_onset": {
+    "count": 19,
+    "max": 337,
+    "mean": 164.42105263157896,
+    "min": 34
+  },
+  "parse_and_token_map_valid": 64,
+  "path_status_counts": {
+    "clean": 45,
+    "hallucinated": 19
+  },
+  "pilot_test_accessed": false,
+  "primary_contract_repair": "run_artifacts/hallucination_localization_v1/primary_mistral24_v1/contract_repair_report_v1.json",
+  "primary_contract_repair_sha256": "99385e82d8946a313f1a38edab24737906b75a46ef6ad1cbe5be241b3e4a23b2",
+  "primary_contract_repaired_rows": 4,
+  "primary_is_candidate_not_gold": true,
+  "primary_labels": "configs/hallucination_localization_v1/labels_primary_v1.jsonl",
+  "primary_labels_sha256": "1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7",
+  "primary_preliminary_class_gate": {
+    "minimum_clean": 12,
+    "minimum_hallucinated": 12,
+    "passed": true
+  },
+  "primary_raw_results_sha256": "93791a7f486b43e82451676cccf52709fac918688eefc6a26a438b6052a49095",
+  "primary_resolved_results": "run_artifacts/hallucination_localization_v1/primary_mistral24_v1/all_results_resolved_v1.jsonl",
+  "primary_resolved_results_sha256": "7c61145c5065bd0b5c3bb07b90dc0ebc305b6032883ad17761096c06e03663e4",
+  "primary_run": "run_artifacts/hallucination_localization_v1/primary_mistral24_v1/run.json",
+  "primary_run_sha256": "2710f810ef31e11b7c881ea080789cdab2727fe9b31b33abca0f9bc0a0a701ce",
+  "protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "rows": 64,
+  "schema_version": "clir-hallucination-primary-report-v1",
+  "secondary_is_blind_to_primary_and_correctness": true,
+  "secondary_items": "configs/hallucination_localization_v1/secondary_items_v1.jsonl",
+  "secondary_items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+  "secondary_prompt": "configs/hallucination_localization_v1/secondary_prompt_v1.md",
+  "secondary_prompt_sha256": "17cf885c1bf1852c1c05ce543d1789eb550e41ef6955af42bfe8d2cab5f2e4b4"
+}

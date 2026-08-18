@@ -32,8 +32,8 @@ correct-only。随后对 operational 31-pair 发布做的高强度复审发现�
 训练现已完成：30/31 status 一致，最终 27 accept / 4 reject；27 组只作为 metadata 注入原 4096 行
 mixed train。单 seed/1 epoch 结果没有出现 correctness 或 ranking 崩坏，表示诊断显示主要效果是分离
 不同语义而非进一步提高已饱和的正对 cosine。此处均为 pipeline-pilot 决策，不是 augmentation
-泛化或正式有效性证据。当前下一模块是 hallucination localization 的 64-row selection/annotation
-protocol；`pilot_test` 仍未读取。
+泛化或正式有效性证据。hallucination localization 的 64-row selection、candidate-primary 与
+exact-token 映射已完成，当前停在 blind secondary package，等待独立第二标注；`pilot_test` 仍未读取。
 
 ## 2. 已建立的证据
 
@@ -86,6 +86,13 @@ protocol；`pilot_test` 仍未读取。
   different-semantic/same-style cosine 为 `0.9926`、`0.7305`，正负均值 gap 从 `0.0064` 扩到
   `0.2522`。这说明当前 loss 主要阻止全局 collapse；不能表述成“把正对变得更接近”。机器结果见
   `configs/on_policy_pilot0_v1a/training_result_v1.json`。
+- hallucination localization Pilot v1 的 64 条 blind items 已由冻结 Mistral-24B primary 全量处理。
+  原始 run 为 60/64 parse-valid（42 clean / 18 hallucinated）；4 条失败仅含 exact quote 空白漂移或
+  onset 索引越界。commit `0b038af` 的确定性合同修复器只完成 10 处 whitespace-equivalent quote
+  alignment 和 1 处 first-problem index 派生，强制证明 path/status/reason/confidence/summary 决策签名
+  未变。最终 64/64 exact-token-map-valid，45 clean / 19 hallucinated，onset token 范围 34–337。
+  primary 全为 high confidence，因此这些仍是 candidate Silver，不是 Gold；`secondary_items_v1.jsonl`
+  与 `secondary_prompt_v1.md` 已发布，尚未读取第二标注或进入训练。
 - 真实 LLM gate 全程只读 train manifest，并以 source-atomic shard 和 completion marker 支持恢复。
   v1 的 0/8 包含 1 次 incorrect-source repair；v2 的 3/8、v3/v4 的 1/8 都是 0 repair。v4 的 8 个
   generator 输出与 v3 逐条 SHA256 相同，证明运行时切换没有改变生成诊断；self-verifier 只额外拒绝
@@ -255,12 +262,14 @@ claim 双标、1 个分歧独立裁决、27 组注入 4096 行 mixed train、匹
 已完成。机器协议/结果分别是 `configs/on_policy_pilot0_v1a/training_protocol_v1.json` 和
 `configs/on_policy_pilot0_v1a/training_result_v1.json`。
 
-下一步按 `docs/hallucination_localization_pilot_v1.md` 执行，只从 train-primary 构造 64-row
+`docs/hallucination_localization_pilot_v1.md` 只从 train-primary 构造 64-row
 correct/incorrect 分层 selection manifest，冻结领域通用 hallucination/onset 定义、exact-token span
 mapping 和双标协议。selection 现已完成：32/32 outcome 分层、每类 4 个长度 bin 各 8 条、64 个不同
 query，并排除已反复审核的 Route A 31 query；blind items 只含 item/problem/trajectory。Phi tokenizer
 preflight 对 64/64 行完成 exact encoded-prefix、exact decode 和完整 offset coverage，均只尾随 `[32007]`。
-当前执行 24B candidate primary；到 secondary blind package 生成后再请求第二标注者。首轮不把
+24B candidate primary 与 token mapping 也已完成：45 clean / 19 hallucinated，primary class gate 通过；
+盲 secondary package 与逐项说明已生成。当前唯一下一动作是把 `secondary_prompt_v1.md` 交给独立
+第二标注者，等待 64 行 structure-valid labels 后再做 agreement、裁决和监督合并。首轮不把
 consistency、localization、dual-prior 同时混训。Phi self-rewrite Route B 仍保留，但不阻塞 localization
 Pilot-0。
 

@@ -1,6 +1,6 @@
 # Hallucination Localization Pilot v1
 
-状态：Route A v1a 修复训练门已通过；64-row selection/token mapping 已冻结，等待 primary run
+状态：64-row selection、candidate-primary 与 token mapping 已完成；blind secondary package 已发布，等待独立第二标注
 
 日期：2026-08-18
 
@@ -130,6 +130,40 @@ calibration set 上单独评价。
 
 未经上述校准的模型标签只能称为 Silver。只有人工或预注册裁决后的共识标签才能称为 Gold。
 
+### 4.3 Candidate-primary 实际结果
+
+冻结的 Mistral-24B 在 clean commit `5fabe9b63258950e6696d067a2e4ade8222102c4` 上以 greedy decoding
+处理全部 64 条。原始 artifact 原样保留：60 条通过完整 annotation schema，4 条失败；已通过的类别为
+42 clean / 18 hallucinated。4 个失败均不是缺少语义判断：3 条把 trajectory 内换行压成空格，导致
+exact quote gate 拒绝；1 条将 8 个 claim 的最后一个索引写成 8，而不是零基索引 7。
+
+commit `0b038af3c607580e9e44ad48b9d94c14cb03f91d` 新增受限合同修复器。它只允许：
+
+- non-whitespace 字符完全相同时，把模型 quote 重新复制为 trajectory 的 exact substring；
+- 从原有 claim statuses 派生第一个 `contradicted/unsupported` 的零基索引。
+
+它禁止模糊文本匹配，也不能修改 `path_status`、claim status/reason、confidence 或 summary；修复前后
+逐行 semantic decision signature 必须相同。正式运行修复 4 行、10 个 whitespace quote 和 1 个索引，
+最终 64/64 annotation/token map 有效，得到 45 clean / 19 hallucinated。onset 的 output-token index
+最小 34、最大 337、均值 164.42。private correctness/path 交叉表是：incorrect 16 clean / 16
+hallucinated；correct 29 clean / 3 hallucinated。该交叉表只作“不等同于 correctness”的诊断，不作为
+标注准确率证据。primary 64 条置信度均为 high，反而说明需要独立标注校准其过度自信。
+
+版本化结果：
+
+- `labels_primary_v1.jsonl`：SHA256
+  `1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7`；
+- `primary_report_v1.json`：SHA256
+  `daad3a931496cf79d1b362a3eea0c429a1ee53daefe79d2b9e9545cca4522317`；
+- `secondary_items_v1.jsonl`：SHA256
+  `ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591`，与 primary blind items
+  byte-identical；
+- `secondary_prompt_v1.md`：SHA256
+  `17cf885c1bf1852c1c05ce543d1789eb550e41ef6955af42bfe8d2cab5f2e4b4`。
+
+这些结果只通过 primary preliminary class gate。双标 agreement、onset 距离和 adjudication 尚未发生，
+所以不得合并进训练 manifest 或声称 verifier 已校准。
+
 ## 5. 数据产物与硬门
 
 计划新增、且全部版本化保留的产物：
@@ -204,19 +238,21 @@ population std。64 条 pilot 的 BoN 变化不能作为方法效果结论，也
 5. 只有数据硬门通过才运行 H0-H3；
 6. 根据 held-out localization 结果决定是否扩大标签、启用 pseudo-tail，或回到定义/标注器选择。
 
-当前第 1 步已完成，并额外完成 64/64 exact-token mapping preflight。下一动作是在 clean commit 上执行
-第 2 步；第 3 步生成后按约定停止并请求独立第二标注。
+当前第 1–3 步已完成：primary 的 64/64 labels 已精确映射到冻结 output token，blind secondary input
+与完整 prompt 已生成。按约定在此停止，等待独立第二标注；收到 64 行且 structure-only validator
+通过后才执行第 4 步。
 
-下一次需要用户/第二标注者介入的明确停止点是第 3 步：仓库会给出可直接交给另一个 AI 的完整 prompt
-和 blind input，不要求对方理解本仓库实现。
+当前需要用户把 `configs/hallucination_localization_v1/secondary_prompt_v1.md` 原样交给另一个 AI。
+该 prompt 已包含允许读取的两个文件、禁止泄漏项、64 行 JSONL schema、exact quote 要求、输出路径和
+structure-only validator，不要求第二标注者理解本仓库实现。
 
 ## 9. 当前未验证事项
 
 - Mistral-24B 是否能可靠区分“合法补全推导”与“无依据事实”；
-- atomic claim 的字符区间到 Phi token onset 的一致性；
-- 64 条中是否有足够多的真实 positive onset；
+- primary 与独立 secondary 的 path/onset 一致性；
+- 19 条 candidate-positive 中有多少能经双标和裁决保留；
 - noisy-or MIL 的长度偏置是否会在真实标签上出现；
 - negative-tail shaping 是否改善排序，还是仅让 localization 指标变好。
 
-因此当前开始执行的动作是 24B candidate primary annotation 与 exact-token 映射；本文不授权扩量标签、
-读取测试集或宣称 hallucination localization 已有效。
+因此当前动作是等待独立 secondary annotation；本文不授权在裁决前训练、扩量标签、读取测试集或
+宣称 hallucination localization 已有效。

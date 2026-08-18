@@ -75,8 +75,16 @@ backbone 上研究一致性学习、幻觉定位和 dual-prior localization，�
   不是把已饱和的正对继续贴近。完整边界见
   [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md) 和
   [configs/on_policy_pilot0_v1a/training_result_v1.json](configs/on_policy_pilot0_v1a/training_result_v1.json)。
+- hallucination localization Pilot v1 的 64 条 candidate-primary 标注与 exact-token 映射已完成：原始
+  Mistral-24B run 在 clean commit `5fabe9b` 上得到 60/64 schema-valid；另 4 条只做了受限合同修复
+  （10 处空白/换行等价 quote 锚定、1 处由 claim statuses 确定的 onset 索引修正），语义决策签名未变。
+  最终 64/64 token-map-valid，45 clean / 19 hallucinated，预注册的两类各至少 12 条初步门通过。
+  correctness/path 私有交叉表为 incorrect `16/16`、correct `29 clean/3 hallucinated`，说明候选标签没有
+  简单复制 correctness；但 primary 全部给出 high confidence，可靠性仍必须由第二份独立盲标校准。
+  盲化的 64 条 secondary package 与完整 prompt 已生成，当前停止在等待第二标注。
 - Stage 1B base train/validation 的辅助监督仍全部为 0；只有 v1a 派生 mixed train 的 54 行具有真实
-  consistency metadata。hallucination、progress、dual-prior 和 reconstruction 覆盖仍为 0。仓库不会从
+  consistency metadata。新 64 条 localization candidate labels 尚未裁决或合并进训练 manifest，因此
+  base manifest 的 hallucination、progress、dual-prior 和 reconstruction 覆盖仍为 0。仓库不会从
   correctness 伪造这些标签，也不会用全零向量冒充缺失监督。
 - `pilot_test` 尚未生成、读取或用于任何选择。
 
@@ -117,8 +125,9 @@ manifest 继续禁止训练。下一机制模块恢复为
 [hallucination localization Pilot v1](docs/hallucination_localization_pilot_v1.md)，先构造 64-row
 selection/annotation protocol，不把 consistency、localization 和 dual-prior 同时混训。该 64-row package
 现已冻结：32 correct/32 incorrect 只用于分层，blind items 不含 correctness；64/64 visible response 均与
-冻结 Phi output IDs 精确前缀一致并只尾随一个不可见 control token。下一步是 24B candidate primary
-annotation，然后停在 blind secondary package 请求独立第二标注。Phi self-rewrite Route B 保留为并行后续
+冻结 Phi output IDs 精确前缀一致并只尾随一个不可见 control token。24B candidate primary 已完成并
+映射为 45 clean / 19 hallucinated；64-row blind secondary package 已发布。下一步是收到独立第二标注后
+计算 path/onset agreement、逐项裁决并审计，裁决前不得进入 H0-H3。Phi self-rewrite Route B 保留为并行后续
 路线。NLL 仍只记录为 distribution diagnostic，首轮不设硬门；rewrite loss 代码本轮未改，旧 tiny sweep
 的 0.5/1.0 不冻结为默认。
 
