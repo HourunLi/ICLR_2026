@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
+from scripts.calibrate_hallucination_span_thresholds_v2 import explicit_token_targets
 from scripts.materialize_hallucination_span_targets_v2 import ROOT, derive_annotation
+from scripts.run_hallucination_localization_pilot_v2 import weight_args
+from src.clir_real_data import load_protocol
 from src.clir_supervision import output_token_ids_sha256
 
 
@@ -91,3 +94,34 @@ def test_claim_span_derivation_rejects_onset_or_conflicting_overlap_drift():
     )
     with pytest.raises(ValueError, match="conflicting token targets"):
         _derive(overlap)
+
+
+def test_span_threshold_calibration_uses_only_explicitly_reviewed_tokens():
+    labels, scores = explicit_token_targets(
+        [
+            {
+                "clir_token_hallucination_probs": [0.1, 0.8, 0.99],
+                "token_hallucination_target": [0, 1, 0],
+                "token_hallucination_mask": [1, 1, 0],
+            }
+        ]
+    )
+
+    assert labels == [0, 1]
+    assert scores == [0.1, 0.8]
+
+
+def test_pilot_v2_cells_keep_downstream_shaping_off_and_change_only_declared_factors():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/training_protocol_v2.json"
+    )
+    s0 = weight_args(protocol, "s0_tail_bce")
+    s3 = weight_args(protocol, "s3_span_balanced_path")
+
+    assert s0[s0.index("--mil_weight") + 1] == "0.0"
+    assert s3[s3.index("--mil_weight") + 1] == "0.25"
+    for args in (s0, s3):
+        assert args[args.index("--tail_weight") + 1] == "0.0"
+        assert args[args.index("--pseudo_tail_weight") + 1] == "0.0"
+        assert args[args.index("--consistency_weight") + 1] == "0.0"
+        assert args[args.index("--prior_weight") + 1] == "0.0"

@@ -1,0 +1,155 @@
+{
+  "schema_version": "clir-hallucination-localization-training-protocol-v2",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Matched diagnostic comparing onset-tail labels with sparse claim-span token supervision and train-only class balancing.",
+  "inputs": {
+    "dense_train": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+      "rows": 48,
+      "clean": 31,
+      "hallucinated": 17,
+      "explicit_supervised_tokens": 6681,
+      "explicit_positive_tokens": 922,
+      "explicit_negative_tokens": 5759
+    },
+    "localization_dev": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+      "rows": 16,
+      "clean": 10,
+      "hallucinated": 6,
+      "explicit_supervised_tokens": 2451,
+      "explicit_positive_tokens": 528,
+      "explicit_negative_tokens": 1923,
+      "query_overlap_with_train": 0
+    },
+    "span_target_audit": {
+      "path": "configs/hallucination_localization_v2/span_target_audit_v2.json",
+      "sha256": "eb880ce3a504963c563247e610fd897e0e49f1661a525bc3684eb75ecdf337d9"
+    },
+    "v1_training_result": {
+      "path": "configs/hallucination_localization_v1/training_result_v1.json",
+      "sha256": "ba05f5c6a6d506e75c05611d2fa67e43bcefe448594fdc474904c558e60ab355"
+    }
+  },
+  "feature_integrity_gate": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "failure_count": 0,
+    "skip_repeated_full_finite_scan": true
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seed": 42,
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "preregistered_final_epoch_5",
+    "early_stopping": false,
+    "negative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "progress_score_weight": 0.5,
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "hallucination": 1.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0
+    }
+  },
+  "cells": {
+    "s0_tail_bce": {
+      "description": "v1 contaminated-tail token BCE baseline",
+      "hallucination_target_mode": "onset_tail",
+      "hallucination_positive_weight": 1.0,
+      "mil_weight": 0.0
+    },
+    "s1_span_bce": {
+      "description": "sparse adjudicated claim-span token BCE",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "mil_weight": 0.0
+    },
+    "s2_span_balanced": {
+      "description": "sparse claim-span BCE with frozen train negative-over-positive weight",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 6.246203904555315,
+      "mil_weight": 0.0
+    },
+    "s3_span_balanced_path": {
+      "description": "balanced sparse claim-span BCE plus weak path noisy-or MIL",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 6.246203904555315,
+      "mil_weight": 0.25
+    }
+  },
+  "evaluation": {
+    "fixed_threshold": 0.5,
+    "threshold_selection": "train_only_then_apply_once_to_dev",
+    "primary_metric": "dev.explicit_claim_span_tokens.average_precision",
+    "secondary_metrics": [
+      "dev.explicit_claim_span_tokens.roc_auc",
+      "dev.explicit_claim_span_shortcuts.claim_level.mean_probability_ranking.average_precision",
+      "dev.onset.mean_absolute_error_with_miss_as_length",
+      "dev.onset.within_5.rate",
+      "dev.path_noisy_or_log_space.roc_auc"
+    ],
+    "frozen_shortcuts": {
+      "dev_token_absolute_position_average_precision": 0.39328067905143455,
+      "dev_token_normalized_position_average_precision": 0.2406033976299641,
+      "dev_claim_absolute_position_average_precision": 0.42198767865054354,
+      "v1_constant_train_median_onset_mean_absolute_error": 101.5
+    },
+    "selection_rule": "Choose the highest dev explicit span-token AP among S1-S3 only if it exceeds both S0 and the strongest token-position baseline; ties prefer S1, then S2, then S3.",
+    "token_localization_gate": "Selected cell must beat S0 and token absolute-position AP, while claim-mean AP must beat claim absolute-position AP.",
+    "onset_gate": "Separately require train-calibrated dev onset MAE below 101.5 and at least one of six positive rows within five tokens.",
+    "test_set_access_allowed": false
+  },
+  "pipeline_gate": {
+    "required": [
+      "all_four_cells_complete_without_nonfinite_loss",
+      "all_cells_share_train_dev_hashes_seed_architecture_and_budget",
+      "S0_observes_all_14307_onset_tail_tokens_per_epoch",
+      "S1_S2_S3_observe_exactly_6681_sparse_tokens_per_epoch",
+      "all_scored_rows_bind_to_frozen_input_and_checkpoint_hashes"
+    ],
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "launcher": "scripts/run_hallucination_localization_pilot_v2.py",
+    "calibration": "scripts/calibrate_hallucination_span_thresholds_v2.py",
+    "output_root": "run_artifacts/hallucination_localization_v2/pilot_span_v2",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "parallel_cells_allowed": true,
+    "status": "authorized_by_user"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

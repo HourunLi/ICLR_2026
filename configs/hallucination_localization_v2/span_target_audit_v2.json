@@ -1,0 +1,199 @@
+{
+  "schema_version": "clir-hallucination-span-target-audit-v2",
+  "evidence_tier": "pipeline_pilot",
+  "protocol": "configs/hallucination_localization_v2/span_target_protocol_v2.json",
+  "protocol_sha256": "92992f9e054a4fe870a5cd59519be36a2d204c2362d01c69e48c9291c48491c5",
+  "source_labels_sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+  "annotations": {
+    "path": "configs/hallucination_localization_v2/span_supervision_annotations_v2.jsonl",
+    "sha256": "a5564385561276d340ba97cbaf0775229f8a2ea8a5e79b9bf6bec7bc4d958cb2",
+    "rows": 64
+  },
+  "splits": {
+    "dense_train": {
+      "rows": 48,
+      "trajectory_tokens": 14307,
+      "supervised_tokens": 6681,
+      "positive_tokens": 922,
+      "negative_tokens": 5759,
+      "claim_counts": {
+        "contradicted": 26,
+        "non_claim": 5,
+        "supported": 275,
+        "unsupported": 13
+      },
+      "coverage": {
+        "schema_version": "clir-supervision-coverage-v1",
+        "rows": 48,
+        "supervised_rows": 48,
+        "provenanced_supervised_rows": 48,
+        "unprovenanced_supervised_rows": 0,
+        "field_rows": {
+          "path_hallucinated": 48,
+          "hallucination_onset": 48,
+          "token_hallucination_target": 48,
+          "token_hallucination_mask": 48,
+          "token_advantage": 0,
+          "progress_targets": 0,
+          "key_prior_target": 0,
+          "complete_prior_target": 0,
+          "semantic_id": 0,
+          "style_id": 0,
+          "domain_id": 0,
+          "complete_reconstruction_target": 0
+        },
+        "field_tokens": {
+          "token_hallucination_target": 14307,
+          "token_hallucination_mask": 14307,
+          "token_advantage": 0,
+          "progress_targets": 0,
+          "key_prior_target": 0,
+          "complete_prior_target": 0
+        },
+        "path_label_values": {
+          "0": 31,
+          "1": 17
+        },
+        "joint_prior_rows": 0,
+        "joint_prior_tokens": 0,
+        "positive_onset_rows": 17,
+        "explicit_hallucination_tokens": {
+          "supervised": 6681,
+          "positive": 922,
+          "negative": 5759
+        },
+        "reconstruction_dimensions": {},
+        "consistency_pairs": {
+          "positive_same_semantic_different_style": 0,
+          "negative_different_semantic_same_style": 0
+        },
+        "eligible_components": {
+          "consistency": false,
+          "path_hallucination": true,
+          "onset_localization": true,
+          "token_advantage": false,
+          "progress": false,
+          "dual_prior": false,
+          "reconstruction": false
+        },
+        "eligible_component_count": 2
+      },
+      "position_shortcuts": {
+        "token_absolute": {
+          "roc_auc": 0.7098944253623207,
+          "average_precision": 0.2599161435463814
+        },
+        "token_normalized": {
+          "roc_auc": 0.6562770372808909,
+          "average_precision": 0.19728092500319366
+        },
+        "claim_absolute": {
+          "roc_auc": 0.7369230769230769,
+          "average_precision": 0.30464116520259393
+        },
+        "claim_normalized": {
+          "roc_auc": 0.662004662004662,
+          "average_precision": 0.19774428231788235
+        }
+      },
+      "path": "/prodcpfs/user/panzhixin/ICLR_2027/run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a"
+    },
+    "localization_dev": {
+      "rows": 16,
+      "trajectory_tokens": 5008,
+      "supervised_tokens": 2451,
+      "positive_tokens": 528,
+      "negative_tokens": 1923,
+      "claim_counts": {
+        "contradicted": 12,
+        "non_claim": 3,
+        "supported": 91,
+        "unsupported": 9
+      },
+      "coverage": {
+        "schema_version": "clir-supervision-coverage-v1",
+        "rows": 16,
+        "supervised_rows": 16,
+        "provenanced_supervised_rows": 16,
+        "unprovenanced_supervised_rows": 0,
+        "field_rows": {
+          "path_hallucinated": 16,
+          "hallucination_onset": 16,
+          "token_hallucination_target": 16,
+          "token_hallucination_mask": 16,
+          "token_advantage": 0,
+          "progress_targets": 0,
+          "key_prior_target": 0,
+          "complete_prior_target": 0,
+          "semantic_id": 0,
+          "style_id": 0,
+          "domain_id": 0,
+          "complete_reconstruction_target": 0
+        },
+        "field_tokens": {
+          "token_hallucination_target": 5008,
+          "token_hallucination_mask": 5008,
+          "token_advantage": 0,
+          "progress_targets": 0,
+          "key_prior_target": 0,
+          "complete_prior_target": 0
+        },
+        "path_label_values": {
+          "0": 10,
+          "1": 6
+        },
+        "joint_prior_rows": 0,
+        "joint_prior_tokens": 0,
+        "positive_onset_rows": 6,
+        "explicit_hallucination_tokens": {
+          "supervised": 2451,
+          "positive": 528,
+          "negative": 1923
+        },
+        "reconstruction_dimensions": {},
+        "consistency_pairs": {
+          "positive_same_semantic_different_style": 0,
+          "negative_different_semantic_same_style": 0
+        },
+        "eligible_components": {
+          "consistency": false,
+          "path_hallucination": true,
+          "onset_localization": true,
+          "token_advantage": false,
+          "progress": false,
+          "dual_prior": false,
+          "reconstruction": false
+        },
+        "eligible_component_count": 2
+      },
+      "position_shortcuts": {
+        "token_absolute": {
+          "roc_auc": 0.5859132471359461,
+          "average_precision": 0.39328067905143455
+        },
+        "token_normalized": {
+          "roc_auc": 0.518936931719693,
+          "average_precision": 0.2406033976299641
+        },
+        "claim_absolute": {
+          "roc_auc": 0.5839874411302983,
+          "average_precision": 0.42198767865054354
+        },
+        "claim_normalized": {
+          "roc_auc": 0.5149136577708007,
+          "average_precision": 0.23159271347141713
+        }
+      },
+      "path": "/prodcpfs/user/panzhixin/ICLR_2027/run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36"
+    }
+  },
+  "query_overlap": 0,
+  "code": {
+    "commit": "98fe0b7aefcd2808058e38306b3bcce5fa17fd57",
+    "dirty": false
+  },
+  "claim_level_gold": false,
+  "formal_mechanism_claim_allowed": false
+}
