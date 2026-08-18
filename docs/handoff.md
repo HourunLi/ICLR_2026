@@ -23,8 +23,8 @@ Dual-prior v1 direct-target gate 已完成，冻结状态为 `completed_pass_dir
   `.328/.921/.919/.268`；
 - D3 correctness AUROC 相对 D0 `+.005`；两图 mean absolute probability difference `.302`、correlation
   `.770`，未塌缩；
-- 当前只授权另发 containment-style collaboration comparison；mutual MSE、gate alignment、reconstruction
-  仍未获采用，pilot/final test 未读。
+- 用户已明确裁决保留原始双向 stop-gradient mutual MSE，不以 containment 替换。M0/M1 三种子 matched
+  protocol 已冻结待跑；gate alignment、reconstruction 仍关闭，pilot/final test 未读。
 
 此前 Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
 `completed_fail_keep_t0`，证据等级仍是 `pipeline pilot`：
@@ -86,9 +86,9 @@ clean-matched positional control 的新协议。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
 4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
    通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
-5. Dual-prior v1 的 independent labels、adjudicated gold 与 direct-target D0–D3 已通过。下一步只比较无协同、
-   symmetric mutual MSE 与 directional containment；gate alignment 和 reconstruction 继续关闭，后者仍只
-   接受独立 768-d target。
+5. Dual-prior v1 的 independent labels、adjudicated gold 与 direct-target D0–D3 已通过。原始 symmetric
+   stop-gradient mutual MSE 是保留方法；当前只比较 M0 无蒸馏与 M1 原公式 `.25`，containment 不作为替代。
+   gate alignment 和 reconstruction 继续关闭，后者仍只接受独立 768-d target。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
 训练入口。
@@ -167,23 +167,30 @@ clean-matched positional control 的新协议。
   `run_artifacts/dual_prior_evidence_v1/pilot_v1/`；
 - 设计与代码审计：`docs/dual_prior_evidence_pilot_v1.md`。
 
+### Dual-prior original mutual distillation v1
+
+- 冻结协议：`configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json`；
+- 公式：`MSE(A_key, stopgrad(A_complete)) + MSE(A_complete, stopgrad(A_key))`，完整 trajectory attention，
+  joint phase，权重 `.25`；
+- 两个 cell：M0 direct BCE control、M1 只增加原始 mutual MSE；均从头训练，3 seeds × 5 epochs；
+- 新 evaluator 同时发布 membership localization 与数值匹配训练公式的 symmetric attention MSE；
+- 当前状态：协议已冻结、等待 6 cells 执行；完整说明见 `docs/dual_prior_mutual_distillation_pilot_v1.md`。
+
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 absolute/relative tail weight，也不要重跑已经通过的 dual-prior D0–D3。下一步是一个
-新的、单变量 collaboration comparison，先与用户确认并冻结公式再执行：
+不要再重跑 v2c 或扫描 absolute/relative tail weight。下一步直接执行已经冻结的 original mutual-distillation
+M0/M1 六格矩阵：
 
-1. C0：无 collaboration，严格复用 D3 的 direct key + complete BCE baseline；
-2. C1：旧 symmetric mutual MSE，作为“可能把两图拉同”的诊断对照，不作为默认；
-3. C2：token-membership directional containment，只惩罚 `p(key) > p(complete)`，direct BCE 始终保留；
-4. 三格复用相同 48/16、features、seeds、5 epochs 和 correctness loss；gate alignment、reconstruction、
+1. M0：从头复跑 D3 的 direct key + complete BCE baseline；
+2. M1：在 M0 上只加入原始双向 stop-gradient mutual-attention MSE，权重 `.25`；
+3. 两格复用相同 48/16、features、seeds、5 epochs 和 correctness loss；gate alignment、reconstruction、
    consistency、hallucination、tail、progress 全关；
-5. 采用门同时看 held-out key/complete unit AP、相对 C0 non-inferiority、map separation、containment
-   violation 与 correctness。仅 violation 下降但两图坍缩或 AP 下降时必须拒绝；
-6. containment 的具体概率形式、margin/weight 与是否严格复用 D3 checkpoint/result，必须在读取 C1/C2 新结果
-   前写入新版本协议；不做事后 sweep。
+4. 采用门以 held-out symmetric attention MSE 的下降验证协同目标，同时保护 key/complete unit AP、map
+   separation 与 correctness；
+5. containment 不替代相互蒸馏，本轮也不实现。任何权重或 joint/alternate schedule 调整必须另发协议。
 
 reconstruction 仍要求独立 768-d target，禁止 same-candidate pooling。exact onset 与下一代 clean-matched tail
 repair 留在 backlog，不阻塞当前 collaboration comparison。

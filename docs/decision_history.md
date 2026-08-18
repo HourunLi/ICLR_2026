@@ -265,9 +265,21 @@ commit `f485e54` 完成。三种子 unit AP 均值为：key D0/D1/D3/position
 劣化，correctness AUROC 相对 D0 `+.0053`；两图 mean absolute probability difference `.3022`、correlation
 `.7704`。全部冻结 guard 与 stricter per-seed joint guard 都是 3/3 通过。
 
-因此 direct-target gate 关闭为 `completed_pass_direct_targets_learnable`，只授权下一轮 containment-style
-collaboration comparison。该结论是 pipeline learnability evidence，不是 Best-of-N 增益、跨领域泛化或正式
-机制证明。旧 symmetric MSE、gate alignment 与 reconstruction 仍没有采用资格。
+因此 direct-target gate 关闭为 `completed_pass_direct_targets_learnable`。该结论是 pipeline learnability
+evidence，不是 Best-of-N 增益、跨领域泛化或正式机制证明；当时尚未启用 mutual MSE、gate alignment 或
+reconstruction。
+
+### 7.8 用户裁决：保留原始 mutual distillation，不以 containment 替换
+
+用户明确指出，相互蒸馏是 dual-prior 方法本身需要保留的机制，不应因预判可能塌缩而被 directional
+containment 替换。因此后续路线修正为：原始双向 stop-gradient mutual MSE 是主方法，containment 至多是未来
+另行授权的附加消融，本轮不实现。
+
+读取新结果前冻结 `configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json`：M0 从头复跑 D3 direct
+key+complete BCE，M1 只把 `prior_distill_weight` 从 `0` 改为原始默认 `.25`；joint phase 与完整 trajectory
+softmax attention 公式不变。两格使用相同 48/16、seeds 42/43/44、5 epochs、features 和 correctness loss；
+gate alignment、reconstruction 及其他 CLIR losses 全关。新增 evaluator 指标直接复现两方向 MSE 的数值，并
+以 held-out discrepancy 下降、localization non-inferiority、map separation 与 correctness 共同裁决。
 
 ## 8. 已拒绝或暂缓的选择
 

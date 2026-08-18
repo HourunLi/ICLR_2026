@@ -1,8 +1,9 @@
 # Dual-Prior Evidence Pilot v1
 
 状态：64 条独立双标、role-blind adjudication、exact-token gold 与 4 cells × 3 seeds direct-target pilot 均已
-完成。冻结结论为 `completed_pass_direct_targets_learnable`；证据等级仍是 `pipeline pilot`，下一步才比较
-collaboration objective。
+完成。冻结结论为 `completed_pass_direct_targets_learnable`；证据等级仍是 `pipeline pilot`。后续用户明确裁决
+保留原始双向 stop-gradient mutual distillation，不以 containment 替换；新 M0/M1 协议另见
+`docs/dual_prior_mutual_distillation_pilot_v1.md`。
 
 ## 1. 先解决了什么代码问题
 
@@ -187,7 +188,7 @@ v1 不生成 reconstruction target。same-candidate pooled hidden state 不是�
 自重构 shortcut，继续禁止。只有当 supported answer/evidence 经过独立流程生成并冻结成 `model_dim=768` target
 后，才发布单独协议测试 reconstruction。
 
-Direct-target gate 已通过。下一步单独比较三种协同方式：不协同、旧 mutual MSE、以及尊重
-`key ⊆ complete` 的 directional/containment objective。该比较必须复用 D3 direct BCE 作为 anchor，并同时
-保护 held-out key/complete AP、两图可分性、containment violation 与 correctness；旧 mutual MSE 不能因为
-代码已存在就成为默认。具体 containment 公式与权重必须在看新结果前另行冻结。
+Direct-target gate 已通过。最初曾计划并列比较不协同、mutual MSE 与 directional containment；随后用户裁决
+相互蒸馏是必须保留的主方法，不能由 containment 替换。当前实际冻结的是从头复跑的 M0 direct-BCE control 与
+M1 原始双向 stop-gradient mutual MSE（权重 `.25`）；direct BCE 始终作为 anchor，gate alignment 与
+reconstruction 继续关闭。containment 本轮不实现，若未来需要只能作为另行授权的附加消融。

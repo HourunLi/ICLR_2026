@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch the frozen 12-cell dual-prior pilot with exclusive GPU assignment."""
+"""Launch a frozen dual-prior matrix with exclusive GPU assignment."""
 
 from __future__ import annotations
 
@@ -23,6 +23,10 @@ from src.clir_stage_a import atomic_write_json, git_state  # noqa: E402
 
 
 DEFAULT_PROTOCOL = ROOT / "configs/dual_prior_evidence_v1/training_protocol_v1.json"
+SUPPORTED_PROTOCOL_SCHEMAS = {
+    "clir-dual-prior-standalone-training-protocol-v1",
+    "clir-dual-prior-mutual-distillation-training-protocol-v1",
+}
 
 
 def resolve(value: str | Path) -> Path:
@@ -87,7 +91,7 @@ def main() -> None:
 
     protocol_path = args.protocol.resolve()
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
-    if protocol.get("schema_version") != "clir-dual-prior-standalone-training-protocol-v1":
+    if protocol.get("schema_version") not in SUPPORTED_PROTOCOL_SCHEMAS:
         raise ValueError("Unexpected dual-prior training protocol schema")
     code = git_state(ROOT)
     if protocol["execution"]["clean_committed_worktree_required"] and code["dirty"]:

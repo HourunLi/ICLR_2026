@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate direct key/complete membership predictions against adjudicated gold."""
+"""Evaluate key/complete membership and collaboration against adjudicated gold."""
 
 from __future__ import annotations
 
@@ -25,6 +25,10 @@ from src.clir_hallucination_annotation import (  # noqa: E402
 
 
 DEFAULT_PROTOCOL = ROOT / "configs/dual_prior_evidence_v1/training_protocol_v1.json"
+SUPPORTED_PROTOCOL_SCHEMAS = {
+    "clir-dual-prior-standalone-training-protocol-v1",
+    "clir-dual-prior-mutual-distillation-training-protocol-v1",
+}
 HEAD_FIELDS = {
     "key": ("key_unit_indices", "key_prior_target", "clir_key_prior_membership_probs"),
     "complete": (
@@ -361,6 +365,44 @@ def separation_metrics(
     }
 
 
+def prior_collaboration_metrics(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Measure the exact full-trajectory discrepancy targeted by mutual distillation.
+
+    In joint mode the training objective contains two numerically identical
+    stop-gradient MSE directions.  Therefore ``symmetric_attention_mse`` below
+    is twice the per-row squared L2 distance, matching the logged joint
+    ``prior_distill`` value apart from batch averaging.
+    """
+
+    squared_l2: list[float] = []
+    l1: list[float] = []
+    overlap: list[float] = []
+    for row in rows:
+        key = np.asarray(row["clir_key_prior"], dtype=np.float64)
+        complete = np.asarray(row["clir_complete_prior"], dtype=np.float64)
+        if key.ndim != 1 or key.shape != complete.shape or key.size == 0:
+            raise ValueError("Key/complete attention maps have incompatible axes")
+        if not np.isfinite(key).all() or not np.isfinite(complete).all():
+            raise ValueError("Key/complete attention maps contain non-finite values")
+        if np.any(key < 0.0) or np.any(complete < 0.0):
+            raise ValueError("Key/complete attention maps contain negative mass")
+        if not np.isclose(key.sum(), 1.0, rtol=1e-5, atol=1e-6):
+            raise ValueError("Key attention is not normalized on the trajectory")
+        if not np.isclose(complete.sum(), 1.0, rtol=1e-5, atol=1e-6):
+            raise ValueError("Complete attention is not normalized on the trajectory")
+        delta = key - complete
+        squared_l2.append(float(np.sum(delta * delta)))
+        l1.append(float(np.sum(np.abs(delta))))
+        overlap.append(float(np.minimum(key, complete).sum()))
+    return {
+        "rows": len(rows),
+        "one_direction_attention_mse": float(np.mean(squared_l2)),
+        "symmetric_attention_mse": float(2.0 * np.mean(squared_l2)),
+        "mean_attention_l1_distance": float(np.mean(l1)),
+        "mean_attention_overlap_mass": float(np.mean(overlap)),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
@@ -375,10 +417,10 @@ def main() -> None:
 
     protocol_path = args.protocol.resolve()
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
-    if protocol.get("schema_version") != "clir-dual-prior-standalone-training-protocol-v1":
+    if protocol.get("schema_version") not in SUPPORTED_PROTOCOL_SCHEMAS:
         raise ValueError("Unexpected dual-prior training protocol schema")
     if args.cell not in protocol["cells"]:
-        raise ValueError(f"Unknown D0-D3 cell: {args.cell}")
+        raise ValueError(f"Unknown dual-prior cell: {args.cell}")
     if args.seed not in [int(value) for value in protocol["matched_training"]["seeds"]]:
         raise ValueError(f"Seed {args.seed} is not frozen in the protocol")
     train_scored_path = args.train_scored.resolve()
@@ -440,6 +482,10 @@ def main() -> None:
                 key_threshold=key_threshold,
                 complete_threshold=complete_threshold,
             ),
+        },
+        "prior_collaboration": {
+            "train": prior_collaboration_metrics(train_rows),
+            "dev": prior_collaboration_metrics(dev_rows),
         },
         "position_only_baseline_included": True,
         "pilot_test_accessed": False,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one frozen D0-D3 direct-target cell through train, score, and evaluate."""
+"""Run one frozen dual-prior cell through train, score, and evaluate."""
 
 from __future__ import annotations
 
@@ -21,6 +21,10 @@ from src.clir_stage_a import atomic_write_json, git_state  # noqa: E402
 
 
 DEFAULT_PROTOCOL = ROOT / "configs/dual_prior_evidence_v1/training_protocol_v1.json"
+SUPPORTED_PROTOCOL_SCHEMAS = {
+    "clir-dual-prior-standalone-training-protocol-v1",
+    "clir-dual-prior-mutual-distillation-training-protocol-v1",
+}
 
 
 def resolve(value: str | Path) -> Path:
@@ -50,10 +54,10 @@ def main() -> None:
 
     protocol_path = args.protocol.resolve()
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
-    if protocol.get("schema_version") != "clir-dual-prior-standalone-training-protocol-v1":
+    if protocol.get("schema_version") not in SUPPORTED_PROTOCOL_SCHEMAS:
         raise ValueError("Unexpected dual-prior training protocol schema")
     if args.cell not in protocol["cells"]:
-        raise ValueError(f"Unknown D0-D3 cell {args.cell!r}")
+        raise ValueError(f"Unknown dual-prior cell {args.cell!r}")
     seeds = [int(value) for value in protocol["matched_training"]["seeds"]]
     if args.seed not in seeds:
         raise ValueError(f"Seed {args.seed} is not frozen in {seeds}")
@@ -73,6 +77,29 @@ def main() -> None:
     cell = protocol["cells"][args.cell]
     for split in ("train", "dev"):
         verify(resolve(cell[split]["path"]), cell[split]["sha256"])
+    training = protocol["matched_training"]
+    shared = training["shared_loss_weights"]
+    resolved_loss_weights = {
+        "final": float(shared["final"]),
+        "consistency": float(shared["consistency"]),
+        "negative_consistency": float(shared["negative_consistency"]),
+        "score_consistency": float(shared["score_consistency"]),
+        "hallucination": float(shared["hallucination"]),
+        "mil": float(shared["mil"]),
+        "token_reward": float(shared["token_reward"]),
+        "tail": float(shared["tail"]),
+        "relative_tail": float(shared["relative_tail"]),
+        "pseudo_tail": float(shared["pseudo_tail"]),
+        "progress": float(shared["progress"]),
+        "prior": float(cell["prior_weight"]),
+        "key_prior": float(cell["key_prior_weight"]),
+        "complete_prior": float(cell["complete_prior_weight"]),
+        "prior_distill": float(
+            cell.get("prior_distill_weight", shared["prior_distill"])
+        ),
+        "gate_prior": float(shared["gate_prior"]),
+        "reconstruction": float(shared["reconstruction"]),
+    }
     output_root = (
         resolve(protocol["execution"]["output_root"])
         / f"seed_{args.seed}"
@@ -95,6 +122,7 @@ def main() -> None:
         "protocol_sha256": file_sha256(protocol_path),
         "code": code,
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
+        "resolved_loss_weights": resolved_loss_weights,
         "outputs": {key: str(value) for key, value in paths.items()},
     }
     if not args.execute:
@@ -105,8 +133,6 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     model = protocol["model"]
-    training = protocol["matched_training"]
-    shared = training["shared_loss_weights"]
     train_command = [
         sys.executable,
         str(ROOT / "train_clir.py"),
@@ -179,39 +205,39 @@ def main() -> None:
         training["prior_phase_mode"],
         "--skip_feature_finite_check",
         "--final_weight",
-        str(shared["final"]),
+        str(resolved_loss_weights["final"]),
         "--consistency_weight",
-        str(shared["consistency"]),
+        str(resolved_loss_weights["consistency"]),
         "--negative_consistency_weight",
-        str(shared["negative_consistency"]),
+        str(resolved_loss_weights["negative_consistency"]),
         "--score_consistency_weight",
-        str(shared["score_consistency"]),
+        str(resolved_loss_weights["score_consistency"]),
         "--hallucination_weight",
-        str(shared["hallucination"]),
+        str(resolved_loss_weights["hallucination"]),
         "--mil_weight",
-        str(shared["mil"]),
+        str(resolved_loss_weights["mil"]),
         "--token_reward_weight",
-        str(shared["token_reward"]),
+        str(resolved_loss_weights["token_reward"]),
         "--tail_weight",
-        str(shared["tail"]),
+        str(resolved_loss_weights["tail"]),
         "--relative_tail_weight",
-        str(shared["relative_tail"]),
+        str(resolved_loss_weights["relative_tail"]),
         "--pseudo_tail_weight",
-        str(shared["pseudo_tail"]),
+        str(resolved_loss_weights["pseudo_tail"]),
         "--progress_weight",
-        str(shared["progress"]),
+        str(resolved_loss_weights["progress"]),
         "--prior_weight",
-        str(cell["prior_weight"]),
+        str(resolved_loss_weights["prior"]),
         "--key_prior_weight",
-        str(cell["key_prior_weight"]),
+        str(resolved_loss_weights["key_prior"]),
         "--complete_prior_weight",
-        str(cell["complete_prior_weight"]),
+        str(resolved_loss_weights["complete_prior"]),
         "--prior_distill_weight",
-        str(shared["prior_distill"]),
+        str(resolved_loss_weights["prior_distill"]),
         "--gate_prior_weight",
-        str(shared["gate_prior"]),
+        str(resolved_loss_weights["gate_prior"]),
         "--reconstruction_weight",
-        str(shared["reconstruction"]),
+        str(resolved_loss_weights["reconstruction"]),
     ]
     run(train_command)
     run_record = json.loads(paths["run"].read_text(encoding="utf-8"))
@@ -285,6 +311,7 @@ def main() -> None:
         "cell": args.cell,
         "seed": args.seed,
         "description": cell["description"],
+        "resolved_loss_weights": resolved_loss_weights,
         "protocol_sha256": file_sha256(protocol_path),
         "train_manifest_sha256": cell["train"]["sha256"],
         "dev_manifest_sha256": cell["dev"]["sha256"],
@@ -316,6 +343,7 @@ def main() -> None:
         },
         "correctness": evaluation["correctness"],
         "head_separation": evaluation["head_separation"],
+        "prior_collaboration": evaluation["prior_collaboration"],
         "code": code,
         "pilot_test_accessed": False,
         "formal_mechanism_claim_allowed": False,

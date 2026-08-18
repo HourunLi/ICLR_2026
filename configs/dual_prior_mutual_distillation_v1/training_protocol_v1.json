@@ -1,0 +1,171 @@
+{
+  "schema_version": "clir-dual-prior-mutual-distillation-training-protocol-v1",
+  "experiment_id": "clir-dual-prior-original-mutual-distillation-v1",
+  "status": "frozen_before_training",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Test the original bidirectional stop-gradient mutual-distillation objective on top of the already learnable direct key/complete targets, without replacing or modifying that objective and without enabling gate alignment, reconstruction, containment, or any other CLIR module.",
+  "inputs": {
+    "direct_training_protocol": {
+      "path": "configs/dual_prior_evidence_v1/training_protocol_v1.json",
+      "sha256": "cbdc602f909a5f882c8508e673c037c628ca60ad50752ef11a935be9bd9e56b5"
+    },
+    "direct_training_result": {
+      "path": "configs/dual_prior_evidence_v1/training_result_v1.json",
+      "sha256": "7b11aaf92d5ed6b9d7a3c99cd34c039077e295855b2305efc5a9b4f53595801b"
+    },
+    "gold_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+      "sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc"
+    },
+    "training_data_report": {
+      "path": "configs/dual_prior_evidence_v1/training_data_report_v1.json",
+      "sha256": "cb308fb605e717ebc307d6c302edc2a4de92751eeb2a58c6cbbd22b94dee7ac5"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "method": {
+    "name": "original_bidirectional_stop_gradient_mutual_distillation",
+    "key_to_complete": "MSE(A_key, stopgrad(A_complete))",
+    "complete_to_key": "MSE(A_complete, stopgrad(A_key))",
+    "joint_objective": "MSE(A_key, stopgrad(A_complete)) + MSE(A_complete, stopgrad(A_key))",
+    "attention_definition": "A_key and A_complete are full-trajectory masked-softmax distributions from key_prior_logits and complete_prior_logits.",
+    "token_reduction": "Sum squared token errors within each trajectory, then average trajectories independently in each direction.",
+    "phase": "joint",
+    "weight": 0.25,
+    "weight_rationale": "Preserve the original implementation default. In the completed D3 logs, the unweighted joint distillation diagnostic was finite and nonzero (approximately 0.003 to 0.023 across train epochs), so 0.25 is a modest active coefficient rather than an inert or dominating term.",
+    "formula_may_be_changed_after_results": false,
+    "containment_replacement_allowed": false
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "fixed final epoch 5",
+    "early_stopping": false,
+    "prior_phase_mode": "joint",
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "negative_consistency": 0.0,
+      "score_consistency": 0.0,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "relative_tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior_distill": 0.0,
+      "gate_prior": 0.0,
+      "reconstruction": 0.0
+    }
+  },
+  "cells": {
+    "m0_direct_no_distill": {
+      "description": "Matched D3 control: correctness plus direct key and complete BCE, with mutual distillation disabled.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+        "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+        "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 1.0,
+      "prior_distill_weight": 0.0
+    },
+    "m1_original_mutual_distill": {
+      "description": "Correctness plus direct key and complete BCE plus the original bidirectional stop-gradient mutual-attention MSE at weight 0.25.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+        "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+        "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 1.0,
+      "prior_distill_weight": 0.25
+    }
+  },
+  "comparison": {
+    "control_cell": "m0_direct_no_distill",
+    "mutual_cell": "m1_original_mutual_distill",
+    "single_changed_factor": "prior_distill_weight: 0.0 -> 0.25",
+    "rerun_control_on_same_commit": true
+  },
+  "evaluation": {
+    "primary_collaboration_metric": "Held-out mean symmetric attention MSE, numerically equal to the two-direction joint distillation formula evaluated without gradients.",
+    "membership_prediction": "sigmoid(key_prior_logits) and sigmoid(complete_prior_logits), never trajectory-softmax attention",
+    "attention_prediction": "full-trajectory clir_key_prior and clir_complete_prior masked-softmax distributions",
+    "metrics": [
+      "train and dev one-direction and symmetric attention MSE, attention L1 distance, and overlap mass",
+      "held-out key and complete token/unit average precision",
+      "key/complete membership probability separation and correlation",
+      "calibrated containment violation as a diagnostic only",
+      "correctness AUROC and accuracy"
+    ],
+    "selection_guards": {
+      "minimum_passing_seeds": 2,
+      "total_seeds": 3,
+      "dev_symmetric_attention_mse_relative_reduction_minimum": 0.02,
+      "mutual_key_unit_ap_delta_vs_control_minimum": -0.05,
+      "mutual_complete_unit_ap_delta_vs_control_minimum": -0.05,
+      "mutual_unit_ap_delta_over_position_minimum": 0.02,
+      "mutual_mean_absolute_key_complete_probability_difference_minimum": 0.02,
+      "mutual_key_complete_probability_correlation_maximum": 0.98,
+      "mutual_correctness_auroc_delta_vs_control_minimum": -0.1
+    },
+    "passing_conclusion": "The preserved original mutual-distillation objective is active and reduces its held-out branch-discrepancy target without unacceptable localization, map-separation, or correctness regression in this pipeline pilot. Advance it as the dual-prior collaboration method; downstream reward-gate efficacy remains untested.",
+    "failing_conclusion": "Keep the original mutual-distillation mechanism in the method and report this frozen setting as diagnostic-only. Diagnose coefficient scale or joint-versus-alternate scheduling under a separately frozen protocol; do not replace its formula post hoc and do not claim collaboration efficacy from this run.",
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "runner": "scripts/run_dual_prior_pilot_v1.py",
+    "matrix_launcher": "scripts/run_dual_prior_matrix_v1.py",
+    "evaluator": "scripts/evaluate_dual_prior_predictions_v1.py",
+    "summarizer": "scripts/summarize_dual_prior_mutual_distillation_v1.py",
+    "output_root": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1",
+    "result": "configs/dual_prior_mutual_distillation_v1/training_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "max_parallel_cells": 6,
+    "clean_committed_worktree_required": true,
+    "status": "authorized_by_user"
+  },
+  "formal_mechanism_claim_allowed": false
+}
