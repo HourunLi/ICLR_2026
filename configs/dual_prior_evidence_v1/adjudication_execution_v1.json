@@ -1,0 +1,59 @@
+{
+  "schema_version": "clir-dual-prior-adjudication-execution-v1",
+  "status": "frozen_before_adjudication",
+  "evidence_tier": "pipeline_pilot",
+  "semantic_parent": {
+    "annotation_guide": "configs/dual_prior_evidence_v1/annotation_guide_v1.md",
+    "annotation_guide_sha256": "51655ff2cffd861f08b890eea28f68c6b12b4cdb8806819b2b3021f66570e576",
+    "agreement_protocol": "configs/dual_prior_evidence_v1/agreement_adjudication_protocol_v1.json",
+    "agreement_protocol_sha256": "e635c1fb3b915f5437b606d037e4e813be5645cf1d3c824e5c4f37a751efa6ce",
+    "agreement_report": "configs/dual_prior_evidence_v1/agreement_report_v1.json",
+    "agreement_report_sha256": "d43544a1c6ef952ba9b9d5c0a87e97773b38d4565776581ee1321e6f7af62e79",
+    "agreement_gate_passed": true,
+    "training_gold_authorized": false
+  },
+  "frozen_packet": {
+    "path": "configs/dual_prior_evidence_v1/adjudication_items_v1.jsonl",
+    "sha256": "202fa25bdfd964925233bba235631f8ef3f56420c5ea9253a9e305c76a1100fd",
+    "rows": 48,
+    "candidate_roles_blinded": true
+  },
+  "execution": {
+    "prompt": "configs/dual_prior_evidence_v1/adjudication_prompt_resumable_v1.md",
+    "prompt_sha256": "de2e5b8d4c96075de629332d4a170b8a6f4cb1f2af94be81e004137e756f4717",
+    "validator_module": "src/clir_dual_prior_adjudication.py",
+    "validator_module_sha256": "903bf43d462ec9be579d17d22258365d31463a5a52d128929d6e1365fdd03d33",
+    "checkpoint_helper": "scripts/checkpoint_dual_prior_adjudication_v1.py",
+    "checkpoint_helper_sha256": "c527a2495899ed37ad94baa66d2a5a221e13a417613b7ee41afdc2e98561c31a",
+    "final_validator": "scripts/validate_dual_prior_adjudication_v1.py",
+    "final_validator_sha256": "970a8d6632202d19711dc46143ac6779aaa424d34ad4c80bba1a5cc5af6c946c",
+    "scratch": "run_artifacts/dual_prior_evidence_v1/adjudication_checkpoint/current_row.json",
+    "raw_output": "configs/dual_prior_evidence_v1/adjudications_raw_v1.jsonl",
+    "normalized_output": "configs/dual_prior_evidence_v1/adjudications_v1.jsonl",
+    "unit_of_durable_progress": "one validated role-blind disagreement adjudication",
+    "batch_only_write_forbidden": true
+  },
+  "blinding": {
+    "allowed": [
+      "annotation guide",
+      "problem",
+      "trajectory",
+      "fixed public units",
+      "role-shuffled annotation_a and annotation_b"
+    ],
+    "forbidden": [
+      "adjudication_lineage_v1.jsonl",
+      "primary and secondary role identity",
+      "correctness or reference answer",
+      "hallucination labels or onset",
+      "split membership, query/source identity, and training results"
+    ]
+  },
+  "completion_gate": {
+    "checkpointed_rows": 48,
+    "structural_validation": "passed",
+    "all_resolution_values_consistent_with_final_target": true,
+    "all_usable_targets_nonempty_and_nested": true,
+    "gold_materialization_before_completion": false
+  }
+}
