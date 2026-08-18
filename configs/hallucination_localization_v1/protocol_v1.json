@@ -1,0 +1,120 @@
+{
+  "schema_version": "clir-hallucination-localization-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Create and calibrate real path-hallucination and exact output-token onset labels without deriving them from final correctness.",
+  "source": {
+    "manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+    "split": "train-primary",
+    "rows": 4096,
+    "queries": 512,
+    "correct": 3668,
+    "incorrect": 428
+  },
+  "selection": {
+    "seed": 1729,
+    "item_id_salt": "clir-hallucination-localization-v1",
+    "rows": 64,
+    "queries": 64,
+    "one_row_per_query": true,
+    "per_correctness": 32,
+    "length_bins_per_correctness": 4,
+    "rows_per_correctness_length_bin": 8,
+    "length_measure": "len(frozen_output_token_ids_including_terminal_control_token)",
+    "priority": "sha256(seed:correctness:length_bin:source_row_id)",
+    "blind_order": "sha256(seed:blind-order:source_row_id)",
+    "correctness_role": "selection_only_never_annotation_evidence"
+  },
+  "exclusions": {
+    "query_ids_from": "configs/on_policy_pilot0_v1a/annotation_lineage_v1.jsonl",
+    "query_ids_from_sha256": "3b10b028cf4c2ea2517495411b27d199972448c39641a7d030fdbec8ad5cfe1a",
+    "scope": "exclude_all_31_previously_reaudited_route_a_queries",
+    "reason": "keep localization calibration independent of repeatedly inspected equivalence pairs"
+  },
+  "blind_item_contract": {
+    "visible_fields": [
+      "schema_version",
+      "item_id",
+      "problem",
+      "trajectory"
+    ],
+    "forbidden_fields": [
+      "correctness",
+      "source_id",
+      "query_id",
+      "candidate_index",
+      "parsed_answer",
+      "reference_answer",
+      "old_verifier_decision",
+      "primary_annotation"
+    ]
+  },
+  "annotation": {
+    "guide": "configs/hallucination_localization_v1/annotation_guide_v1.md",
+    "path_status_values": [
+      "hallucinated",
+      "clean",
+      "uncertain"
+    ],
+    "claim_status_values": [
+      "supported",
+      "contradicted",
+      "unsupported",
+      "non_claim",
+      "uncertain"
+    ],
+    "quote_contract": "exact trajectory substring plus zero-based occurrence",
+    "uncertain_policy": "keep unlabeled; never coerce to path_hallucinated=0",
+    "correctness_independence": true
+  },
+  "token_mapping": {
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "trust_remote_code": true,
+    "contract": "tokenize visible response without special tokens; require exact prefix equality with frozen output_token_ids and only invisible trailing control tokens",
+    "onset": "first frozen output token overlapping the earliest exact problem-claim character span",
+    "clean_onset": -1
+  },
+  "primary_annotator": {
+    "role": "candidate_primary_annotator_requires_new_task_calibration",
+    "model_id": "mistralai/Mistral-Small-24B-Instruct-2501",
+    "model_revision": "9527884be6e5616bdd54de542f9ae13384489724",
+    "decoding": {
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 2048
+    },
+    "inherited_reasoning_equivalence_authorization": false
+  },
+  "double_annotation": {
+    "secondary_rows": 64,
+    "secondary_is_blind_to_primary": true,
+    "secondary_is_blind_to_correctness": true,
+    "adjudication_overwrites_raw_labels": false
+  },
+  "trainability_gate": {
+    "all_primary_and_secondary_rows_parse_and_bind": true,
+    "path_classes_nonempty": true,
+    "minimum_adjudicated_hallucinated": 12,
+    "minimum_adjudicated_clean": 12,
+    "report_path_agreement_and_cohen_kappa": true,
+    "report_positive_onset_exact_and_within_1_3_5": true,
+    "unresolved_rows_are_masked": true,
+    "gate_is_not_verifier_quality_or_mechanism_efficacy": true
+  },
+  "outputs": {
+    "selection_manifest": "configs/hallucination_localization_v1/selection_manifest_v1.jsonl",
+    "annotation_items": "configs/hallucination_localization_v1/annotation_items_v1.jsonl",
+    "annotation_lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+    "package_report": "configs/hallucination_localization_v1/package_report_v1.json",
+    "primary_run_root": "run_artifacts/hallucination_localization_v1/primary_mistral24_v1",
+    "primary_labels": "configs/hallucination_localization_v1/labels_primary_v1.jsonl",
+    "primary_report": "configs/hallucination_localization_v1/primary_report_v1.json",
+    "secondary_items": "configs/hallucination_localization_v1/secondary_items_v1.jsonl",
+    "secondary_prompt": "configs/hallucination_localization_v1/secondary_prompt_v1.md"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false,
+  "status": "selection_and_primary_authorized"
+}

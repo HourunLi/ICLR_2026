@@ -1,6 +1,6 @@
 # Hallucination Localization Pilot v1
 
-状态：Route A v1a 修复训练门已通过；开始 selection/annotation protocol
+状态：Route A v1a 修复训练门已通过；64-row selection/token mapping 已冻结，等待 primary run
 
 日期：2026-08-18
 
@@ -77,6 +77,31 @@ hallucination_onset = 最早一个 unsupported 或 contradicted claim 所对应�
 train-primary manifest 中按确定性 seed 采样。发布候选清单时记录 row ID、query ID、token-ID hash、
 correctness stratum、长度、源 manifest/hash、抽样 seed 与代码 commit。
 
+### 3.1 已冻结的 v1 selection
+
+机器协议是 `configs/hallucination_localization_v1/protocol_v1.json`，SHA256
+`f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252`。seed 1729 从 4096 行
+train-primary 中选择 32 correct/32 incorrect；每类按 frozen output-token 长度分 4 个 rank bin，每 bin
+8 条，最终 64 个不同 query。correctness 只出现在 private selection/lineage，不进入 blind item。为避免
+围绕已反复查看的样本调定义，额外排除 Route A v1a 重新审核的全部 31 个 query。
+
+关键产物：
+
+- `selection_manifest_v1.jsonl`：SHA256
+  `bbc4e4503af1abada3a7df3e7cfa9a0891ec796539e19408bf78f3df64fc88df`；
+- `annotation_items_v1.jsonl`：SHA256
+  `ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591`，仅含
+  schema/item/problem/trajectory；
+- `annotation_lineage_v1.jsonl`：SHA256
+  `ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef`，私有绑定
+  source/query/correctness/token hash；
+- `token_mapping_preflight_v1.json`：SHA256
+  `f7e0cb816e7ee62e5dcb18611c637c9a002fc3607e8cd76bc6af9ded0050f1dc`。
+
+Phi fast tokenizer preflight 对 64/64 行验证：visible response 的无 special-token 编码与冻结
+`output_token_ids` 精确前缀相等，完整 decode 与 response 相等，offset 覆盖完整；每行恰好尾随一个
+decode 后不可见的 `[32007]` control token。因此后续由 exact quote 映射 onset，不接受重新分词估算。
+
 ## 4. 标注与裁决
 
 ### 4.1 标注器角色
@@ -110,11 +135,13 @@ calibration set 上单独评价。
 计划新增、且全部版本化保留的产物：
 
 ```text
-configs/hallucination_localization_v1/selection_manifest.jsonl
-configs/hallucination_localization_v1/primary_labels.jsonl
-configs/hallucination_localization_v1/secondary_labels.jsonl
-configs/hallucination_localization_v1/adjudicated_labels.jsonl
-configs/hallucination_localization_v1/protocol.json
+configs/hallucination_localization_v1/protocol_v1.json
+configs/hallucination_localization_v1/selection_manifest_v1.jsonl
+configs/hallucination_localization_v1/annotation_items_v1.jsonl
+configs/hallucination_localization_v1/annotation_lineage_v1.jsonl
+configs/hallucination_localization_v1/labels_primary_v1.jsonl
+configs/hallucination_localization_v1/labels_secondary_raw_v1.jsonl
+configs/hallucination_localization_v1/adjudicated_labels_v1.jsonl
 run_artifacts/hallucination_localization_v1/merge_report.json
 run_artifacts/hallucination_localization_v1/coverage_report.json
 ```
@@ -177,6 +204,9 @@ population std。64 条 pilot 的 BoN 变化不能作为方法效果结论，也
 5. 只有数据硬门通过才运行 H0-H3；
 6. 根据 held-out localization 结果决定是否扩大标签、启用 pseudo-tail，或回到定义/标注器选择。
 
+当前第 1 步已完成，并额外完成 64/64 exact-token mapping preflight。下一动作是在 clean commit 上执行
+第 2 步；第 3 步生成后按约定停止并请求独立第二标注。
+
 下一次需要用户/第二标注者介入的明确停止点是第 3 步：仓库会给出可直接交给另一个 AI 的完整 prompt
 和 blind input，不要求对方理解本仓库实现。
 
@@ -188,5 +218,5 @@ population std。64 条 pilot 的 BoN 变化不能作为方法效果结论，也
 - noisy-or MIL 的长度偏置是否会在真实标签上出现；
 - negative-tail shaping 是否改善排序，还是仅让 localization 指标变好。
 
-因此当前开始执行的动作是构造 64-row selection manifest 与 annotation protocol；本文不授权扩量
-标签、读取测试集或宣称 hallucination localization 已有效。
+因此当前开始执行的动作是 24B candidate primary annotation 与 exact-token 映射；本文不授权扩量标签、
+读取测试集或宣称 hallucination localization 已有效。

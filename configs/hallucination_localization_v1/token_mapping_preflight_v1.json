@@ -1,0 +1,30 @@
+{
+  "annotation_items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+  "annotation_lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+  "evidence_tier": "pipeline_pilot",
+  "exact_decode_rows": 64,
+  "exact_encoded_prefix_rows": 64,
+  "formal_mechanism_claim_allowed": false,
+  "offset_coverage_rows": 64,
+  "pilot_test_accessed": false,
+  "protocol": "configs/hallucination_localization_v1/protocol_v1.json",
+  "protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "rows": 64,
+  "schema_version": "clir-hallucination-token-mapping-preflight-v1",
+  "source_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+  "status": "passed",
+  "tokenizer": {
+    "class": "LlamaTokenizerFast",
+    "is_fast": true,
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77"
+  },
+  "trailing_invisible_token_sequences": {
+    "[32007]": 64
+  },
+  "visible_token_count": {
+    "max": 505,
+    "mean": 300.796875,
+    "min": 109
+  }
+}

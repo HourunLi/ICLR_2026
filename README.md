@@ -115,9 +115,12 @@ prepare/extract/audit。Qwen/Falcon v1-v7 是保留不覆盖的 off-policy 失�
 的盲第二标注、裁决、4096 行 mixed manifest 和 matched training 已完成；旧 62 行 all-positive
 manifest 继续禁止训练。下一机制模块恢复为
 [hallucination localization Pilot v1](docs/hallucination_localization_pilot_v1.md)，先构造 64-row
-selection/annotation protocol，不把 consistency、localization 和 dual-prior 同时混训。Phi self-rewrite
-Route B 保留为并行后续路线。NLL 仍只记录为 distribution diagnostic，首轮不设硬门；rewrite loss
-代码本轮未改，旧 tiny sweep 的 0.5/1.0 不冻结为默认。
+selection/annotation protocol，不把 consistency、localization 和 dual-prior 同时混训。该 64-row package
+现已冻结：32 correct/32 incorrect 只用于分层，blind items 不含 correctness；64/64 visible response 均与
+冻结 Phi output IDs 精确前缀一致并只尾随一个不可见 control token。下一步是 24B candidate primary
+annotation，然后停在 blind secondary package 请求独立第二标注。Phi self-rewrite Route B 保留为并行后续
+路线。NLL 仍只记录为 distribution diagnostic，首轮不设硬门；rewrite loss 代码本轮未改，旧 tiny sweep
+的 0.5/1.0 不冻结为默认。
 
 ## 代码结构
 

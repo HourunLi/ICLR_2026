@@ -257,8 +257,12 @@ claim 双标、1 个分歧独立裁决、27 组注入 4096 行 mixed train、匹
 
 下一步按 `docs/hallucination_localization_pilot_v1.md` 执行，只从 train-primary 构造 64-row
 correct/incorrect 分层 selection manifest，冻结领域通用 hallucination/onset 定义、exact-token span
-mapping 和双标协议。首轮不把 consistency、localization、dual-prior 同时混训；到 secondary blind
-package 生成后再请求第二标注者。Phi self-rewrite Route B 仍保留，但不阻塞 localization Pilot-0。
+mapping 和双标协议。selection 现已完成：32/32 outcome 分层、每类 4 个长度 bin 各 8 条、64 个不同
+query，并排除已反复审核的 Route A 31 query；blind items 只含 item/problem/trajectory。Phi tokenizer
+preflight 对 64/64 行完成 exact encoded-prefix、exact decode 和完整 offset coverage，均只尾随 `[32007]`。
+当前执行 24B candidate primary；到 secondary blind package 生成后再请求第二标注者。首轮不把
+consistency、localization、dual-prior 同时混训。Phi self-rewrite Route B 仍保留，但不阻塞 localization
+Pilot-0。
 
 incorrect trajectory 是否需要 augmentation 仍是开放问题。当前 8 个候选对不足以形成可靠错误机制组，
 不阻塞 Pilot-0；本轮让 base manifest 的错误轨迹继续提供 outcome BCE，但不给它们 consistency label。

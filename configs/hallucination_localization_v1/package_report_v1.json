@@ -1,0 +1,76 @@
+{
+  "annotation_items": "configs/hallucination_localization_v1/annotation_items_v1.jsonl",
+  "annotation_items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+  "annotation_lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+  "annotation_lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+  "blind_field_gate_passed": true,
+  "correctness_counts": {
+    "0": 32,
+    "1": 32
+  },
+  "correctness_used_for_selection_only": true,
+  "evidence_tier": "pipeline_pilot",
+  "excluded_query_count": 31,
+  "formal_mechanism_claim_allowed": false,
+  "pilot_test_accessed": false,
+  "protocol": "configs/hallucination_localization_v1/protocol_v1.json",
+  "protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "queries": 64,
+  "rows": 64,
+  "schema_version": "clir-hallucination-localization-package-report-v1",
+  "selection_manifest": "configs/hallucination_localization_v1/selection_manifest_v1.jsonl",
+  "selection_manifest_sha256": "bbc4e4503af1abada3a7df3e7cfa9a0891ec796539e19408bf78f3df64fc88df",
+  "source_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+  "stratum_bin_counts": {
+    "correctness_0__length_bin_0": 8,
+    "correctness_0__length_bin_1": 8,
+    "correctness_0__length_bin_2": 8,
+    "correctness_0__length_bin_3": 8,
+    "correctness_1__length_bin_0": 8,
+    "correctness_1__length_bin_1": 8,
+    "correctness_1__length_bin_2": 8,
+    "correctness_1__length_bin_3": 8
+  },
+  "stratum_bin_length_ranges": {
+    "correctness_0__length_bin_0": {
+      "max": 261,
+      "mean": 215.0,
+      "min": 110
+    },
+    "correctness_0__length_bin_1": {
+      "max": 312,
+      "mean": 291.125,
+      "min": 268
+    },
+    "correctness_0__length_bin_2": {
+      "max": 383,
+      "mean": 358.0,
+      "min": 331
+    },
+    "correctness_0__length_bin_3": {
+      "max": 485,
+      "mean": 434.375,
+      "min": 398
+    },
+    "correctness_1__length_bin_0": {
+      "max": 218,
+      "mean": 199.125,
+      "min": 139
+    },
+    "correctness_1__length_bin_1": {
+      "max": 266,
+      "mean": 254.125,
+      "min": 233
+    },
+    "correctness_1__length_bin_2": {
+      "max": 312,
+      "mean": 287.625,
+      "min": 268
+    },
+    "correctness_1__length_bin_3": {
+      "max": 506,
+      "mean": 375.0,
+      "min": 320
+    }
+  }
+}
