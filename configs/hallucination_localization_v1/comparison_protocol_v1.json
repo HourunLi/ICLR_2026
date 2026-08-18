@@ -1,0 +1,47 @@
+{
+  "schema_version": "clir-hallucination-comparison-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "base_protocol": "configs/hallucination_localization_v1/protocol_v1.json",
+  "base_protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "inputs": {
+    "items": "configs/hallucination_localization_v1/secondary_items_v1.jsonl",
+    "items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+    "lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+    "lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+    "primary_labels": "configs/hallucination_localization_v1/labels_primary_v1.jsonl",
+    "primary_labels_sha256": "1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7",
+    "secondary_raw_labels": "configs/hallucination_localization_v1/labels_secondary_raw_v1.jsonl",
+    "secondary_raw_labels_sha256": "cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6",
+    "source_manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "source_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+  },
+  "comparison": {
+    "path_values": ["clean", "hallucinated", "uncertain"],
+    "adjudicate_path_status_disagreement": true,
+    "adjudicate_common_positive_onset_token_disagreement": true,
+    "adjudicate_common_positive_earliest_claim_span_disagreement": false,
+    "adjudicate_common_positive_problem_status_disagreement": false,
+    "claim_span_and_problem_status_differences_are_reported_not_train_blocking": true,
+    "different_supported_claim_coverage_is_not_a_disagreement": true,
+    "consensus_uncertain_remains_masked": true
+  },
+  "adjudication_blinding": {
+    "view_names": ["annotation_a", "annotation_b"],
+    "assignment": "sha256(clir-hallucination-adjudication-view-v1:item_id) parity",
+    "visible_correctness": false,
+    "visible_source_or_query_identity": false,
+    "visible_annotator_identity": false,
+    "raw_labels_overwritten": false
+  },
+  "outputs": {
+    "secondary_labels": "configs/hallucination_localization_v1/labels_secondary_v1.jsonl",
+    "secondary_report": "configs/hallucination_localization_v1/secondary_report_v1.json",
+    "agreement_report": "configs/hallucination_localization_v1/agreement_report_v1.json",
+    "adjudication_items": "configs/hallucination_localization_v1/adjudication_items_v1.jsonl",
+    "adjudication_lineage": "configs/hallucination_localization_v1/adjudication_lineage_v1.jsonl",
+    "adjudication_prompt": "configs/hallucination_localization_v1/adjudication_prompt_v1.md",
+    "adjudications_raw": "configs/hallucination_localization_v1/adjudications_raw_v1.jsonl"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

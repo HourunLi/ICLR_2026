@@ -647,6 +647,113 @@ def annotation_counts(labels: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     }
 
 
+def cohen_kappa(
+    first: Sequence[str],
+    second: Sequence[str],
+    *,
+    values: set[str] | frozenset[str] = PATH_STATUSES,
+) -> float:
+    """Compute unweighted Cohen's kappa over an explicit label universe."""
+
+    if len(first) != len(second) or not first:
+        raise ValueError("Cohen's kappa requires equal non-empty label sequences")
+    allowed = set(values)
+    unknown = (set(first) | set(second)) - allowed
+    if unknown:
+        raise ValueError(f"Cohen's kappa received unknown labels: {sorted(unknown)}")
+    observed = sum(left == right for left, right in zip(first, second)) / len(first)
+    first_counts = Counter(first)
+    second_counts = Counter(second)
+    expected = sum(
+        first_counts[value] * second_counts[value] for value in allowed
+    ) / len(first) ** 2
+    return (observed - expected) / (1.0 - expected) if expected < 1.0 else 1.0
+
+
+def mapped_earliest_problem_claim(
+    label: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    """Return and cross-check the mapped onset claim for one mapped label."""
+
+    status = label.get("path_status")
+    claims = label.get("claim_reviews")
+    if not isinstance(claims, list):
+        raise ValueError("Mapped label is missing claim_reviews")
+    earliest = label.get("earliest_problem_claim_index")
+    if status == "clean":
+        if earliest is not None or label.get("hallucination_onset") != -1:
+            raise ValueError("Mapped clean label has inconsistent onset fields")
+        return None
+    if status == "hallucinated":
+        if isinstance(earliest, bool) or not isinstance(earliest, int):
+            raise ValueError("Mapped hallucinated label lacks an integer claim index")
+        if not 0 <= earliest < len(claims):
+            raise ValueError("Mapped hallucinated claim index is out of range")
+        claim = claims[earliest]
+        if claim.get("status") not in PROBLEM_STATUSES:
+            raise ValueError("Mapped onset claim is not contradicted/unsupported")
+        if label.get("hallucination_onset") != claim.get("token_start"):
+            raise ValueError("Mapped hallucination onset differs from onset claim token")
+        return claim
+    if status == "uncertain":
+        if earliest is None:
+            return None
+        if isinstance(earliest, bool) or not isinstance(earliest, int):
+            raise ValueError("Mapped uncertain claim index must be null or integer")
+        if not 0 <= earliest < len(claims):
+            raise ValueError("Mapped uncertain claim index is out of range")
+        return claims[earliest]
+    raise ValueError(f"Unknown mapped path status: {status!r}")
+
+
+def compare_mapped_path_labels(
+    first: Mapping[str, Any],
+    second: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Compare train-relevant path/onset judgments, not annotation verbosity."""
+
+    if first.get("item_id") != second.get("item_id"):
+        raise ValueError("Cannot compare mapped labels with different item IDs")
+    if first.get("output_token_ids_sha256") != second.get("output_token_ids_sha256"):
+        raise ValueError("Cannot compare mapped labels with different token identities")
+    first_status = str(first.get("path_status"))
+    second_status = str(second.get("path_status"))
+    if first_status not in PATH_STATUSES or second_status not in PATH_STATUSES:
+        raise ValueError("Mapped comparison received an invalid path status")
+    first_claim = mapped_earliest_problem_claim(first)
+    second_claim = mapped_earliest_problem_claim(second)
+    reasons: list[str] = []
+    if first_status != second_status:
+        reasons.append("path_status")
+    elif first_status == "hallucinated":
+        if first.get("hallucination_onset") != second.get("hallucination_onset"):
+            reasons.append("onset_token")
+        first_span = (first_claim.get("char_start"), first_claim.get("char_end"))
+        second_span = (second_claim.get("char_start"), second_claim.get("char_end"))
+        if first_span != second_span:
+            reasons.append("earliest_problem_claim_span")
+        if first_claim.get("status") != second_claim.get("status"):
+            reasons.append("earliest_problem_claim_status")
+    return {
+        "item_id": first["item_id"],
+        "first_path_status": first_status,
+        "second_path_status": second_status,
+        "path_agreement": first_status == second_status,
+        "first_onset": first.get("hallucination_onset"),
+        "second_onset": second.get("hallucination_onset"),
+        "disagreement_reasons": reasons,
+        "requires_adjudication": any(
+            reason in {"path_status", "onset_token"} for reason in reasons
+        ),
+        "annotation_detail_disagreement": any(
+            reason
+            in {"earliest_problem_claim_span", "earliest_problem_claim_status"}
+            for reason in reasons
+        ),
+        "consensus_unresolved": first_status == second_status == "uncertain",
+    }
+
+
 __all__ = [
     "ANNOTATION_KEYS",
     "CLAIM_KEYS",
@@ -655,6 +762,8 @@ __all__ = [
     "PATH_STATUSES",
     "atomic_write_json",
     "atomic_write_jsonl",
+    "cohen_kappa",
+    "compare_mapped_path_labels",
     "annotation_decision_signature",
     "build_annotation_records",
     "canonical_json",
@@ -665,6 +774,7 @@ __all__ = [
     "locate_occurrence",
     "make_item_id",
     "map_annotation",
+    "mapped_earliest_problem_claim",
     "read_jsonl",
     "repair_annotation_contract",
     "select_stratified_rows",

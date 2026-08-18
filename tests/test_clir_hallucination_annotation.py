@@ -9,6 +9,8 @@ from src.clir_hallucination_annotation import (
     build_annotation_records,
     canonical_sha256,
     char_span_to_token_span,
+    cohen_kappa,
+    compare_mapped_path_labels,
     content_token_offsets,
     locate_occurrence,
     map_annotation,
@@ -336,4 +338,45 @@ def test_contract_repair_changes_only_quote_location_and_derived_index():
     assert repaired["path_status"] == annotation["path_status"]
     assert [claim["status"] for claim in repaired["claim_reviews"]] == [
         claim["status"] for claim in annotation["claim_reviews"]
+    ]
+
+
+def test_path_kappa_and_mapped_onset_comparison():
+    assert cohen_kappa(
+        ["clean", "clean", "hallucinated", "hallucinated"],
+        ["clean", "hallucinated", "hallucinated", "hallucinated"],
+    ) == pytest.approx(0.5)
+
+    def mapped(*, onset: int, char_start: int, problem_status: str = "unsupported"):
+        return {
+            "item_id": "HLA-test",
+            "output_token_ids_sha256": "a" * 64,
+            "path_status": "hallucinated",
+            "path_hallucinated": 1,
+            "hallucination_onset": onset,
+            "earliest_problem_claim_index": 0,
+            "claim_reviews": [
+                {
+                    "claim_text": "Bad claim.",
+                    "occurrence": 0,
+                    "status": problem_status,
+                    "reason": "No premise supports this material claim.",
+                    "claim_index": 0,
+                    "char_start": char_start,
+                    "char_end": char_start + 10,
+                    "token_start": onset,
+                    "token_end_exclusive": onset + 3,
+                }
+            ],
+        }
+
+    compared = compare_mapped_path_labels(
+        mapped(onset=4, char_start=10),
+        mapped(onset=5, char_start=12, problem_status="contradicted"),
+    )
+    assert compared["requires_adjudication"] is True
+    assert compared["disagreement_reasons"] == [
+        "onset_token",
+        "earliest_problem_claim_span",
+        "earliest_problem_claim_status",
     ]
