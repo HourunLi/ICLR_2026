@@ -10,6 +10,8 @@ from scripts.run_hallucination_localization_pilot_v2 import (
     resolve_training_seed,
     weight_args,
 )
+from scripts.run_hallucination_tail_cv_matrix_v2c import matrix_jobs
+from scripts.summarize_hallucination_tail_cv_v2c import adoption_decision
 from scripts.summarize_hallucination_tail_comparison_v2b import (
     paired_bootstrap,
     tail_gate,
@@ -201,6 +203,49 @@ def test_tail_cv_launcher_requires_frozen_seed_and_fold():
         resolve_training_seed(protocol, 45)
     with pytest.raises(ValueError, match="explicit --fold"):
         resolve_fold_inputs(protocol, None)
+
+
+def test_tail_cv_matrix_freezes_22_new_cells_and_reuses_fold0_seed42():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/tail_cv_protocol_v2c.json"
+    )
+
+    jobs = matrix_jobs(protocol)
+
+    assert len(jobs) == 22
+    assert {job["cell"] for job in jobs} == {
+        "t0_span_only",
+        "t2_span_tail_historical",
+    }
+    assert not any(job["fold"] == 0 and job["seed"] == 42 for job in jobs)
+
+
+def test_tail_cv_adoption_requires_two_seed_guards_mean_guards_and_no_catastrophe():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/tail_cv_protocol_v2c.json"
+    )
+    gates = {
+        "42": {"all_pilot_guards_passed": True},
+        "43": {"all_pilot_guards_passed": True},
+        "44": {"all_pilot_guards_passed": False},
+    }
+    base_delta = {
+        "tail_minus_pre_gap": -0.2,
+        "tail_minus_clean_gap": -0.1,
+        "explicit_token_value_risk_average_precision": 0.03,
+        "span_hallucination_probability_average_precision": 0.01,
+        "reward_score_correctness_roc_auc": 0.01,
+    }
+    deltas = {seed: dict(base_delta) for seed in gates}
+
+    passed = adoption_decision(gates, deltas, protocol)
+    deltas["44"]["span_hallucination_probability_average_precision"] = -0.06
+    failed = adoption_decision(gates, deltas, protocol)
+
+    assert passed["passed"] is True
+    assert passed["selected_cell"] == "t2_span_tail_historical"
+    assert failed["passed"] is False
+    assert failed["no_catastrophic_seed"] is False
 
 
 def test_tail_value_diagnostics_keep_supported_post_onset_tokens_visible():

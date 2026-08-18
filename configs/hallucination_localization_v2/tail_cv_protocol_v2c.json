@@ -1,0 +1,230 @@
+{
+  "schema_version": "clir-hallucination-localization-training-protocol-v2",
+  "experiment_id": "clir-hallucination-tail-cross-validation-v2c",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Select T0 sparse-span-only or T2 sparse-span plus weight-0.5 full-tail shaping using three training seeds and 48 selection-unexposed out-of-fold trajectories.",
+  "hypothesis_scope": {
+    "tested": "Whether the v2b T2 full-tail reward-shaping gain persists across training seeds and held-out folds while retaining sparse-span localization and correctness ranking.",
+    "token_label_semantics": "Sparse reviewed claim spans remain the only token hallucination classification target. Full-tail value shaping is a separate error-contamination reward hypothesis.",
+    "module_selection_allowed": true,
+    "formal_mechanism_claim_allowed": false
+  },
+  "inputs": {
+    "fold_audit": {
+      "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_audit_v2c.json",
+      "sha256": "4412efeca3ffe21a02e2ab3762ee1964b7d99d4842cc1516d4b76be89f95ebca"
+    },
+    "data_protocol": {
+      "path": "configs/hallucination_localization_v2/tail_cv_data_protocol_v2c.json",
+      "sha256": "0e67a7a235f0cc77ed51f147ea99efc55d55b4282a9f18d0abfa8cb507e074b9"
+    },
+    "v2b_result": {
+      "path": "configs/hallucination_localization_v2/tail_comparison_result_v2b.json",
+      "sha256": "29b5d20e4563f217b22ecd392c381fdd5aaf8f044830705542f21d7031df6bbe"
+    },
+    "tail_hypothesis_audit": {
+      "path": "configs/hallucination_localization_v2/tail_hypothesis_audit_v2b.json",
+      "sha256": "9d7cd5ca49c2debf1688f5ba83b91271fc5ed0ba13cc9d580114775ef57cc494"
+    }
+  },
+  "cross_validation": {
+    "folds": {
+      "0": {
+        "selection_exposed": true,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/train48.jsonl",
+          "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+          "rows": 48,
+          "supervised_tokens": 6681
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/dev16.jsonl",
+          "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+          "rows": 16,
+          "supervised_tokens": 2451
+        }
+      },
+      "1": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_1/train48.jsonl",
+          "sha256": "fde8c6f5ebe3b2e7fb26603076be58088feb3156f01240561e8c036b5642e8b8",
+          "rows": 48,
+          "supervised_tokens": 6834
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_1/dev16.jsonl",
+          "sha256": "a7f21b6eae19e08496662089867a01b9d7583a1ae0acddf110fe1fd3fdc38c11",
+          "rows": 16,
+          "supervised_tokens": 2298
+        }
+      },
+      "2": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_2/train48.jsonl",
+          "sha256": "73381a471ea98c2cfc5c722c7d342df520db584cd3d695f2f7f3940b64f29577",
+          "rows": 48,
+          "supervised_tokens": 6849
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_2/dev16.jsonl",
+          "sha256": "760cd6df65ce93f10b896118be559fa590952ee77afd471e4373124800f6c172",
+          "rows": 16,
+          "supervised_tokens": 2283
+        }
+      },
+      "3": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_3/train48.jsonl",
+          "sha256": "d844539122f692472fc513d4c4025c8deebce2785ebb10a10ac0ed26f119e215",
+          "rows": 48,
+          "supervised_tokens": 7032
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_3/dev16.jsonl",
+          "sha256": "ea07189cf9dc3539c43ed768a51fd638f7f73d954e8b862aabde41627ef9a08c",
+          "rows": 16,
+          "supervised_tokens": 2100
+        }
+      }
+    },
+    "primary_confirmatory_folds": [1, 2, 3],
+    "primary_confirmatory_rows": 48,
+    "all_out_of_fold_rows": 64,
+    "fold_0_role": "Selection-exposed continuity diagnostic only; excluded from the primary adoption gate."
+  },
+  "feature_integrity_gate": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "failure_count": 0,
+    "skip_repeated_full_finite_scan": true
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "preregistered_final_epoch_5",
+    "early_stopping": false,
+    "negative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "progress_score_weight": 0.5,
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "hallucination": 1.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0
+    }
+  },
+  "cells": {
+    "t0_span_only": {
+      "description": "S1 sparse claim-span BCE without reward shaping",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "tail_weight": 0.0
+    },
+    "t2_span_tail_historical": {
+      "description": "S1 plus weight-0.5 full-onset-tail token-value margin",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "tail_weight": 0.5
+    }
+  },
+  "evaluation": {
+    "fixed_threshold": 0.5,
+    "threshold_selection": "train_only_then_apply_once_to_each_fold_dev",
+    "primary_unit": "For each training seed, concatenate out-of-fold predictions from folds 1-3 and evaluate 48 unique confirmatory trajectories.",
+    "per_seed_guards": {
+      "relative_locality": "Both T2-minus-T0 changes in tail-minus-pre and tail-minus-clean gaps must be negative.",
+      "semantic_value": "Explicit-token value-risk AP for T2 must be at least T0.",
+      "span": "Sparse-span AP for T2 must be no more than 0.02 below T0.",
+      "correctness": "Reward-score correctness AUROC for T2 must be no more than 0.05 below T0."
+    },
+    "adoption_rule": {
+      "minimum_passing_confirmatory_seeds": 2,
+      "total_confirmatory_seeds": 3,
+      "mean_across_seed_relative_locality_required": true,
+      "mean_explicit_value_risk_ap_delta_minimum": 0.0,
+      "mean_span_ap_delta_minimum": -0.02,
+      "mean_correctness_roc_auc_delta_minimum": -0.05,
+      "per_seed_catastrophic_span_ap_delta_floor": -0.05,
+      "per_seed_catastrophic_correctness_roc_auc_delta_floor": -0.1,
+      "passing_conclusion": "Adopt T2 as the pipeline-pilot hallucination reward default and proceed to the dual-prior module.",
+      "failing_conclusion": "Keep T0 as the pipeline-pilot default, defer full-tail shaping, and proceed to the dual-prior module."
+    },
+    "paired_query_bootstrap_samples": 2000,
+    "paired_query_bootstrap_seed": 4202,
+    "bootstrap_seed_aggregation": "For each resampled query set, compute T2-minus-T0 per training seed and average the three seed deltas.",
+    "exact_onset_role": "Report only. Exact-onset failure does not select the full-tail reward hypothesis.",
+    "test_set_access_allowed": false
+  },
+  "reuse": {
+    "fold_0_seed_42": {
+      "reason": "Avoid rerunning the identical v2b T0/T2 pair.",
+      "source_protocol": {
+        "path": "configs/hallucination_localization_v2/tail_comparison_protocol_v2b.json",
+        "sha256": "1b283158438d1298a88b01d3f0308b4bd042edd824cb7256659d55f6efbb1ea5"
+      },
+      "source_result": {
+        "path": "configs/hallucination_localization_v2/tail_comparison_result_v2b.json",
+        "sha256": "29b5d20e4563f217b22ecd392c381fdd5aaf8f044830705542f21d7031df6bbe"
+      },
+      "output_root": "run_artifacts/hallucination_localization_v2/pilot_tail_v2b",
+      "training_commit": "08b9e82446f5a63bef1c1216d2748d1778df181e"
+    }
+  },
+  "pipeline_gate": {
+    "required_matrix_cells": 24,
+    "reused_cells": 2,
+    "new_cells": 22,
+    "required": [
+      "all_24_fold_seed_variant_cells_complete_epoch_5_without_nonfinite_loss",
+      "each_t0_t2_pair_shares_fold_data_seed_architecture_budget_and_training_commit",
+      "all_cell_scored_rows_bind_to_frozen_input_and_checkpoint_hashes",
+      "confirmatory_fold_dev_ids_are_disjoint_and_total_48",
+      "only_tail_weight_differs_within_each_pair"
+    ]
+  },
+  "execution": {
+    "launcher": "scripts/run_hallucination_localization_pilot_v2.py",
+    "matrix_launcher": "scripts/run_hallucination_tail_cv_matrix_v2c.py",
+    "summarizer": "scripts/summarize_hallucination_tail_cv_v2c.py",
+    "output_root": "run_artifacts/hallucination_localization_v2/pilot_tail_cv_v2c",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "max_parallel_cells": 8,
+    "status": "authorized_by_user"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}
