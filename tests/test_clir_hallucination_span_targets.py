@@ -4,7 +4,12 @@ import pytest
 
 from scripts.calibrate_hallucination_span_thresholds_v2 import explicit_token_targets
 from scripts.materialize_hallucination_span_targets_v2 import ROOT, derive_annotation
-from scripts.run_hallucination_localization_pilot_v2 import weight_args
+from scripts.materialize_hallucination_tail_cv_v2c import partition_original_train
+from scripts.run_hallucination_localization_pilot_v2 import (
+    resolve_fold_inputs,
+    resolve_training_seed,
+    weight_args,
+)
 from scripts.summarize_hallucination_tail_comparison_v2b import (
     paired_bootstrap,
     tail_gate,
@@ -145,6 +150,57 @@ def test_pilot_v2_launcher_allows_explicit_per_cell_tail_ablation():
     assert args[args.index("--tail_weight") + 1] == "0.1"
     assert args[args.index("--hallucination_weight") + 1] == "1.0"
     assert args[args.index("--mil_weight") + 1] == "0.0"
+
+
+def test_tail_cv_partition_is_deterministic_stratified_and_exhaustive():
+    rows = [
+        {
+            "id": f"row-{label}-{index}",
+            "query_id": f"query-{label}-{index}",
+            "path_hallucinated": label,
+        }
+        for label, count in ((0, 31), (1, 17))
+        for index in range(count)
+    ]
+
+    first = partition_original_train(rows)
+    second = partition_original_train(list(reversed(rows)))
+
+    assert {
+        fold: [row["id"] for row in fold_rows] for fold, fold_rows in first.items()
+    } == {
+        fold: [row["id"] for row in fold_rows] for fold, fold_rows in second.items()
+    }
+    assert [len(first[fold]) for fold in (1, 2, 3)] == [16, 16, 16]
+    assert [
+        sum(int(row["path_hallucinated"]) for row in first[fold])
+        for fold in (1, 2, 3)
+    ] == [6, 6, 5]
+    assert len({row["id"] for fold in first.values() for row in fold}) == 48
+
+
+def test_tail_cv_launcher_requires_frozen_seed_and_fold():
+    protocol = {
+        "inputs": {},
+        "matched_training": {"seeds": [42, 43, 44]},
+        "cross_validation": {
+            "folds": {
+                "1": {"train": {"path": "train"}, "dev": {"path": "dev"}}
+            }
+        },
+    }
+
+    assert resolve_training_seed(protocol, 43) == 43
+    fold, train, dev = resolve_fold_inputs(protocol, 1)
+    assert fold == 1
+    assert train["path"] == "train"
+    assert dev["path"] == "dev"
+    with pytest.raises(ValueError, match="explicit --seed"):
+        resolve_training_seed(protocol, None)
+    with pytest.raises(ValueError, match="not frozen"):
+        resolve_training_seed(protocol, 45)
+    with pytest.raises(ValueError, match="explicit --fold"):
+        resolve_fold_inputs(protocol, None)
 
 
 def test_tail_value_diagnostics_keep_supported_post_onset_tokens_visible():

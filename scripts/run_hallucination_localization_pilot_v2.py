@@ -67,10 +67,50 @@ def weight_args(protocol: dict[str, Any], cell_name: str) -> list[str]:
     return [value for key, number in values.items() for value in (f"--{key}", str(number))]
 
 
+def resolve_training_seed(protocol: dict[str, Any], requested: int | None) -> int:
+    training = protocol["matched_training"]
+    if "seeds" in training:
+        allowed = [int(seed) for seed in training["seeds"]]
+        if requested is None:
+            if len(allowed) != 1:
+                raise ValueError("Multi-seed protocol requires an explicit --seed")
+            requested = allowed[0]
+        if requested not in allowed:
+            raise ValueError(f"Seed {requested} is not frozen in protocol seeds {allowed}")
+        return requested
+    fixed = int(training["seed"])
+    if requested is not None and requested != fixed:
+        raise ValueError(f"Legacy protocol freezes seed {fixed}, not {requested}")
+    return fixed
+
+
+def resolve_fold_inputs(
+    protocol: dict[str, Any], requested: int | None
+) -> tuple[int | None, dict[str, Any], dict[str, Any]]:
+    cross_validation = protocol.get("cross_validation")
+    if cross_validation is None:
+        if requested is not None:
+            raise ValueError("Non-CV protocol does not accept --fold")
+        return (
+            None,
+            protocol["inputs"]["dense_train"],
+            protocol["inputs"]["localization_dev"],
+        )
+    if requested is None:
+        raise ValueError("Cross-validation protocol requires an explicit --fold")
+    folds = cross_validation["folds"]
+    if str(requested) not in folds:
+        raise ValueError(f"Fold {requested} is not frozen in the protocol")
+    fold = folds[str(requested)]
+    return requested, fold["train"], fold["dev"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--cell", required=True)
+    parser.add_argument("--seed", type=int)
+    parser.add_argument("--fold", type=int)
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
 
@@ -83,10 +123,14 @@ def main() -> None:
         raise ValueError("Unknown hallucination localization training protocol schema")
     if args.cell not in protocol["cells"]:
         raise ValueError(f"Unknown Pilot v2 cell {args.cell!r}")
+    training_seed = resolve_training_seed(protocol, args.seed)
+    fold, train_input, dev_input = resolve_fold_inputs(protocol, args.fold)
     code = git_state(ROOT)
     if code["dirty"]:
         raise RuntimeError("Localization training requires a clean committed worktree")
     for value in protocol["inputs"].values():
+        verify(resolve(value["path"]), value["sha256"])
+    for value in (train_input, dev_input):
         verify(resolve(value["path"]), value["sha256"])
     integrity = protocol["feature_integrity_gate"]
     integrity_path = resolve(integrity["report"])
@@ -98,7 +142,12 @@ def main() -> None:
     if int(failure_count) != int(integrity["failure_count"]):
         raise ValueError("Feature integrity report contains failures")
 
-    output_root = resolve(protocol["execution"]["output_root"]) / args.cell
+    output_root = resolve(protocol["execution"]["output_root"])
+    if fold is not None:
+        output_root = output_root / f"fold_{fold}"
+    if "seeds" in protocol["matched_training"]:
+        output_root = output_root / f"seed_{training_seed}"
+    output_root = output_root / args.cell
     paths = {
         "model": output_root / "model.pt",
         "metrics": output_root / "metrics.jsonl",
@@ -112,6 +161,8 @@ def main() -> None:
     preflight = {
         "schema_version": "clir-hallucination-localization-cell-preflight-v2",
         "cell": args.cell,
+        "training_seed": training_seed,
+        "cross_validation_fold": fold,
         "protocol": str(protocol_path.relative_to(ROOT)),
         "protocol_sha256": file_sha256(protocol_path),
         "code": code,
@@ -125,8 +176,6 @@ def main() -> None:
         raise FileExistsError(f"Refusing to reuse an existing {args.cell} output directory")
     output_root.mkdir(parents=True, exist_ok=True)
 
-    train_input = protocol["inputs"]["dense_train"]
-    dev_input = protocol["inputs"]["localization_dev"]
     model = protocol["model"]
     training = protocol["matched_training"]
     cell = protocol["cells"][args.cell]
@@ -188,7 +237,7 @@ def main() -> None:
         "--max_grad_norm",
         str(training["max_grad_norm"]),
         "--seed",
-        str(training["seed"]),
+        str(training_seed),
         "--amp_dtype",
         training["amp_dtype"],
         "--num_workers",
@@ -298,6 +347,8 @@ def main() -> None:
         "schema_version": "clir-hallucination-localization-cell-result-v2",
         "evidence_tier": "pipeline_pilot",
         "cell": args.cell,
+        "training_seed": training_seed,
+        "cross_validation_fold": fold,
         "description": cell["description"],
         "protocol_sha256": file_sha256(protocol_path),
         "train_manifest_sha256": train_input["sha256"],

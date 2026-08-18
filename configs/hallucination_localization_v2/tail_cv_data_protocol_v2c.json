@@ -1,0 +1,55 @@
+{
+  "schema_version": "clir-hallucination-tail-cv-data-protocol-v2c",
+  "experiment_id": "clir-hallucination-tail-cross-validation-v2c",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Expand the tail comparison from one exposed 16-row development split to query-disjoint out-of-fold predictions over all 64 adjudicated trajectories without acquiring new labels.",
+  "sources": {
+    "original_train": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+      "rows": 48,
+      "clean": 31,
+      "hallucinated": 17
+    },
+    "original_dev": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+      "rows": 16,
+      "clean": 10,
+      "hallucinated": 6
+    }
+  },
+  "split": {
+    "unit": "query_trajectory_row",
+    "fold_count": 4,
+    "rows_per_fold": 16,
+    "train_rows_per_fold": 48,
+    "fold_0": "Reuse the original 16-row development split. It is selection-exposed and may not decide adoption.",
+    "confirmatory_folds": [1, 2, 3],
+    "confirmatory_source": "The original 48 training rows, partitioned before opening any fold-specific held-out metrics.",
+    "partition_key": "sha256('clir-tail-cv-v2c|path_hallucinated|query_id|id')",
+    "partition_method": "Within each path_hallucinated stratum, sort by the partition key. Allocate clean rows 10/10/11 and hallucinated rows 6/6/5 to folds 1/2/3.",
+    "training_complement": "For every fold, train on the other 48 rows in frozen original-train then original-dev source order.",
+    "required_gates": [
+      "all_64_ids_and_queries_are_unique",
+      "source_train_and_dev_have_zero_query_overlap",
+      "four_dev_folds_are_pairwise_disjoint_and_cover_all_64_rows",
+      "each_fold_has_48_train_and_16_dev_rows_with_zero_query_overlap",
+      "each_train_and_dev split_has_both_path_and_correctness_classes",
+      "each_train_and_dev_split_has_explicit_positive_and_negative_token_labels",
+      "exact_output_token_ids_and_feature_references_are_unchanged"
+    ]
+  },
+  "outputs": {
+    "root": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c",
+    "audit": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_audit_v2c.json"
+  },
+  "limitations": [
+    "The 64 labels remain Silver pipeline-pilot labels rather than independent human Gold.",
+    "Fold 0 was used to select tail_weight 0.5 and is excluded from the primary adoption gate.",
+    "Folds 1-3 use rows that participated in earlier model fitting, although their out-of-fold metrics were not used to select tail_weight.",
+    "This cross-validation closes a pipeline-selection gate; it is not a formal independent-test claim."
+  ],
+  "pilot_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}
