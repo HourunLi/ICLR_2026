@@ -1,0 +1,396 @@
+{
+  "schema_version": "clir-dual-prior-reward-gate-loss-scale-audit-v1",
+  "status": "completed_weight_frozen_before_gate_training",
+  "evidence_tier": "pipeline_pilot",
+  "analysis_script": "scripts/audit_dual_prior_gate_scale_v1.py",
+  "analysis_script_sha256": "76796142b62bea10417f77d3e9d623275f213cc0efeec195ca85f12ecbf65856",
+  "source_mutual_protocol": "configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json",
+  "source_mutual_protocol_sha256": "f9e1158eb15747129b5749f63a32e610309e3f2d8551592663d604678e1d4c5e",
+  "source_mutual_result": "configs/dual_prior_mutual_distillation_v1/training_result_v1.json",
+  "source_mutual_result_sha256": "03c5c3e799f5c4ee7be58be5f6af3a3a89d3248410d8e685efd4da6881e7d11e",
+  "source_training_commit": "91733a85463991147e6546152a588d58637a09cd",
+  "source_gate_alignment_weight": 0.0,
+  "source_artifacts": {
+    "42": {
+      "checkpoint": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_42/m1_original_mutual_distill/model.pt",
+      "checkpoint_sha256": "7aec1972015090899b83a7edb51b512704a4f52cfd1091709b6d2d73b46fb957",
+      "metrics": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_42/m1_original_mutual_distill/metrics.jsonl",
+      "metrics_sha256": "4f3d8cef0ef4c1f833eb04915107b9c5386606a5fa0a48de2dc6170ea921aff0",
+      "cell_result": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_42/m1_original_mutual_distill/cell_result.json",
+      "cell_result_sha256": "46f786cd7c2b52ac3e39b954e98475a5f7a4e87ff42bcd1519852630d6d983d9"
+    },
+    "43": {
+      "checkpoint": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_43/m1_original_mutual_distill/model.pt",
+      "checkpoint_sha256": "0a04d8fce81d9930fcf0da57e4c2a2bc0ce9394309fd4a0282d44cc7969a938c",
+      "metrics": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_43/m1_original_mutual_distill/metrics.jsonl",
+      "metrics_sha256": "091ddbadb26fa5e00debafd1c5c2e8a8578ec80001e7191d8de9cefcce30cb0c",
+      "cell_result": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_43/m1_original_mutual_distill/cell_result.json",
+      "cell_result_sha256": "9a9050370ef382a1badf271b5e8bc6d68c277d334561f0a29a7986069d3543ae"
+    },
+    "44": {
+      "checkpoint": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_44/m1_original_mutual_distill/model.pt",
+      "checkpoint_sha256": "2cd52b86caa62e726f1d3a93c48d4b569f660b0f10123e51a7373565671f0672",
+      "metrics": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_44/m1_original_mutual_distill/metrics.jsonl",
+      "metrics_sha256": "7007371caee467c7acea3e6e185a5a90e4cb94740b22178844e303d91ad65f82",
+      "cell_result": "run_artifacts/dual_prior_mutual_distillation_v1/pilot_v1/seed_44/m1_original_mutual_distill/cell_result.json",
+      "cell_result_sha256": "273534743e157d4c119914fd7d4098e8db4c7090d61eb698f7fda2a9a4567042"
+    }
+  },
+  "loss_diagnostic": {
+    "train": {
+      "final": {
+        "count": 15,
+        "minimum": 0.4905482530593872,
+        "mean": 0.8382433994052311,
+        "median": 0.9014763683080673,
+        "maximum": 1.2539135217666626
+      },
+      "prior_key": {
+        "count": 15,
+        "minimum": 0.21079758430520693,
+        "mean": 0.2624234522382418,
+        "median": 0.24926027034719786,
+        "maximum": 0.36791673054297763
+      },
+      "prior_complete": {
+        "count": 15,
+        "minimum": 0.27275068312883377,
+        "mean": 0.43162810595499146,
+        "median": 0.40480803698301315,
+        "maximum": 0.6401967282096545
+      },
+      "prior_distill": {
+        "count": 15,
+        "minimum": 0.002767713109885032,
+        "mean": 0.008897155815308604,
+        "median": 0.008084643011291822,
+        "maximum": 0.018013995761672657
+      },
+      "prior_gate": {
+        "count": 15,
+        "minimum": 0.0005672346681725079,
+        "mean": 0.007807786976789228,
+        "median": 0.008514079575737318,
+        "maximum": 0.014468679359803597
+      }
+    },
+    "checkpoint_train_evaluation": {
+      "final": {
+        "count": 15,
+        "minimum": 0.22943533460299173,
+        "mean": 0.6439229846906124,
+        "median": 0.6668931270639101,
+        "maximum": 1.1560229585738853
+      },
+      "prior_key": {
+        "count": 15,
+        "minimum": 0.1977625253299872,
+        "mean": 0.23854616632064185,
+        "median": 0.2373418981830279,
+        "maximum": 0.29542424033085507
+      },
+      "prior_complete": {
+        "count": 15,
+        "minimum": 0.25536369408170384,
+        "mean": 0.37630112651321623,
+        "median": 0.35552335778872174,
+        "maximum": 0.5561124632755915
+      },
+      "prior_distill": {
+        "count": 15,
+        "minimum": 0.0019561373628675938,
+        "mean": 0.00956949674614912,
+        "median": 0.009060420095920563,
+        "maximum": 0.021561561695610482
+      },
+      "prior_gate": {
+        "count": 15,
+        "minimum": 0.0024015039089135826,
+        "mean": 0.008671423159022298,
+        "median": 0.009921940431619683,
+        "maximum": 0.012419910946240028
+      }
+    },
+    "validation": {
+      "final": {
+        "count": 15,
+        "minimum": 0.6253631263971329,
+        "mean": 0.9274224971731504,
+        "median": 0.754992887377739,
+        "maximum": 2.489239439368248
+      },
+      "prior_key": {
+        "count": 15,
+        "minimum": 0.26110023260116577,
+        "mean": 0.276614556958278,
+        "median": 0.2743660695850849,
+        "maximum": 0.3155800849199295
+      },
+      "prior_complete": {
+        "count": 15,
+        "minimum": 0.29299296438694,
+        "mean": 0.3778860107064247,
+        "median": 0.3535623960196972,
+        "maximum": 0.5695592537522316
+      },
+      "prior_distill": {
+        "count": 15,
+        "minimum": 0.0018213012954220176,
+        "mean": 0.008708667848259211,
+        "median": 0.00825376098509878,
+        "maximum": 0.018457846716046333
+      },
+      "prior_gate": {
+        "count": 15,
+        "minimum": 0.0022640827228315175,
+        "mean": 0.007935495383571833,
+        "median": 0.00896263588219881,
+        "maximum": 0.011827732669189572
+      }
+    }
+  },
+  "gradient_diagnostic": {
+    "device_type": "cuda",
+    "device_name": "NVIDIA L20Z",
+    "amp_dtype": "bfloat16",
+    "batch_size": 4,
+    "batch_ids": [
+      "gsm8k-train-02867-cand-003",
+      "gsm8k-train-07439-cand-007",
+      "gsm8k-train-04695-cand-000",
+      "gsm8k-train-06960-cand-002"
+    ],
+    "batch_selection": "first four rows in frozen train-manifest order",
+    "per_seed": {
+      "42": {
+        "final": {
+          "loss": 0.24786105751991272,
+          "gate_head_row_grad_l2": 1.0618232366867932,
+          "shared_encoder_grad_l2": 43.053902509833335
+        },
+        "prior_key": {
+          "loss": 0.15957070887088776,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 0.872430436323631
+        },
+        "prior_complete": {
+          "loss": 0.24217736721038818,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 2.537998054892724
+        },
+        "prior_distill": {
+          "loss": 0.009486035443842411,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 0.3091077754312032
+        },
+        "prior_gate": {
+          "loss": 0.009406115859746933,
+          "gate_head_row_grad_l2": 0.025589816743144856,
+          "shared_encoder_grad_l2": 0.045838078985427536
+        }
+      },
+      "43": {
+        "final": {
+          "loss": 0.6858828067779541,
+          "gate_head_row_grad_l2": 3.8250257752989927,
+          "shared_encoder_grad_l2": 46.29898837696457
+        },
+        "prior_key": {
+          "loss": 0.19011062383651733,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 1.0464777029818397
+        },
+        "prior_complete": {
+          "loss": 0.302321195602417,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 1.3749164173822142
+        },
+        "prior_distill": {
+          "loss": 0.004498925060033798,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 0.11079821731657598
+        },
+        "prior_gate": {
+          "loss": 0.008338622748851776,
+          "gate_head_row_grad_l2": 0.05154320245569115,
+          "shared_encoder_grad_l2": 0.05893742809687066
+        }
+      },
+      "44": {
+        "final": {
+          "loss": 0.2062433660030365,
+          "gate_head_row_grad_l2": 0.5136866549262032,
+          "shared_encoder_grad_l2": 15.380579961206907
+        },
+        "prior_key": {
+          "loss": 0.15734541416168213,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 0.8143323481435205
+        },
+        "prior_complete": {
+          "loss": 0.25315481424331665,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 1.4761375791738953
+        },
+        "prior_distill": {
+          "loss": 0.020795151591300964,
+          "gate_head_row_grad_l2": 0.0,
+          "shared_encoder_grad_l2": 0.5773582506199476
+        },
+        "prior_gate": {
+          "loss": 0.0101898442953825,
+          "gate_head_row_grad_l2": 0.04191921652837783,
+          "shared_encoder_grad_l2": 0.06761662109395891
+        }
+      }
+    },
+    "raw_gate_head_gradient_ratio_vs_final": {
+      "count": 3,
+      "minimum": 0.013475256242335294,
+      "mean": 0.03972659467104997,
+      "median": 0.024099883915700275,
+      "maximum": 0.08160464385511433
+    },
+    "raw_shared_encoder_gradient_ratio_vs_final": {
+      "count": 3,
+      "minimum": 0.0010646672267388144,
+      "mean": 0.0022446250552527053,
+      "median": 0.0012729744247758589,
+      "maximum": 0.004396233514243442
+    }
+  },
+  "candidate_weight_diagnostics": {
+    "0.25": {
+      "gate_head_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.0033688140605838235,
+        "mean": 0.009931648667762492,
+        "median": 0.006024970978925069,
+        "maximum": 0.020401160963778583
+      },
+      "shared_encoder_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.0002661668066847036,
+        "mean": 0.0005611562638131763,
+        "median": 0.0003182436061939647,
+        "maximum": 0.0010990583785608606
+      },
+      "checkpoint_train_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.0006003759772283956,
+        "mean": 0.0021678557897555745,
+        "median": 0.002480485107904921,
+        "maximum": 0.003104977736560007
+      },
+      "dev_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.0005660206807078794,
+        "mean": 0.0019838738458929583,
+        "median": 0.0022406589705497026,
+        "maximum": 0.002956933167297393
+      }
+    },
+    "1.0": {
+      "gate_head_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.013475256242335294,
+        "mean": 0.03972659467104997,
+        "median": 0.024099883915700275,
+        "maximum": 0.08160464385511433
+      },
+      "shared_encoder_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.0010646672267388144,
+        "mean": 0.0022446250552527053,
+        "median": 0.0012729744247758589,
+        "maximum": 0.004396233514243442
+      },
+      "checkpoint_train_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.0024015039089135826,
+        "mean": 0.008671423159022298,
+        "median": 0.009921940431619683,
+        "maximum": 0.012419910946240028
+      },
+      "dev_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.0022640827228315175,
+        "mean": 0.007935495383571833,
+        "median": 0.00896263588219881,
+        "maximum": 0.011827732669189572
+      }
+    },
+    "5.0": {
+      "gate_head_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.06737628121167646,
+        "mean": 0.19863297335524985,
+        "median": 0.12049941957850138,
+        "maximum": 0.40802321927557167
+      },
+      "shared_encoder_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.005323336133694072,
+        "mean": 0.011223125276263526,
+        "median": 0.0063648721238792946,
+        "maximum": 0.021981167571217212
+      },
+      "checkpoint_train_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.012007519544567913,
+        "mean": 0.04335711579511149,
+        "median": 0.049609702158098415,
+        "maximum": 0.06209955473120014
+      },
+      "dev_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.011320413614157587,
+        "mean": 0.03967747691785917,
+        "median": 0.04481317941099405,
+        "maximum": 0.05913866334594786
+      }
+    },
+    "10.0": {
+      "gate_head_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.13475256242335293,
+        "mean": 0.3972659467104997,
+        "median": 0.24099883915700276,
+        "maximum": 0.8160464385511433
+      },
+      "shared_encoder_gradient_ratio_vs_final": {
+        "count": 3,
+        "minimum": 0.010646672267388144,
+        "mean": 0.022446250552527053,
+        "median": 0.012729744247758589,
+        "maximum": 0.043962335142434424
+      },
+      "checkpoint_train_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.024015039089135826,
+        "mean": 0.08671423159022298,
+        "median": 0.09921940431619683,
+        "maximum": 0.12419910946240029
+      },
+      "dev_weighted_gate_loss": {
+        "count": 15,
+        "minimum": 0.022640827228315175,
+        "mean": 0.07935495383571833,
+        "median": 0.0896263588219881,
+        "maximum": 0.11827732669189572
+      }
+    }
+  },
+  "frozen_gate_prior_weight": 10.0,
+  "choice_rule": {
+    "gate_head_median_gradient_ratio_vs_final_minimum": 0.15,
+    "gate_head_median_gradient_ratio_vs_final_maximum": 0.5,
+    "gate_head_maximum_gradient_ratio_vs_final": 1.0,
+    "shared_encoder_maximum_gradient_ratio_vs_final": 0.05,
+    "selected_smallest_candidate_satisfying_all_rules": true
+  },
+  "rationale": "Weight 0.25 would make the median gate-head gradient only about 0.6% of final-BCE gate-head gradient. Weight 10.0 is the smallest audited candidate that raises the median to the preregistered 15%-50% band, while remaining below final BCE on every audited gate head and below 5% of final-BCE gradient on the shared encoder.",
+  "new_gate_enabled_training_or_predictions_accessed": false,
+  "pilot_test_accessed": false,
+  "formal_claim_allowed": false
+}

@@ -24,6 +24,7 @@ DEFAULT_PROTOCOL = ROOT / "configs/dual_prior_evidence_v1/training_protocol_v1.j
 SUPPORTED_PROTOCOL_SCHEMAS = {
     "clir-dual-prior-standalone-training-protocol-v1",
     "clir-dual-prior-mutual-distillation-training-protocol-v1",
+    "clir-dual-prior-reward-gate-integration-training-protocol-v1",
 }
 
 
@@ -97,7 +98,7 @@ def main() -> None:
         "prior_distill": float(
             cell.get("prior_distill_weight", shared["prior_distill"])
         ),
-        "gate_prior": float(shared["gate_prior"]),
+        "gate_prior": float(cell.get("gate_prior_weight", shared["gate_prior"])),
         "reconstruction": float(shared["reconstruction"]),
     }
     output_root = (
@@ -285,7 +286,7 @@ def main() -> None:
     run(
         [
             sys.executable,
-            str(ROOT / "scripts/evaluate_dual_prior_predictions_v1.py"),
+            str(ROOT / protocol["execution"]["evaluator"]),
             "--protocol",
             str(protocol_path),
             "--cell",
@@ -348,6 +349,8 @@ def main() -> None:
         "pilot_test_accessed": False,
         "formal_mechanism_claim_allowed": False,
     }
+    if "gate_integration" in evaluation:
+        result["gate_integration"] = evaluation["gate_integration"]
     atomic_write_json(paths["result"], result)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
 

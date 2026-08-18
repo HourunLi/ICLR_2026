@@ -1,0 +1,195 @@
+{
+  "schema_version": "clir-dual-prior-reward-gate-integration-training-protocol-v1",
+  "experiment_id": "clir-dual-prior-reward-gate-integration-v1",
+  "status": "frozen_before_training",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Test whether the reward gate can use the already learnable and mutually distilled dual priors. Preserve the original bidirectional stop-gradient mutual-distillation formula and weight exactly, change only gate-to-detached-fused-prior alignment, and do not enable reconstruction, containment, or any other CLIR module.",
+  "inputs": {
+    "mutual_training_protocol": {
+      "path": "configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json",
+      "sha256": "f9e1158eb15747129b5749f63a32e610309e3f2d8551592663d604678e1d4c5e"
+    },
+    "mutual_training_result": {
+      "path": "configs/dual_prior_mutual_distillation_v1/training_result_v1.json",
+      "sha256": "03c5c3e799f5c4ee7be58be5f6af3a3a89d3248410d8e685efd4da6881e7d11e"
+    },
+    "gate_loss_scale_audit": {
+      "path": "configs/dual_prior_reward_gate_v1/loss_scale_audit_v1.json",
+      "sha256": "cf9952adbc6a50b827a521828852e0e50c5e871a832acfc877bfc6220dff7d63"
+    },
+    "gold_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+      "sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc"
+    },
+    "training_data_report": {
+      "path": "configs/dual_prior_evidence_v1/training_data_report_v1.json",
+      "sha256": "cb308fb605e717ebc307d6c302edc2a4de92751eeb2a58c6cbbd22b94dee7ac5"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "protected_mutual_method": {
+    "name": "original_bidirectional_stop_gradient_mutual_distillation",
+    "joint_objective": "MSE(A_key, stopgrad(A_complete)) + MSE(A_complete, stopgrad(A_key))",
+    "phase": "joint",
+    "weight": 0.25,
+    "formula_changed": false,
+    "weight_changed": false,
+    "containment_replacement_used": false
+  },
+  "method": {
+    "name": "reward_gate_to_detached_fused_dual_prior_alignment",
+    "gate_attention": "normalize(sigmoid(gate_logits)) over the full valid trajectory",
+    "prior_fusion_alpha": 0.5,
+    "fused_prior": "normalize(0.5 * A_key + 0.5 * A_complete) over the full valid trajectory",
+    "objective": "MSE(A_gate, stopgrad(A_fused))",
+    "token_reduction": "Sum squared token errors within each trajectory, then average trajectories.",
+    "gradient_destination": "reward gate and shared upstream representation only; A_fused is detached inside the objective",
+    "weight": 10.0,
+    "weight_frozen_before_gate_training": true,
+    "weight_rationale": "The frozen M1 scale audit found that weight 0.25 yields a median gate-head gradient only 0.6% as large as final-BCE gate-head gradient. Among predeclared candidates 0.25, 1, 5, and 10, weight 10 is the smallest entering the 15%-50% median target band; its maximum audited gate-head ratio remains below 1 and its maximum shared-encoder ratio remains below 5%.",
+    "weight_may_be_changed_after_results": false
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [42, 43, 44],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "fixed final epoch 5",
+    "early_stopping": false,
+    "prior_phase_mode": "joint",
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "negative_consistency": 0.0,
+      "score_consistency": 0.0,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "relative_tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior_distill": 0.25,
+      "gate_prior": 0.0,
+      "reconstruction": 0.0
+    }
+  },
+  "cells": {
+    "g0_mutual_no_gate_alignment": {
+      "description": "Matched M1 control: correctness plus direct key/complete BCE and the original mutual-distillation objective at 0.25, with reward-gate alignment disabled.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+        "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+        "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 1.0,
+      "prior_distill_weight": 0.25,
+      "gate_prior_weight": 0.0
+    },
+    "g1_mutual_plus_gate_alignment": {
+      "description": "G0 plus reward-gate alignment to the detached 0.5/0.5 fused dual prior at the independently frozen weight 10.0.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+        "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+        "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 1.0,
+      "prior_distill_weight": 0.25,
+      "gate_prior_weight": 10.0
+    }
+  },
+  "comparison": {
+    "control_cell": "g0_mutual_no_gate_alignment",
+    "gate_cell": "g1_mutual_plus_gate_alignment",
+    "single_changed_factor": "gate_prior_weight: 0.0 -> 10.0",
+    "rerun_control_on_same_commit": true,
+    "new_gate_enabled_results_seen_when_weight_frozen": false
+  },
+  "evaluation": {
+    "primary_integration_metric": "Held-out full-trajectory mean sum-squared error between normalized reward-gate attention and the detached 0.5/0.5 fused prior; this exactly matches the unweighted training objective on the fully labeled pilot rows.",
+    "membership_prediction": "sigmoid(key_prior_logits) and sigmoid(complete_prior_logits), never trajectory-softmax attention",
+    "gate_diagnostics": [
+      "gate-to-fused-prior MSE, L1 distance, overlap mass, and cosine similarity",
+      "gate and fused-prior normalized entropy, effective-token fraction, uniform-distance, and maximum token mass",
+      "raw mean sigmoid gate and final/token/residual score distributions"
+    ],
+    "selection_guards": {
+      "minimum_passing_seeds": 2,
+      "total_seeds": 3,
+      "dev_gate_objective_mse_relative_reduction_minimum": 0.1,
+      "dev_gate_effective_token_fraction_delta_maximum": -0.02,
+      "gate_key_unit_ap_delta_vs_control_minimum": -0.05,
+      "gate_complete_unit_ap_delta_vs_control_minimum": -0.05,
+      "gate_dev_symmetric_attention_mse_relative_increase_maximum": 0.5,
+      "gate_mean_absolute_key_complete_probability_difference_minimum": 0.02,
+      "gate_key_complete_probability_correlation_maximum": 0.98,
+      "gate_fused_prior_effective_token_fraction_maximum": 0.8,
+      "gate_correctness_auroc_delta_vs_control_minimum": -0.1,
+      "gate_raw_mean_minimum": 0.02,
+      "gate_raw_mean_maximum": 0.98,
+      "gate_score_population_std_minimum": 0.05
+    },
+    "passing_conclusion": "The reward gate learned the detached fused dual-prior target on held-out pilot rows without unacceptable localization, mutual-collaboration, map-separation, correctness, or collapse regression. Retain this gate integration for a separately frozen query-grouped ranking/Best-of-N experiment; do not claim ranking improvement from this one-candidate-per-query pilot.",
+    "failing_conclusion": "Keep the direct dual-prior heads and original mutual-distillation method, but do not yet integrate their fused map into the production reward gate. Treat weight 10.0 as a failed or diagnostic-only frozen setting and diagnose optimization or architecture under a new protocol without changing this result post hoc.",
+    "train_rows": 48,
+    "dev_rows": 16,
+    "train_queries": 48,
+    "dev_queries": 16,
+    "candidates_per_query": 1,
+    "ranking_or_best_of_n_claim_available": false,
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "runner": "scripts/run_dual_prior_pilot_v1.py",
+    "matrix_launcher": "scripts/run_dual_prior_matrix_v1.py",
+    "evaluator": "scripts/evaluate_dual_prior_gate_predictions_v1.py",
+    "summarizer": "scripts/summarize_dual_prior_reward_gate_v1.py",
+    "output_root": "run_artifacts/dual_prior_reward_gate_v1/pilot_v1",
+    "result": "configs/dual_prior_reward_gate_v1/training_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "max_parallel_cells": 6,
+    "clean_committed_worktree_required": true,
+    "status": "authorized_by_user"
+  },
+  "formal_mechanism_claim_allowed": false
+}

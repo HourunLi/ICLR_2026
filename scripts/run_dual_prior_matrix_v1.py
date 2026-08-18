@@ -26,6 +26,7 @@ DEFAULT_PROTOCOL = ROOT / "configs/dual_prior_evidence_v1/training_protocol_v1.j
 SUPPORTED_PROTOCOL_SCHEMAS = {
     "clir-dual-prior-standalone-training-protocol-v1",
     "clir-dual-prior-mutual-distillation-training-protocol-v1",
+    "clir-dual-prior-reward-gate-integration-training-protocol-v1",
 }
 
 
