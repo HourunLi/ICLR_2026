@@ -11,7 +11,22 @@
 
 ## 1. 当前停止点
 
-Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
+Dual-prior v1 direct-target gate 已完成，冻结状态为 `completed_pass_direct_targets_learnable`，证据等级为
+`pipeline pilot`：
+
+- secondary 64/64 完成，key/complete macro unit F1 为 `.5469/.8456`；16 条 exact agreement，48 条
+  disagreement 全部 role-blind adjudicated；
+- 最终 gold 64/64 usable，48/16 query-disjoint，63 条严格 `key ⊂ complete`、1 条相等；
+- 4 cells × 3 seeds 的 12/12 训练、评分、exact-token evaluation 全部完成；全部 8 个冻结 guard 为 3/3
+  seeds 通过；
+- unit AP 均值：key D0/D1/D3/position 为 `.079/.377/.433/.133`；complete D0/D2/D3/position 为
+  `.328/.921/.919/.268`；
+- D3 correctness AUROC 相对 D0 `+.005`；两图 mean absolute probability difference `.302`、correlation
+  `.770`，未塌缩；
+- 当前只授权另发 containment-style collaboration comparison；mutual MSE、gate alignment、reconstruction
+  仍未获采用，pilot/final test 未读。
+
+此前 Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
 `completed_fail_keep_t0`，证据等级仍是 `pipeline pilot`：
 
 - 64 条裁决 trajectory 形成 41 clean / 23 hallucinated；标签来自双 AI 标注与内部盲审，不是人工 Gold；
@@ -71,8 +86,9 @@ clean-matched positional control 的新协议。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
 4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
    通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
-5. 当前进入 dual-prior。v1 已冻结 64 条 fixed-unit 双标包；key/complete 由外部双标生成，首轮只验证 direct
-   targets。mutual distill、gate alignment 和 reconstruction 全关；后者仍只接受独立 768-d target。
+5. Dual-prior v1 的 independent labels、adjudicated gold 与 direct-target D0–D3 已通过。下一步只比较无协同、
+   symmetric mutual MSE 与 directional containment；gate alignment 和 reconstruction 继续关闭，后者仍只
+   接受独立 768-d target。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
 训练入口。
@@ -135,10 +151,20 @@ clean-matched positional control 的新协议。
   `06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526`；结构合格但有 late-position 与
   wrong-path guide-alignment 警告，禁止单独采用；
 - primary 审计：`primary_report_v1.json`、`primary_semantic_audit_v1.json`；
-- 第二标注的冻结语义 prompt：`configs/dual_prior_evidence_v1/secondary_prompt_v1.md`；当前实际发送的是
-  `secondary_prompt_resumable_v1a.md`，要求每判完一条立即用
-  `scripts/checkpoint_dual_prior_secondary_v1.py` 原子落盘并可按合法前缀续跑；操作附录为
-  `secondary_execution_addendum_v1a.json`，标签语义与 64 条输入均未改变；
+- secondary：`labels_secondary_v1.jsonl`，64/64，SHA256
+  `271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a`；逐条 durable prompt/helper 保留为
+  `secondary_prompt_resumable_v1a.md` 与 `scripts/checkpoint_dual_prior_secondary_v1.py`；
+- agreement 与裁决：`agreement_report_v1.json`、`adjudications_v1.jsonl`、`adjudication_report_v1.json`；48/48
+  disagreement 裁决完成，adjudication SHA256
+  `86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96`；
+- exact-token gold：`gold_materialization_protocol_v1.json`、`labels_gold_v1.jsonl`、`gold_report_v1.json`、
+  `gold_semantic_audit_v1.json`；gold SHA256
+  `da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc`；
+- matched data/protocol：`training_data_protocol_v1.json`、`training_data_report_v1.json`、
+  `training_protocol_v1.json`；
+- 机器结论：`training_result_v1.json`，SHA256
+  `7b11aaf92d5ed6b9d7a3c99cd34c039077e295855b2305efc5a9b4f53595801b`；12 cells 在
+  `run_artifacts/dual_prior_evidence_v1/pilot_v1/`；
 - 设计与代码审计：`docs/dual_prior_evidence_pilot_v1.md`。
 
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
@@ -146,22 +172,21 @@ protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c 或继续扫 absolute tail weight。dual-prior 接下来严格按已冻结 v1 做：
+不要再重跑 v2c、扫描 absolute/relative tail weight，也不要重跑已经通过的 dual-prior D0–D3。下一步是一个
+新的、单变量 collaboration comparison，先与用户确认并冻结公式再执行：
 
-当前 helper 实测 secondary 为 `0/64`，下一条是 `DPA-6a6e03504cc94378`。所以眼前唯一 blocking gate 是
-第二标注，不是训练：
+1. C0：无 collaboration，严格复用 D3 的 direct key + complete BCE baseline；
+2. C1：旧 symmetric mutual MSE，作为“可能把两图拉同”的诊断对照，不作为默认；
+3. C2：token-membership directional containment，只惩罚 `p(key) > p(complete)`，direct BCE 始终保留；
+4. 三格复用相同 48/16、features、seeds、5 epochs 和 correctness loss；gate alignment、reconstruction、
+   consistency、hallucination、tail、progress 全关；
+5. 采用门同时看 held-out key/complete unit AP、相对 C0 non-inferiority、map separation、containment
+   violation 与 correctness。仅 violation 下降但两图坍缩或 AP 下降时必须拒绝；
+6. containment 的具体概率形式、margin/weight 与是否严格复用 D3 checkpoint/result，必须在读取 C1/C2 新结果
+   前写入新版本协议；不做事后 sweep。
 
-1. 用 `secondary_prompt_resumable_v1a.md` 收取独立 secondary；每条判断都立即 checkpoint，先用 helper
-   `status` 查看合法前缀与下一 item，64/64 后用 `finalize` 和 `validate_dual_prior_secondary_v1.py` 校验；
-2. 计算 eligibility 与 key/complete unit-set agreement，特别检查错误路径的 flaw-vs-terminal 语义，逐项裁决
-   set disagreement；
-3. 物化 exact Phi token gold，审计正例比例、位置 shortcut、`key ⊆ complete` 与 head 可分性；
-4. 跑 D0 correctness-only、D1 key-only、D2 complete-only、D3 joint direct-target；四格都关闭 consistency、
-   hallucination、tail、progress、distill、gate alignment 和 reconstruction；
-5. direct target 可学后，才另发协议比较 containment collaboration 与旧 mutual MSE。reconstruction 仍要求
-   独立 768-d target，禁止 same-candidate pooling；
-6. exact onset 与下一代 clean-matched tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run；不要
-   扩跑或扫描已经失败的 R1 weight/margin。
+reconstruction 仍要求独立 768-d target，禁止 same-candidate pooling。exact onset 与下一代 clean-matched tail
+repair 留在 backlog，不阻塞当前 collaboration comparison。
 
 ## 5. 不可破坏的约束
 
@@ -179,13 +204,13 @@ protocol/audit 中，不在本 handoff 重复展开。
 ## 6. 当前证据边界
 
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
-- Route A v1a、Localization v1/v2/v2b/v2c/v2d 都是 `pipeline pilot`。
+- Route A v1a、Localization v1/v2/v2b/v2c/v2d、Dual-prior direct-target v1 都是 `pipeline pilot`。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权，不能自动迁移为 hallucination Gold。
 - T2 的 AP/ranking signal 在 v2c 仍存在，但 absolute-margin implementation 的 tail locality 0/3 seed 通过；
   R1 虽解决统一 shift，却没有 clean anchor，并明显损伤当前 sparse AP。只能选择 T0 并暂缓这两个实现，
   不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
 - 不能宣称 consistency、hallucination localization 或 tail shaping 已改善 Best-of-N，也不能说 tail 已被
-  永久证伪或已获 mixed-training 授权。
+  永久证伪或已获 mixed-training 授权。Dual-prior 当前也只能宣称 direct targets 可学，不能宣称最终排序增益。
 
 ## 7. 验证与入口
 
@@ -207,6 +232,7 @@ docs/hallucination_localization_pilot_v2.md       当前 localization 结果
 docs/hallucination_tail_comparison_v2b.md         tail 撤销审计与 matched 直接比较
 docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
 docs/hallucination_relative_tail_pilot_v2d.md     relative R1 单-cell 修复试验
+docs/dual_prior_evidence_pilot_v1.md              dual-prior gold、D0–D3 与下一门
 docs/clir_supervision_protocol.md                  外部监督与 sparse-mask 契约
 docs/decision_history.md                          历史路线与转向理由
 
@@ -219,5 +245,7 @@ scripts/summarize_hallucination_span_pilot_v2.py      冻结结论与 bootstrap
 scripts/summarize_hallucination_tail_comparison_v2b.py  T0-T2 护栏与 bootstrap
 scripts/summarize_hallucination_tail_cv_v2c.py        out-of-fold 多 seed 采用门
 scripts/summarize_hallucination_relative_tail_v2d.py  relative R1 冻结裁决
+scripts/run_dual_prior_matrix_v1.py                   D0–D3 多 GPU launcher
+scripts/summarize_dual_prior_pilot_v1.py              direct-target 三种子采用门
 train_clir.py / score_clir.py / evaluate_clir.py     训练、打分、Best-of-N
 ```

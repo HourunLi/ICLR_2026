@@ -204,3 +204,32 @@ def test_score_clir_publishes_binary_prior_membership_separately(tmp_path: Path)
     assert row["clir_complete_prior"] == pytest.approx([0.5, 0.5])
     assert row["clir_key_prior_membership_probs"] == pytest.approx([0.5, 0.5])
     assert row["clir_complete_prior_membership_probs"] == pytest.approx([0.5, 0.5])
+
+
+def test_frozen_three_seed_direct_target_result_passes_without_test_access():
+    result = json.loads(
+        (CONFIG / "training_result_v1.json").read_text(encoding="utf-8")
+    )
+    assert result["status"] == "completed_pass_direct_targets_learnable"
+    assert result["training_commit"] == (
+        "f485e54db0181fbcce677b8ae3a0fa895e4e8f82"
+    )
+    assert result["required_matrix_cells"] == 12
+    assert result["completed_matrix_cells"] == 12
+    assert len(result["cell_result_hashes"]) == 12
+    assert result["selection_passed"] is True
+    assert result["pilot_test_accessed"] is False
+    assert result["formal_mechanism_claim_allowed"] is False
+    assert result["position_only_baseline_included"] is True
+    assert set(result["passing_seed_counts"].values()) == {3}
+    assert all(result["across_seed_checks"].values())
+
+    mean = result["mean_metrics_and_deltas"]
+    assert mean["d1_key_unit_ap"] > mean["d0_key_unit_ap"]
+    assert mean["d1_key_unit_ap"] > mean["position_key_unit_ap"]
+    assert mean["d2_complete_unit_ap"] > mean["d0_complete_unit_ap"]
+    assert mean["d2_complete_unit_ap"] > mean["position_complete_unit_ap"]
+    assert mean["d3_key_unit_ap"] > mean["d1_key_unit_ap"]
+    assert mean["d3_complete_vs_d2"] > -0.05
+    assert mean["d3_mean_absolute_key_complete_probability_difference"] > 0.02
+    assert mean["d3_key_complete_probability_correlation"] < 0.98

@@ -245,6 +245,30 @@ docs/hallucination_relative_tail_pilot_v2d.md
 `configs/hallucination_localization_v2/tail_non_adoption_record_v2d.json`。它逐项记录 primary reasons、明确
 non-reasons、当前所有 tail weight 为 0，以及未来只有新 clean-matched 协议才能重开的边界。
 
+### 7.7 dual-prior v1：双标裁决后 direct targets 通过可学习性门
+
+Secondary 通过逐条 durable checkpoint 完成 64/64，raw/validated SHA256 均为
+`271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a`。与 primary 的 key/complete macro
+unit F1 为 `.5469/.8456`，超过冻结 `.45/.60` 门；16 条 full-target exact agreement，剩余 48 条全部使用
+匿名 A/B packet 做 role-blind adjudication，禁止按 annotator 身份选边。裁决为 adopt-A 13、adopt-B 24、
+synthesize 11，48/48 usable。
+
+Gold 物化没有把 primary 语义偷偷带回：unit sets 只来自 exact agreement 或 blind adjudication；primary 的
+char/token mapping 只作已经验证过的 alignment carrier。最终 64/64 usable、63 条严格 `key⊂complete`、1 条
+相等；key/complete token-positive fraction 为 `.0843/.3409`。错误路径对 onset/sparse unsupported span 的
+诊断覆盖相对 unilateral primary 提高，但 onset 不是 evidence gold，因此只用作 guide-alignment audit。
+
+随后冻结 D0 correctness-only、D1 +key BCE、D2 +complete BCE、D3 +both BCE，所有 collaboration、gate、
+reconstruction、consistency、hallucination、tail、progress loss 都关闭。4 cells × seeds 42/43/44 全部从 clean
+commit `f485e54` 完成。三种子 unit AP 均值为：key D0/D1/D3/position
+`.0786/.3769/.4325/.1327`；complete D0/D2/D3/position `.3276/.9208/.9192/.2684`。D3 相对单头没有
+劣化，correctness AUROC 相对 D0 `+.0053`；两图 mean absolute probability difference `.3022`、correlation
+`.7704`。全部冻结 guard 与 stricter per-seed joint guard 都是 3/3 通过。
+
+因此 direct-target gate 关闭为 `completed_pass_direct_targets_learnable`，只授权下一轮 containment-style
+collaboration comparison。该结论是 pipeline learnability evidence，不是 Best-of-N 增益、跨领域泛化或正式
+机制证明。旧 symmetric MSE、gate alignment 与 reconstruction 仍没有采用资格。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

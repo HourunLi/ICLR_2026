@@ -1,7 +1,8 @@
 # Dual-Prior Evidence Pilot v1
 
-状态：标注协议与 64 条盲包已冻结；Mistral-24B primary 已完成，等待独立 secondary 与 agreement gate，
-尚未物化 gold 或开始训练。
+状态：64 条独立双标、role-blind adjudication、exact-token gold 与 4 cells × 3 seeds direct-target pilot 均已
+完成。冻结结论为 `completed_pass_direct_targets_learnable`；证据等级仍是 `pipeline pilot`，下一步才比较
+collaboration objective。
 
 ## 1. 先解决了什么代码问题
 
@@ -104,14 +105,45 @@ token-map-valid：
   reviewed problem span 重叠。onset 不是 dual-prior gold，但这个结果说明 primary 常把末端 answer-producing
   calculation 当 key，没有稳定执行 guide 中“错误路径选决定性 flaw”的规则。
 
-所以当前允许的唯一结论是：结构与 non-degeneracy 通过，语义采用门仍未通过。必须收回独立 secondary，比较
-其在错误路径上究竟选择 flaw 还是 terminal calculation，再裁决 key 的语义；任何训练都不能直接吃 primary。
+所以 primary 当时允许的唯一结论是：结构与 non-degeneracy 通过，语义采用门仍未通过。后续没有直接使用
+primary，而是收回独立 secondary，比较其在错误路径上究竟选择 flaw 还是 terminal calculation，再裁决 key。
 机器审计见 `configs/dual_prior_evidence_v1/primary_report_v1.json` 与
 `primary_semantic_audit_v1.json`。
 
-## 6. 首轮训练矩阵
+## 6. Secondary、裁决与 exact-token gold
 
-双标与裁决通过后，固定比较：
+Secondary 采用 resumable v1a 流程，每判断一条立即结构校验并原子 checkpoint。最终 raw 与 validated 都是
+64/64，SHA256 均为
+`271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a`。冻结 agreement gate 通过：
+
+- exact full-target agreement：16/64；需要裁决：48/64；
+- key macro unit F1：`.546875`，超过冻结门 `.45`；
+- complete macro unit F1：`.845640`，超过冻结门 `.60`；
+- 结构、usable-yield 与 eligibility gate 均通过。
+
+48 条 disagreement 随后通过只显示匿名 A/B proposal 的 role-blind packet 逐条裁决，并在每条后立即落盘。
+裁决结果为 adopt-A 13、adopt-B 24、synthesize 11；46 high-confidence、2 medium-confidence，48/48 usable。
+raw/validated adjudication SHA256 均为
+`86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96`。这里的 A/B 角色只存在于私有
+lineage，裁决者不能按 primary/secondary 身份择优。
+
+Gold 物化严格区分两类事实：unit-set 语义来自 exact agreement 或盲审裁决；primary 的 `mapped_units` 只作为
+已经验证过的 char→Phi-token alignment carrier，不能携带 unilateral semantic decision。最终：
+
+- 64/64 usable；48 dense_train / 16 localization_dev，query-disjoint；
+- 63/64 严格 `key ⊂ complete`，1/64 相等；
+- key/complete token-positive micro fraction 为 `.0843/.3409`；unit 中位数为 `1/4`；
+- exact-token gold SHA256：
+  `da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc`。
+
+语义审计仍保留 shortcut 警告：44/64 的全部 key unit 位于最后四分之一，但 clean/hallucinated 的中位 key
+位置分别为 `.882/.615`；错误路径 gold 对 exact onset 的覆盖从 unilateral primary 的 1/23 提高到 13/23，
+对 sparse unsupported spans 的覆盖从 12/23 提高到 17/23。onset 与 evidence key 不是同一 target，这些数字
+只诊断 guide alignment，因此训练评价必须保留 position-only baseline。
+
+## 7. 首轮训练矩阵与结果
+
+双标与裁决通过后，冻结并完成以下比较：
 
 ```text
 D0  correctness only
@@ -123,15 +155,39 @@ D3  correctness + direct key BCE + direct complete BCE
 四个 cell 使用相同 split、features、seed、epoch、optimizer 与 outcome loss。consistency、hallucination、tail、
 progress、distill、gate-prior alignment 和 reconstruction 全部为 0。
 
-机制指标至少报告 key/complete token AP、unit-level AP/F1、正例比例、位置分布和 key-vs-complete 区分度；同时
-保留 correctness AUROC/accuracy guard。若 D3 只学到两个几乎相同的 map，即使 correctness 不下降，也不能称为
-dual-prior 成功。
+训练使用 exact same 48/16 rows、预计算 33×3072 Phi features、5 epochs、seeds 42/43/44。membership 评价读取
+`sigmoid(key_prior_logits)` / `sigmoid(complete_prior_logits)`，没有把 trajectory-softmax attention 误当二值
+概率。阈值只在 dense_train 校准后一次应用到 localization_dev；AP 本身不调阈值。结果如下：
 
-## 7. reconstruction 与协同 loss 的后续边界
+| 指标（三种子均值） | D0 | 单头 direct BCE | D3 joint | position-only |
+|---|---:|---:|---:|---:|
+| key unit AP | `.0786` | D1 `.3769` | `.4325` | `.1327` |
+| complete unit AP | `.3276` | D2 `.9208` | `.9192` | `.2684` |
+
+D3 key 相对 D1 为 `+.0556`，complete 相对 D2 为 `-.00155`；correctness AUROC 相对 D0 为 `+.00529`。
+D3 两张 membership map 的平均绝对概率差为 `.3022`，Pearson correlation 为 `.7704`，没有塌成同一张图。
+8 个冻结 guard 都是 3/3 seeds 通过；更严格的“同一个 seed 内全部 guard 同时通过”也是 3/3。完整机器结果：
+
+```text
+configs/dual_prior_evidence_v1/training_protocol_v1.json
+configs/dual_prior_evidence_v1/training_result_v1.json
+run_artifacts/dual_prior_evidence_v1/pilot_v1/
+```
+
+`training_result_v1.json` SHA256 为
+`7b11aaf92d5ed6b9d7a3c99cd34c039077e295855b2305efc5a9b4f53595801b`；12/12 cells 均来自 clean commit
+`f485e54db0181fbcce677b8ae3a0fa895e4e8f82`，没有访问 pilot/final test。
+
+允许结论仅是：adjudicated key/complete direct targets 在这个小型 pipeline pilot 中明显可学，并可在同一模型
+内共存。它不证明对最终 Best-of-N 有增益，也不证明 learned map 在新领域泛化。
+
+## 8. reconstruction 与协同 loss 的后续边界
 
 v1 不生成 reconstruction target。same-candidate pooled hidden state 不是外部 target，会允许 uniform prior 走
 自重构 shortcut，继续禁止。只有当 supported answer/evidence 经过独立流程生成并冻结成 `model_dim=768` target
 后，才发布单独协议测试 reconstruction。
 
-如果 direct targets 可学，再单独比较三种协同方式：不协同、旧 mutual MSE、以及尊重 `key ⊆ complete` 的
-directional/containment objective。旧 mutual MSE 不能因为代码已存在就成为默认。
+Direct-target gate 已通过。下一步单独比较三种协同方式：不协同、旧 mutual MSE、以及尊重
+`key ⊆ complete` 的 directional/containment objective。该比较必须复用 D3 direct BCE 作为 anchor，并同时
+保护 held-out key/complete AP、两图可分性、containment violation 与 correctness；旧 mutual MSE 不能因为
+代码已存在就成为默认。具体 containment 公式与权重必须在看新结果前另行冻结。
