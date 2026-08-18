@@ -9,7 +9,7 @@ from scripts.summarize_dual_prior_agreement_v1 import (
     unit_set_f1,
     unit_set_jaccard,
 )
-from src.clir_hallucination_annotation import file_sha256
+from src.clir_hallucination_annotation import canonical_sha256, file_sha256, read_jsonl
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,3 +136,48 @@ def test_frozen_agreement_protocol_inherits_parent_gates_and_hashes_inputs():
         assert file_sha256(ROOT / spec["path"]) == spec["sha256"]
     assert protocol["training_gold_authorized_before_adjudication"] is False
     assert protocol["pilot_or_final_test_access_allowed"] is False
+
+
+def test_real_agreement_passes_but_every_target_disagreement_is_blinded():
+    report_path = ROOT / "configs/dual_prior_evidence_v1/agreement_report_v1.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    packet = read_jsonl(ROOT / report["outputs"]["adjudication_items"])
+    lineage = read_jsonl(ROOT / report["outputs"]["adjudication_lineage"])
+
+    assert report["status"] == "agreement_gate_passed_adjudication_required"
+    assert report["execution"]["dirty"] is False
+    assert report["agreement_gate_passed"] is True
+    assert report["training_gold_authorized"] is False
+    assert report["usable_rows"] == {"primary": 64, "secondary": 64}
+    assert report["usable_overlap_rows"] == 64
+    assert report["eligibility_agreement"] == 1.0
+    assert report["macro_unit_set_f1_on_usable_overlap"]["key"] >= 0.45
+    assert report["macro_unit_set_f1_on_usable_overlap"]["complete"] >= 0.6
+    assert report["exact_set_agreement_rows"]["both_targets_and_eligibility"] == 16
+    assert report["disagreement_rows"] == len(packet) == len(lineage) == 48
+    assert file_sha256(PROTOCOL) == report["protocol_sha256"]
+    assert file_sha256(ROOT / report["outputs"]["adjudication_items"]) == report[
+        "outputs"
+    ]["adjudication_items_sha256"]
+    assert file_sha256(ROOT / report["outputs"]["adjudication_lineage"]) == report[
+        "outputs"
+    ]["adjudication_lineage_sha256"]
+
+    forbidden = set(protocol["adjudication_blinding"]["forbidden_fields"])
+    for public, private in zip(packet, lineage):
+        assert public["item_id"] == private["item_id"]
+        assert not forbidden.intersection(public)
+        assert {
+            private["annotation_a_source"],
+            private["annotation_b_source"],
+        } == {"primary", "secondary"}
+        for candidate_name in ("a", "b"):
+            candidate = {
+                "schema_version": "clir-dual-prior-evidence-annotation-v1",
+                "item_id": public["item_id"],
+                **public[f"annotation_{candidate_name}"],
+            }
+            assert canonical_sha256(candidate) == private[
+                f"annotation_{candidate_name}_sha256"
+            ]
