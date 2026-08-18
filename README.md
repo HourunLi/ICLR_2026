@@ -35,22 +35,27 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 - Route A v1a 的 matched 1-epoch pilot 没有造成 correctness/ranking 崩坏，但表示诊断显示主要作用是
   分离不同 semantic groups，而不是继续提高已经饱和的 positive cosine。该结果仍是
   `pipeline pilot`，不能证明泛化或 Best-of-N 增益。
-- Hallucination Localization v1 已完成 64 条 candidate-primary 标注和 exact-token 映射：45 clean、
-  19 hallucinated，64/64 映射有效。blind secondary package 已发布；双标 agreement、onset 距离、
-  裁决和训练接入尚未完成。
-- base train/validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；
-  candidate-primary labels 在裁决前不能进入训练。
+- Hallucination Localization v1 的 64 条双标已完成：path agreement `81.25%`、Cohen's kappa
+  `0.5766`；共同判 positive 的 15 条只有 `5/15` onset exact match，说明 path 定义尚可用，但首错
+  边界分歧很大。22 条阻塞分歧经内部盲审后得到 41 clean / 23 hallucinated；这是
+  `pipeline pilot` Silver，不是人工 Gold。
+- 裁决标签已通过 identity/token/provenance merge：4096 行 train 中恰好 64 行有 path/onset 监督，
+  其余保持缺失。query-disjoint dense pilot 使用 48 train / 16 dev，H0–H3 四个 5-epoch cell 均完成。
+- H1/H2 的 dev path AUROC 均为 `0.933`，incorrect-only 为 `0.778`，高于 length shortcut；但
+  token AP (`0.461/0.497`) 低于绝对位置 baseline (`0.514`)，六个 positive dev onset 的 `±5`
+  命中均为 `0`。H2 虽把 tail margin violation 压到 `0%`，却同时整体下移 clean/pre/tail value。
+  因而只保留 path 分支为有希望的诊断，onset 和 localized tail shaping 均未通过。
+- base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
+  formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。当前没有 formal mechanism-efficacy 结论。
 
 ## 下一道门
 
-当前只推进 Hallucination Localization v1：
-
-1. 对独立 secondary 的 64 行盲标做 structure-only validation；
-2. 保留两份原始标签，计算 path agreement、Cohen's kappa 和共同 positive 的 onset token 距离；
-3. 用单独 adjudication artifact 处理分歧和 uncertain，不覆盖原标签；
-4. 通过 coverage/identity/token-map 审计后，才运行 correctness-only、token BCE、negative-tail 和 MIL
-   的 H0–H3 matched matrix。
+Hallucination Localization v1 已冻结为 `completed_path_signal_onset_gate_failed`。下一轮先做
+position-shortcut-controlled onset repair：在不启用 pseudo-tail、不跑 mixed 3968-row 机制训练的前提下，
+扩大 positive onset 标签并预注册绝对/归一化位置 baseline。若同一 token BCE 在扩大数据后仍不能超过
+位置 baseline 或形成 onset `±5` 命中，再讨论 claim-boundary objective 或 loss 变更。path-only 分支可
+保留，但当前 16-row dev 不足以授权扩量训练。
 
 完整停止条件和标签定义见
 [Hallucination Localization Pilot v1](docs/hallucination_localization_pilot_v1.md)。
@@ -79,12 +84,15 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | `src/clir_supervision.py` | 外部机制监督绑定与覆盖审计 |
 | `src/clir_reasoning_rewrite.py` | reasoning-equivalence verifier 契约 |
 | `src/clir_hallucination_annotation.py` | claim schema、exact span、token onset 映射 |
+| `src/clir_localization_evaluation.py` | path/token/onset 指标与 shortcut baselines |
 | `train_clir.py` | 训练、恢复、健康证据与 checkpoint |
 | `score_clir.py` | 逐候选 reward scoring |
+| `evaluate_hallucination_localization.py` | localization held-out evaluation |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
-Best-of-N 选择只在 `evaluate_clir.py` 中实现；`score_clir.py` 只发布逐候选分数和 provenance。
+Best-of-N 选择只在 `evaluate_clir.py` 中实现；`score_clir.py` 发布逐候选分数、localization 诊断数组和
+provenance，不执行 candidate 选择。
 
 ## 本地验证
 

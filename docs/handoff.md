@@ -7,17 +7,19 @@
 
 ## 1. 当前停止点
 
-当前主线是 Hallucination Localization Pilot v1。已完成：
+Hallucination Localization Pilot v1 已完成并冻结为
+`completed_path_signal_onset_gate_failed`：
 
-- 64-row train-only selection，32 correct / 32 incorrect 只用于分层，64 个 query 互不重复；
-- blind item、private lineage、annotation guide 和 exact-token preflight；
-- Mistral-Small-24B candidate-primary 全量标注；
-- 4 条纯格式失败的受限合同修复，且 semantic decision signature 未变；
-- 64/64 primary label 到冻结 Phi output tokens 的映射；结果为 45 clean / 19 hallucinated；
-- 不含 primary decision/correctness 的 64-row secondary package 和完整 prompt。
-
-尚未完成：secondary 审计、双标 agreement、onset comparison、裁决、supervision merge 和 H0–H3 训练。
-primary 全部给出 high confidence，因此它只能算 candidate Silver，不能直接进入训练。
+- independent secondary 64/64 结构和 exact quote 通过，SHA256
+  `cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6`；
+- primary/secondary path agreement `52/64 = 81.25%`，Cohen's kappa `0.5766`；15 个共同
+  positive 中 onset exact `5/15`，median absolute distance `67` tokens；
+- 12 个 path 冲突和 10 个共同-positive onset 冲突组成 22-row A/B package；内部盲审选择 A 10、B 8、
+  revised onset 4，最终 41 clean / 23 hallucinated；原始两份标签均未覆盖；
+- 64 条最终标签已通过冻结 token identity、provenance、merge 和 coverage 审计；
+- query-disjoint dense split 为 48 train / 16 dev；H0–H3 四个 5-epoch cell 全部完成，无 non-finite；
+- path ranking 有信号，onset 与 localized tail shaping 未过门。当前停止，不跑 mixed 3968-row，不启用
+  pseudo-tail，不读取 pilot/final test。
 
 ## 2. 当前采用的研究路线
 
@@ -26,8 +28,9 @@ primary 全部给出 high confidence，因此它只能算 candidate Silver，不
    reasoning-equivalent pairs。Route B 的 Phi self-rewrite 保留为后续对照。
 3. 错误 trajectory 不要求 rewrite。当前 Route A correct-only；错误机制等价组只有在定向采样和独立
    verifier 能稳定判断后才做 ablation。
-4. 当前先单独校准 hallucination path/onset，再训练 localization；不同时加入 consistency 或 dual prior。
-5. dual-prior targets 必须外部生成，等前两个模块分别通过后再实现。
+4. Localization v1 已独立跑完；当前只允许 onset Pilot v2 或独立 dual-prior pipeline 探索，不把失败的
+   onset/tail 分支与 consistency 或 dual prior 混训。
+5. dual-prior targets 必须外部生成；即使先探索，也不因 path diagnostic 有信号而跳过独立校准。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 和 Stage 1B v4 的原健康分类均不是当前训练入口；
 原因和原始数字见 `docs/decision_history.md`。
@@ -46,41 +49,37 @@ primary 全部给出 high confidence，因此它只能算 candidate Silver，不
 
 - protocol：`configs/hallucination_localization_v1/protocol_v1.json`，SHA256
   `f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252`；
-- primary labels：`configs/hallucination_localization_v1/labels_primary_v1.jsonl`，SHA256
+- primary labels：`labels_primary_v1.jsonl`，SHA256
   `1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7`；
-- primary report：`configs/hallucination_localization_v1/primary_report_v1.json`；
-- secondary blind items：`configs/hallucination_localization_v1/secondary_items_v1.jsonl`，SHA256
-  `ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591`；
-- secondary prompt：`configs/hallucination_localization_v1/secondary_prompt_v1.md`；
-- secondary 约定输出：`configs/hallucination_localization_v1/labels_secondary_raw_v1.jsonl`。
+- secondary raw：`labels_secondary_raw_v1.jsonl`，SHA256
+  `cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6`；
+- mapped secondary / agreement：`labels_secondary_v1.jsonl`、`agreement_report_v1.json`；
+- adjudication：`adjudication_resolutions_v1.jsonl`、`labels_adjudicated_v1.jsonl`、
+  `adjudication_report_v1.json`；最终 label SHA256
+  `00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d`；
+- train/dev split：`training_split_protocol_v1.json`、`training_split_manifest_v1.jsonl`、
+  `training_split_report_v1.json`；
+- H0–H3：`training_protocol_v1.json`、`training_result_v1.json`；详细 run artifact 位于
+  `run_artifacts/hallucination_localization_v1/pilot0_dense_v1/`。
 
-最后一个文件是外部盲标交付物。即使文件已经出现，也必须先完成 structure-only validation，不能直接
-stage、读取 private lineage 辅助修正，或覆盖 primary/secondary 原始结果。
+`adjudication_report_v1.json` 已明确披露裁决者是内部模型审查而非独立人工 Gold；不得删除该边界或把
+最终标签改称 Gold。
 
-## 4. 收到 secondary 后的执行顺序
+## 4. 下一步
 
-先运行只读 blind validator：
+不要重复当前 seed/48/16/H0–H3，也不要从 post-hoc calibration 中挑阈值冒充预注册结果。当前结果的
+有效读法是：
 
-```bash
-cd /prodcpfs/user/panzhixin/ICLR_2027
-P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
-"$P" scripts/validate_hallucination_annotations_v1.py \
-  --items configs/hallucination_localization_v1/secondary_items_v1.jsonl \
-  --labels configs/hallucination_localization_v1/labels_secondary_raw_v1.jsonl
-```
+1. H1/H2 path AUROC `0.933`、incorrect-only `0.778`，高于 length baseline `0.700/0.556`；path
+   branch 可以保留，但 dev 只有 16 行；
+2. H1/H2 token AP `0.461/0.497` 低于 absolute-position baseline `0.514`；
+3. 六个 positive dev 在所有 cell 下 onset `±5=0`；train-only 阈值校准也不能修复；
+4. H2 的 tail margin violation 虽为 `0%`，clean/pre/tail value 均整体变负，未证明局部 shaping。
 
-若通过，下一轮按以下顺序实现并执行：
-
-1. 冻结 secondary 文件 SHA256，保持 primary、secondary 原文件只读；
-2. 用与 primary 相同的 Phi tokenizer contract 映射 secondary exact quotes；
-3. 报告 path confusion、agreement、Cohen's kappa；共同 positive 报 onset exact match、absolute token
-   distance 和 `±1/±3/±5` agreement；
-4. 将所有 path、problem-claim 或 onset 分歧写入独立 adjudication package；
-5. unresolved/uncertain 保持 mask，裁决结果另存，不覆盖原标注；
-6. 通过 `merge_clir_supervision.py` 和 `audit_clir_supervision.py` 的身份、token hash 与 coverage 门；
-7. 再冻结 H0 correctness-only、H1 token BCE、H2 negative-tail、H3 path MIL 的 matched protocol。
-
-当前仓库尚没有 hallucination 双标 comparison/adjudication runner；不要用临时手工合并绕过这一步。
+推荐下一轮发布新的 onset Pilot v2，而不是原地改 v1：扩大 positive 标签，保持 query-disjoint split，
+把 absolute/normalized position baseline 设为硬门。按用户当前决定先不改 loss；若扩量后的相同 token BCE
+仍不超过位置 baseline，再单独商议 claim-boundary objective。若改为先探索 dual prior，也必须作为独立
+pipeline pilot，不能与当前失败的 onset/tail 分支混训。
 
 ## 5. 不可破坏的约束
 
@@ -100,9 +99,9 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
 - Route A v1a 和 localization v1 都是 `pipeline pilot`。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权；该授权不能自动迁移成 hallucination Gold。
-- primary 类别数量门通过不等于标注准确率通过。
-- 在双标裁决和 held-out localization evaluation 前，不能宣称 consistency、hallucination localization 或
-  negative-tail shaping 改善 Best-of-N。
+- 内部盲审 Silver 和 16-row dev 不能支持 verifier 准确率或泛化结论。
+- path ranking 是 promising diagnostic；onset localization 和 negative-tail locality 当前明确未通过。
+- 不能宣称 consistency、hallucination localization 或 negative-tail shaping 改善 Best-of-N。
 
 ## 7. 验证与入口
 
@@ -130,5 +129,9 @@ src/clir_hidden_states.py                      exact-token online features
 src/clir_supervision.py                        外部监督绑定与覆盖审计
 src/clir_hallucination_annotation.py           claim/span/onset contract
 scripts/validate_hallucination_annotations_v1.py  secondary blind validator
+scripts/compare_hallucination_annotations_v1.py   双标 comparison/A-B package
+scripts/adjudicate_hallucination_annotations_v1.py  裁决物化与 supervision
+scripts/run_hallucination_localization_pilot_v1.py  H0-H3 单-cell launcher
+evaluate_hallucination_localization.py             path/token/onset 指标
 train_clir.py / score_clir.py / evaluate_clir.py  训练、打分、Best-of-N
 ```

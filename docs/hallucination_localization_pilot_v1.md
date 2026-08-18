@@ -1,6 +1,6 @@
 # Hallucination Localization Pilot v1
 
-状态：64-row selection、candidate-primary 与 token mapping 已完成；blind secondary package 已发布，等待独立第二标注
+状态：双标、裁决、supervision merge 和 H0–H3 已完成；冻结为 `completed_path_signal_onset_gate_failed`
 
 日期：2026-08-18
 
@@ -8,8 +8,8 @@
 
 本文定义 semantics consistency Pilot-0 之后的下一个机制模块：hallucination localization。
 Route A v1a 已完成双标、裁决、4096 行 mixed consistency manifest 和匹配训练门；旧 62 行 manifest
-仍禁止训练。本模块现恢复执行，先冻结 selection/annotation protocol，再生成 primary 与 blind
-secondary package。
+仍禁止训练。本模块已经冻结 selection/annotation protocol，完成 primary、blind secondary、裁决和
+matched dense training。
 首轮目标不是证明 CLIR 提升 Best-of-N，而是用一批可审计的真实标签跑通
 `path_hallucinated`、`hallucination_onset`、token localization loss 和 negative-tail reward
 的最小闭环。
@@ -22,8 +22,9 @@ v1a 修复训练进一步显示，现有 consistency loss 主要分离跨语义�
 应独立验证 CLIR 的第二个核心假设：轨迹在首个不受支持的推理主张之前仍可能有价值，之后的表示应被
 识别并降权。
 
-当前冻结 train/validation manifest 的 hallucination 监督覆盖仍为 0；现有 loss 只是已经实现，尚无
-真实标签证据。correctness 只描述最终答案，不能填补该监督。
+本轮开始时冻结 train/validation manifest 的 hallucination 监督覆盖为 0；v1 现已给 4096-row base
+train 中的 64 行绑定真实 pilot 标签，并在 query-disjoint 48/16 dense split 上完成训练。correctness
+仍只描述最终答案，未用于派生这些监督。
 
 ## 2. 任务定义与边界
 
@@ -161,8 +162,36 @@ hallucinated；correct 29 clean / 3 hallucinated。该交叉表只作“不等�
 - `secondary_prompt_v1.md`：SHA256
   `17cf885c1bf1852c1c05ce543d1789eb550e41ef6955af42bfe8d2cab5f2e4b4`。
 
-这些结果只通过 primary preliminary class gate。双标 agreement、onset 距离和 adjudication 尚未发生，
-所以不得合并进训练 manifest 或声称 verifier 已校准。
+这些 primary 结果仅作为被比较的原始标注保留，未被覆盖或直接当作最终训练标签。
+
+### 4.4 Secondary、agreement 与裁决结果
+
+外部提供的 blind secondary raw labels SHA256 为
+`cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6`，64/64 通过 structure-only、
+exact-substring validation。映射到同一冻结 Phi token 后：
+
+- primary 45 clean / 19 hallucinated；secondary 41 clean / 23 hallucinated；
+- path agreement `52/64 = 0.8125`，Cohen's kappa `0.576626`；
+- confusion 为 clean→clean 37、clean→hallucinated 8、hallucinated→clean 4、
+  hallucinated→hallucinated 15；
+- 15 个共同 positive 的 onset exact/`±1/±3/±5` 都是 `5/15`；median absolute distance `67`、
+  mean `55.8`、max `217` tokens。
+
+训练阻塞口径只裁 path 冲突和共同-positive onset-token 冲突；claim span 粗细或
+unsupported/contradicted 细分类差异报告但不阻塞。22-row A/B package 经内部盲审得到 A 10、B 8、
+revised onset 4，最终 41 clean / 23 hallucinated。裁决者不是独立人工 reviewer，并在协议中披露了
+aggregate cross-tab 与 post-decision 两个 role mapping 的可见性限制，因此最终标签只称
+`not_gold_internal_blinded_pipeline_pilot`。
+
+关键产物：
+
+- `agreement_report_v1.json`：原始 agreement 与 onset 距离；
+- `adjudication_resolutions_v1.jsonl`：22 条 compact decision；
+- `labels_adjudicated_v1.jsonl`：SHA256
+  `00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d`；
+- `supervision_annotations_v1.jsonl`：SHA256
+  `2447aef866f4a8693d03bd5bdeef7381d5254485966de3ff4f7d4fc0384b72cb`；
+- `adjudication_report_v1.json`：64/64 exact token identity，trainability gate passed。
 
 ## 5. 数据产物与硬门
 
@@ -175,9 +204,12 @@ configs/hallucination_localization_v1/annotation_items_v1.jsonl
 configs/hallucination_localization_v1/annotation_lineage_v1.jsonl
 configs/hallucination_localization_v1/labels_primary_v1.jsonl
 configs/hallucination_localization_v1/labels_secondary_raw_v1.jsonl
-configs/hallucination_localization_v1/adjudicated_labels_v1.jsonl
-run_artifacts/hallucination_localization_v1/merge_report.json
-run_artifacts/hallucination_localization_v1/coverage_report.json
+configs/hallucination_localization_v1/labels_adjudicated_v1.jsonl
+configs/hallucination_localization_v1/supervision_annotations_v1.jsonl
+configs/hallucination_localization_v1/training_split_manifest_v1.jsonl
+configs/hallucination_localization_v1/training_result_v1.json
+run_artifacts/hallucination_localization_v1/merge_report_v1.json
+run_artifacts/hallucination_localization_v1/coverage_report_v1.json
 ```
 
 每条可训练 annotation 必须满足 `docs/clir_supervision_protocol.md`：绑定 `id`、`query_id` 和
@@ -194,8 +226,10 @@ run_artifacts/hallucination_localization_v1/coverage_report.json
 - 任一 augmentation row 均未静默继承 source 的 localization 标签；
 - 人工抽查确认“补齐合法推导”未被系统性误判为 hallucination。
 
-这些是可训练性门，不是 verifier 质量或方法有效性门。若 agreement 很低，停止在 calibration，先修改
-定义/prompt 并重新盲标，不扩大数据。
+最后一项人工抽查未发生；按用户“先达到可训练、门禁后续再加强”的决定，本轮用内部盲审替代并把证据
+严格降为 `pipeline_pilot/not_gold`，只放行 dense engineering run，不满足 Gold/formal gate。其余可训练性
+门通过，但 onset 分歧和后续 held-out 结果均未过定位门，所以 v1 停在 onset repair，不进入
+pseudo-tail 或 mixed-data 机制训练。
 
 ## 6. 最小训练矩阵
 
@@ -216,6 +250,37 @@ run_artifacts/hallucination_localization_v1/coverage_report.json
 `token_values = token_rewards + progress_score_weight * progress` 的耦合保持为开放问题。本 pilot 没有
 progress 标签时不据此修改架构。
 
+### 6.1 v1 实际 split、训练和结果
+
+最终 64 条按冻结 hash priority 划分为 query-disjoint 48 train / 16 dev：train 31 clean / 17
+hallucinated，dev 10 clean / 6 hallucinated。唯一 correct+hallucinated row 留在 train；dev 另含 3 个
+incorrect-clean 和 6 个 incorrect-hallucinated，可做 correctness shortcut 诊断。完整 base manifest 另生成
+排除全部 16 个 dev query 的 3968-row mixed 版本，但 v1 未授权使用它。
+
+H0–H3 均以 seed 42、5 epochs、batch 4、同一 all-33-layer precomputed features 完成；每 epoch 覆盖
+48 path labels 和 14,307 onset-supervised tokens，无 non-finite。冻结 `0.5` threshold 下的主要 dev
+结果：
+
+| cell | path AUROC / AP | incorrect-only path AUROC | token AUROC / AP | onset MAE | onset ±5 |
+|---|---:|---:|---:|---:|---:|
+| H0 | .533 / .448 | .333 | .431 / .252 | 87.5 | 0/6 |
+| H1 | .933 / .873 | .778 | .710 / .461 | 134.2 | 0/6 |
+| H2 | .933 / .873 | .778 | .732 / .497 | 132.7 | 0/6 |
+| H3 | .900 / .800 | .722 | .547 / .351 | 343.5 | 0/6 |
+
+shortcut baselines 是 path length AUROC `.700`、incorrectness AUROC `.850`、incorrect-only length AUROC
+`.556`，以及 absolute token position AUROC/AP `.699/.514`。因此 H1/H2 的 path ranking 超过这些
+shortcut，且 train-only path threshold 在 dev 得到 balanced accuracy `.783`；但 token AP 未超过位置
+baseline，任何 cell 都没有一个 onset 落在 `±5`。train-only threshold calibration 同样不能修复 onset，
+并且 post-hoc calibration 不替代冻结阈值结果。
+
+H2 将 dev tail margin violation 降为 `0%`，但 mean token value 同时变成 clean `-2.55`、pre-onset
+`-3.84`、tail `-4.33`。tail 相对更负，却不是局部下调，故 negative-tail locality 不通过。
+
+机器可读结论在 `training_result_v1.json`：engineering pipeline passed、path ranking promising；
+`onset_localization_gate_passed=false`、`negative_tail_locality_gate_passed=false`、
+`authorize_pseudo_tail=false`、`authorize_mixed_3968_row_mechanism_run=false`。
+
 ## 7. 指标与结论边界
 
 主要工程/定位指标：
@@ -234,25 +299,22 @@ population std。64 条 pilot 的 BoN 变化不能作为方法效果结论，也
 1. 冻结 64-row selection manifest 与 annotation protocol；
 2. 运行 primary annotation，并完成 exact-token span mapping；
 3. 导出不含 primary decision 的 blind secondary prompt/package；
-4. 收到第二份标签后计算 agreement、裁决并审计；
-5. 只有数据硬门通过才运行 H0-H3；
-6. 根据 held-out localization 结果决定是否扩大标签、启用 pseudo-tail，或回到定义/标注器选择。
+4. 收到第二份标签后计算 agreement、裁决并审计；已完成；
+5. 数据硬门通过后运行 H0-H3；已完成；
+6. 根据 held-out localization 结果决定是否扩大标签、启用 pseudo-tail，或回到定位设计；已裁决为
+   扩大/修复 onset，禁止 pseudo-tail。
 
-当前第 1–3 步已完成：primary 的 64/64 labels 已精确映射到冻结 output token，blind secondary input
-与完整 prompt 已生成。按约定在此停止，等待独立第二标注；收到 64 行且 structure-only validator
-通过后才执行第 4 步。
-
-当前需要用户把 `configs/hallucination_localization_v1/secondary_prompt_v1.md` 原样交给另一个 AI。
-该 prompt 已包含允许读取的两个文件、禁止泄漏项、64 行 JSONL schema、exact quote 要求、输出路径和
-structure-only validator，不要求第二标注者理解本仓库实现。
+v1 在此冻结。下一轮必须新建 onset Pilot v2：先不改 loss，扩大 positive onset 标签，并把绝对位置和
+归一化位置 baseline 设为硬门；若相同 token BCE 仍不能超过位置 baseline 或形成 onset `±5` 命中，再
+单独讨论 claim-boundary objective。也可以先探索独立 dual-prior pipeline，但不能与当前失败分支混训。
 
 ## 9. 当前未验证事项
 
-- Mistral-24B 是否能可靠区分“合法补全推导”与“无依据事实”；
-- primary 与独立 secondary 的 path/onset 一致性；
-- 19 条 candidate-positive 中有多少能经双标和裁决保留；
-- noisy-or MIL 的长度偏置是否会在真实标签上出现；
-- negative-tail shaping 是否改善排序，还是仅让 localization 指标变好。
+- path signal 在更大、更独立 dev 上能否继续超过 correctness/length shortcuts；
+- 增加 positive onset 后，相同 token BCE 能否超过 position baseline；
+- claim-boundary onset 是否需要显式结构或 objective，而不是逐 token tail BCE；
+- noisy-or 的长度校准如何避免 float32 path probability 饱和；
+- tail shaping 如何只下调 onset 后 token，而不整体移动整条错误 trajectory。
 
-因此当前动作是等待独立 secondary annotation；本文不授权在裁决前训练、扩量标签、读取测试集或
-宣称 hallucination localization 已有效。
+本文不授权 mixed 3968-row mechanism run、pseudo-tail、读取测试集或宣称 hallucination localization
+已经有效；只允许把 path ranking 称为 promising pipeline diagnostic。

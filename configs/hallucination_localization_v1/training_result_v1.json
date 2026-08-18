@@ -1,0 +1,132 @@
+{
+  "schema_version": "clir-hallucination-localization-training-result-v1",
+  "status": "completed_path_signal_onset_gate_failed",
+  "evidence_tier": "pipeline_pilot",
+  "training_protocol": {
+    "path": "configs/hallucination_localization_v1/training_protocol_v1.json",
+    "sha256": "4554c906c3b0193e1233b0f981a148b7a33487f80b7ec7c2912499209cec119c"
+  },
+  "data": {
+    "dense_train_rows": 48,
+    "dense_train_sha256": "6b69bde130fdb20cd775c0ea17da4ce15873907cba105448b46f1e5ff63b3459",
+    "localization_dev_rows": 16,
+    "localization_dev_positive_rows": 6,
+    "localization_dev_sha256": "93beb33086e4789f0fda451a7b0399d74fe878562c6d80a355215bc0ca4bfa1a",
+    "query_overlap": 0,
+    "claim_level_gold": false
+  },
+  "execution_gate": {
+    "all_four_cells_completed_epoch_5": true,
+    "all_train_and_validation_total_losses_finite": true,
+    "identical_train_dev_seed_architecture_and_budget": true,
+    "train_examples_observed_per_epoch": 48,
+    "dev_examples_observed_per_epoch": 16,
+    "train_onset_supervised_tokens_observed_per_epoch": 14307,
+    "train_path_labels_observed_per_epoch": 48,
+    "scoring_compute_dtype": "float32",
+    "passed": true
+  },
+  "shortcut_baselines_on_dev": {
+    "path_length_roc_auc": 0.7,
+    "path_incorrectness_roc_auc": 0.85,
+    "incorrect_only_path_length_roc_auc": 0.5555555555555556,
+    "token_absolute_position_roc_auc": 0.6992881384071289,
+    "token_absolute_position_average_precision": 0.5139790015413355,
+    "train_median_constant_onset_mean_absolute_error": 101.5
+  },
+  "cells": {
+    "h0": {
+      "description": "correctness only",
+      "checkpoint_sha256": "53945f53788ad2f842bdba65a1c2440cfeaaa5e7aba2631a4074f0184cb3d4d9",
+      "metrics_sha256": "0645d7a35fdd3004aff74bfc651e74ee0f147a8e84565009bcf6eca54edd44b5",
+      "dev_scored_sha256": "501290c80a6207abb3fc9d7fdff9119a41632b069d1cfa8ad09d0ce8472bb0be",
+      "threshold_calibration_v2_sha256": "97b292119d8ae3f8e7ec7ca6c2d1db07b634f169c4195232739a0966c90c8cb6",
+      "path_roc_auc": 0.5333333333333333,
+      "path_average_precision": 0.4477004477004477,
+      "incorrect_only_path_roc_auc": 0.3333333333333333,
+      "dev_path_balanced_accuracy_after_train_calibration": 0.5666666666666667,
+      "token_roc_auc": 0.4305212467761116,
+      "token_average_precision": 0.2522167024748215,
+      "fixed_threshold_onset_mean_absolute_error": 87.5,
+      "fixed_threshold_onset_within_5": 0.0
+    },
+    "h1": {
+      "description": "correctness plus exact contaminated-tail token BCE",
+      "checkpoint_sha256": "bed13b2ab6452fe9b8bd1332ccbb31ccc7b5bb952e441e2291a941946a4b612f",
+      "metrics_sha256": "0932f935961f9453730bb38b5b20435ef5f1b22d0c770f4fb82e86e2edf02fea",
+      "dev_scored_sha256": "298273d78dbffbfe53db9e76a528ed2cfb7856f9b7b75e70632f1ab045354fcd",
+      "threshold_calibration_v2_sha256": "b44e23057c8eb69f5574bea088483e7295dbf4927de52b56e766b77dc563c6ec",
+      "path_roc_auc": 0.9333333333333333,
+      "path_average_precision": 0.8734126984126983,
+      "incorrect_only_path_roc_auc": 0.7777777777777778,
+      "dev_path_balanced_accuracy_after_train_calibration": 0.7833333333333333,
+      "token_roc_auc": 0.7100640337600964,
+      "token_average_precision": 0.4607553859488468,
+      "fixed_threshold_onset_mean_absolute_error": 134.16666666666666,
+      "fixed_threshold_onset_within_5": 0.0,
+      "dev_onset_mean_absolute_error_after_train_calibration": 183.33333333333334,
+      "dev_onset_within_5_after_train_calibration": 0.0,
+      "noisy_or_probability_exact_one_rows": 16
+    },
+    "h2": {
+      "description": "H1 plus negative-tail value margin",
+      "checkpoint_sha256": "eb69709ef013668098286c2a9291822816ecb6799901682d8a67031b8f828345",
+      "metrics_sha256": "daa01870b01e712a2ee3e79d6cf674bcd6d753820a555a2308cdaadd6d7987c1",
+      "dev_scored_sha256": "fe41138773df4eb1577caa8ed9a804160b69e60c72a048bc4319f72d228c1a14",
+      "threshold_calibration_v2_sha256": "be150a64ed7edf04e280c421c86966431999bcaf6dd4634bc7a9fa92a914c894",
+      "path_roc_auc": 0.9333333333333333,
+      "path_average_precision": 0.8734126984126983,
+      "incorrect_only_path_roc_auc": 0.7777777777777778,
+      "dev_path_balanced_accuracy_after_train_calibration": 0.7833333333333333,
+      "token_roc_auc": 0.7317099349816991,
+      "token_average_precision": 0.4972594967517852,
+      "fixed_threshold_onset_mean_absolute_error": 132.66666666666666,
+      "fixed_threshold_onset_within_5": 0.0,
+      "dev_onset_mean_absolute_error_after_train_calibration": 177.33333333333334,
+      "dev_onset_within_5_after_train_calibration": 0.0,
+      "mean_pre_onset_token_value": -3.838277675942851,
+      "mean_tail_token_value": -4.3286154159944354,
+      "mean_clean_token_value": -2.549981931285774,
+      "tail_margin_violation_rate": 0.0,
+      "noisy_or_probability_exact_one_rows": 16
+    },
+    "h3": {
+      "description": "correctness plus weak path noisy-or MIL",
+      "checkpoint_sha256": "04c0066340dc7a0829ab312401898119d5accece22457162ef3153aa19073492",
+      "metrics_sha256": "6fc45eb3daa61f4214caec698e0baa03c69b925309e1c8e408fd7c3253afab5d",
+      "dev_scored_sha256": "396950a085a1dadf888038e26a024ab502f6787209bab7bebcde9b79f6175464",
+      "threshold_calibration_v2_sha256": "04f619f6c20f69c994e4dbce631d0930d48a7c17fff7f3fabe9bac24a022a712",
+      "path_roc_auc": 0.9,
+      "path_average_precision": 0.8,
+      "incorrect_only_path_roc_auc": 0.7222222222222222,
+      "dev_path_balanced_accuracy_after_train_calibration": 0.7833333333333333,
+      "token_roc_auc": 0.5467107650847092,
+      "token_average_precision": 0.35134214884594034,
+      "fixed_threshold_onset_mean_absolute_error": 343.5,
+      "fixed_threshold_onset_within_5": 0.0
+    }
+  },
+  "interpretation": {
+    "path_signal": "H1/H2 path ranking exceeds the length and correctness shortcuts on this 16-row dev, and remains above the length shortcut within the nine incorrect rows; this is promising but statistically weak.",
+    "token_signal": "H1/H2 token ROC AUC improves over H0, but average precision remains below the absolute-position baseline, so the apparent tail signal is not evidence of claim-boundary localization.",
+    "onset_signal": "No cell localizes any of the six positive dev onsets within five tokens under the frozen threshold, and train-only threshold calibration does not repair this.",
+    "tail_shaping": "H2 enforces the requested tail margin but shifts clean, pre-onset, and tail token values negative; locality is not established.",
+    "calibration": "The train-only threshold analysis is explicitly post-hoc and does not replace the frozen 0.5-threshold result. Log-space path scoring is required because float32 noisy-or probabilities saturate."
+  },
+  "decision": {
+    "engineering_pipeline_passed": true,
+    "path_ranking_signal_promising": true,
+    "onset_localization_gate_passed": false,
+    "negative_tail_locality_gate_passed": false,
+    "authorize_pseudo_tail": false,
+    "authorize_mixed_3968_row_mechanism_run": false,
+    "formal_mechanism_claim_allowed": false,
+    "recommended_next_step": "Freeze this pilot, keep path-level supervision as a viable branch, and redesign or expand onset supervision with an explicit position-shortcut control before any mixed-data or pseudo-tail run."
+  },
+  "code": {
+    "training_commit": "5d3a80fd272fddc42e8314b100d0767d8dd1b396",
+    "calibration_and_shortcut_audit_commit": "e6f6d25"
+  },
+  "pilot_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}
