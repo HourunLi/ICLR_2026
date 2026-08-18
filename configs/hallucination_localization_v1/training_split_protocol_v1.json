@@ -1,0 +1,37 @@
+{
+  "schema_version": "clir-hallucination-training-split-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Create a dense labeled mechanism pilot split while excluding every development query from the optional mixed training manifest.",
+  "inputs": {
+    "merged_manifest": "run_artifacts/hallucination_localization_v1/data_v1/train_localization_v1.jsonl",
+    "merged_manifest_sha256": "46cb312450d4a8d70e547932dde513fadba5f018a6661fdf84baa085e9f0eaa3",
+    "adjudicated_labels": "configs/hallucination_localization_v1/labels_adjudicated_v1.jsonl",
+    "adjudicated_labels_sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+    "annotation_lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+    "annotation_lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+    "adjudication_report": "configs/hallucination_localization_v1/adjudication_report_v1.json",
+    "adjudication_report_sha256": "83bf8ed2aef696cc83e06bb95a48827eb305597eba32a3ad77c3d2b57d9e88c6"
+  },
+  "selection": {
+    "priority": "sha256(clir-hallucination-localization-dev-v1:item_id)",
+    "dev_quotas": {
+      "correctness_0__clean": 3,
+      "correctness_0__hallucinated": 6,
+      "correctness_1__clean": 7,
+      "correctness_1__hallucinated": 0
+    },
+    "rare_correct_hallucinated_policy": "retain_the_only_row_in_training_instead_of_spending_it_on_an_unstable_single_example_dev_stratum",
+    "dense_train_policy": "only_the_48_labeled_non_dev_rows",
+    "mixed_train_policy": "all_base_rows_except_every_candidate_from_the_16_dev_queries",
+    "development_policy": "the_16_selected_labeled_rows_only"
+  },
+  "outputs": {
+    "split_manifest": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+    "split_report": "configs/hallucination_localization_v1/training_split_report_v1.json",
+    "dense_train": "run_artifacts/hallucination_localization_v1/data_v1/train_dense48_v1.jsonl",
+    "mixed_train": "run_artifacts/hallucination_localization_v1/data_v1/train_mixed_query_disjoint_v1.jsonl",
+    "localization_dev": "run_artifacts/hallucination_localization_v1/data_v1/localization_dev16_v1.jsonl"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}
