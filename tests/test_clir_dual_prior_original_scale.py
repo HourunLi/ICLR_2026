@@ -11,6 +11,7 @@ CONFIG = ROOT / "configs/dual_prior_original_scale_v2"
 DATA_PROTOCOL = CONFIG / "data_protocol_v2.json"
 DATA_REPORT = CONFIG / "data_report_v2.json"
 TRAINING_PROTOCOL = CONFIG / "training_protocol_v2.json"
+TRAINING_RESULT = CONFIG / "training_result_v2.json"
 
 
 def test_scaled_data_is_query_disjoint_and_only_gold_rows_receive_priors():
@@ -128,3 +129,33 @@ def test_scale_runner_dry_run_resolves_only_the_frozen_gate_difference():
             "reconstruction",
         )
     )
+
+
+def test_scale_result_preserves_method_identity_and_reports_no_ranking_gain():
+    result = json.loads(TRAINING_RESULT.read_text(encoding="utf-8"))
+    assert result["status"] == "completed_original_shared_gradient_scale_and_ranking"
+    assert result["required_matrix_cells"] == 6
+    assert result["completed_matrix_cells"] == 6
+    assert result["training_commit"] == "ee549aff034acbe1496b7c6f79ac6a9b76502cae"
+    assert result["original_method_preserved"] is True
+    assert result["head_only_or_other_architecture_attempted"] is False
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False
+
+    invariant = result["method_invariant"]
+    assert invariant["name"] == "original_shared_gradient_dual_prior_reward_gate"
+    assert invariant["mutual_weight"] == 0.25
+    assert invariant["head_only_or_detached_feature_repair"] is False
+    assert invariant["containment_replacement"] is False
+    assert invariant["reconstruction"] is False
+
+    primary = result["primary_ranking_comparison"]
+    assert primary["metric"] == "reward_bon_accuracy@16"
+    assert primary["by_seed"] == {"42": -0.008, "43": -0.01, "44": -0.008}
+    assert primary["positive_seed_count"] == 0
+    assert primary["stable_positive"] is False
+    assert result["ranking_improvement_established"] is False
+    assert primary["aggregate_query_paired"]["query_count"] == 500
+    assert primary["aggregate_query_paired"]["replicates"] == 10000
+    low, high = primary["aggregate_query_paired"]["bootstrap_ci"]
+    assert low < 0.0 < high

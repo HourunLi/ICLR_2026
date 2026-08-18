@@ -324,6 +324,24 @@ checker-v5 的 4096-row outcome train 整体排除，将 48 条 prior Gold 嵌�
 query-grouped validation 上直接比较 G0/G1 Best-of-N。head-only 降为未执行的未来 diagnostic ablation，
 不是当前主线。
 
+### 7.11 original-scale v2：原方法可训练，但 localization 改善未转化为 ranking 增益
+
+冻结后从 clean commit `ee549aff034acbe1496b7c6f79ac6a9b76502cae` 完成 G0/G1 × seeds
+42/43/44 共 6 个 cell。两格都使用 3968-row mixed outcome train、direct key/complete BCE、原始双向
+stop-gradient mutual `.25`；G1 唯一增加原始 shared-gradient gate alignment `10`。head-only、containment、
+reconstruction 均未运行。每格完成 5 epochs、48/16 localization 评分和独立 500×16 ranking validation，
+且未读取 `pilot_test/final_test`。
+
+G1 相对 G0 的 BoN@16 delta 为 `-.008/-.010/-.008`，mean `-.00867`；500 queries 上聚合三 seed 后做
+10,000 次 paired bootstrap，95% interval 为 `[-.01933,+.00200]`。冻结 stable-positive gate 失败：当前
+数据没有建立 original gate 的 ranking 增益；由于区间跨 0，也不宣称稳定负效应。
+
+机制侧不是完全无效：G1 的 gate-objective MSE 平均下降 `.00643`，complete/key unit AP 平均提高
+`.02150/.03084`，correctness AUROC 平均提高 `.03175`。因此准确诊断是“原 objective 学到了 48 条 prior
+Gold 的 localization signal，但该 signal 没有转化成 held-out ranking 收益”，而不是“loss 没跑”或
+“Phi 无法训练”。项目原公式继续保留；下一步先对现有 query-paired 输出做 failure decomposition，再用
+新协议检验 prior supervision scale 或 optimization schedule，不以结果后 head-only 替换覆盖本结论。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

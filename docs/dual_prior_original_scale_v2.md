@@ -1,6 +1,6 @@
 # Dual-Prior Original Shared-Gradient Scale v2
 
-状态：`frozen_before_training`
+状态：`completed_original_shared_gradient_scale_and_ranking`
 
 证据等级：`small-scale real`
 
@@ -89,3 +89,32 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 矩阵要求 clean committed worktree；6 cells 完成后自动调用
 `scripts/summarize_dual_prior_original_scale_v2.py`，机器结果写入
 `configs/dual_prior_original_scale_v2/training_result_v2.json`。
+
+## 6. 完成结果
+
+6/6 cells 从 clean commit `ee549aff034acbe1496b7c6f79ac6a9b76502cae` 完成。每格均训练 5 epochs，
+随后完成 48-row prior train、16-row prior dev 和 500-query × 16-candidate ranking validation；
+`pilot_test` 与 `final_test` 均未读取。原始方法身份保持不变，未运行 head-only、containment 或
+reconstruction 变体。
+
+Primary G1−G0 BoN@16 结果为：
+
+| seed | G0 | G1 | G1−G0 |
+|---:|---:|---:|---:|
+| 42 | `.916` | `.908` | `-.008` |
+| 43 | `.916` | `.906` | `-.010` |
+| 44 | `.916` | `.908` | `-.008` |
+| mean | `.916` | `.9073` | `-.00867` |
+
+500 queries 上先在 query 内平均三 seed delta，再做 10,000 次 paired bootstrap，95% interval 为
+`[-.01933, +.00200]`。三个 seed 都不是正向，冻结的 stable-positive gate 失败。因此本轮没有建立
+original shared-gradient gate 的 validation ranking 增益；区间仍跨 0，也不能把结果解释成已证明的稳定
+负效应。
+
+辅助机制指标显示 gate 确实学到了 prior，而不是 loss 没有生效：G1 相对 G0 的 gate-objective MSE 平均
+下降 `.00643`，complete/key unit AP 平均分别提高 `.02150/.03084`，correctness AUROC 平均提高
+`.03175`。准确结论是“当前 48 条 prior Gold 的 localization 改善没有转化成 held-out Best-of-N 增益”。
+
+机器结果：`configs/dual_prior_original_scale_v2/training_result_v2.json`。下一步保留原公式，先基于现有
+500×16 输出做 paired failure decomposition，再在新协议中检验 prior supervision scale 或 optimization
+schedule；不得用本结果静默替换成 head-only。

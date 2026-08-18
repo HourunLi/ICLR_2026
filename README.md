@@ -18,7 +18,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
-| dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | v1 小样本保护门失败仍原样记录；当前不用 head-only 改结构，先在 mixed outcome 数据和 500×16 pool 上训练/评价原方法 |
+| dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | original-scale v2 已完整训练；localization 改善但未建立 ranking 增益，不以结果后架构替换覆盖该结论 |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -80,21 +80,24 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   `.0766`，只有 1/3 seeds 通过冻结保护线。状态为 `completed_reward_gate_integration_diagnostic_only`：保留
   这一冻结结论且不事后放宽门槛。随后经方法身份复核与用户裁决，shared-gradient gate 仍作为项目原方法
   进入独立 v2 放大训练；head-only 只保留为未执行的历史 repair 设想。
-- Original-scale v2 数据已冻结：从最新 checker-v5 的 4096-row outcome train 中整体排除 16 个
-  localization-dev queries，得到 496 queries / 3968 rows；48 条 adjudicated key+complete Gold 只覆盖对应
-  48 rows，其余机制监督保持缺失。ranking validation 与训练 query-disjoint，规模为 500×16、146 个 mixed
-  queries。G0/G1 × seeds 42/43/44 协议已冻结，尚未形成训练结果。
+- Original-scale v2 的 6/6 cells 已从 clean commit `ee549af` 完成。G1 相对 G0 的 BoN@16 三 seed delta
+  为 `-.008/-.010/-.008`，均值 `-.00867`；500-query aggregate paired bootstrap 95% interval
+  `[-.01933,+.00200]`，所以没有建立稳定 ranking 增益，也没有证明稳定负效应。与此同时 gate-objective
+  MSE 平均下降 `.00643`，complete/key unit AP 平均提高 `.02150/.03084`：原 gate 确实学到 prior，但当前
+  48 条 Gold 的 localization signal 没有转化成 held-out ranking 收益。原方法继续保留，head-only 未运行。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-下一道门是直接训练项目原始 dual-prior 方法，而不是先换 head-only：在 3968-row mixed train 上从头比较
-G0（correctness + direct priors + mutual `.25`）与 G1（G0 + 原始 shared-gradient gate alignment `10`），
-随后在同一 500×16 query-grouped validation 上做 paired Best-of-N。权重 `10` 继承结果前完成的梯度量级审计，
-本轮不扫描；v1 的失败保护门也不回写。reconstruction 继续等待独立 768-d target，不得使用 same-candidate
-pooling。v2 设计见 [Dual-Prior Original Scale v2](docs/dual_prior_original_scale_v2.md)。完整 direct-target 结果见
+下一道门不改原始 dual-prior 架构。先对已完成的 500×16 G0/G1 输出做 query-paired failure decomposition：
+定位 gate 改变 top choice 的 query、正确→错误与错误→正确的净流向，以及这些变化和 prior 覆盖/localization
+质量的关系。若证据仍指向 supervision sparsity，再另发 v3 数据规模或 optimization-schedule 协议，保持 direct
+targets + mutual `.25` + shared-gradient gate 公式不变；不得在结果后扫描同一路径权重，也不自动授权
+head-only。reconstruction 继续等待独立 768-d target，不得使用 same-candidate pooling。v2 完整结果见
+[Dual-Prior Original Scale v2](docs/dual_prior_original_scale_v2.md)，机器结果为
+`configs/dual_prior_original_scale_v2/training_result_v2.json`。完整 direct-target 结果见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md) 与
 `configs/dual_prior_evidence_v1/training_result_v1.json`；mutual 结果见
 [Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)，机器结果为
