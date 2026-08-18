@@ -1,0 +1,39 @@
+{
+  "base_protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "code": {
+    "commit": "010a48222729e1690d5ee42e46cdfc30a81637ce",
+    "dirty": false
+  },
+  "comparison_protocol_sha256": "78add44a16d5aea493a4efa44dd4b4690fc4453b73df17713e644569d9ddea98",
+  "confidence_counts": {
+    "high": 60,
+    "medium": 4
+  },
+  "correctness_path_cross_tab_private_diagnostic": {
+    "correctness_0__clean": 10,
+    "correctness_0__hallucinated": 22,
+    "correctness_1__clean": 31,
+    "correctness_1__hallucinated": 1
+  },
+  "evidence_tier": "pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "hallucinated_onset": {
+    "count": 23,
+    "max": 337,
+    "mean": 138.04347826086956,
+    "min": 0
+  },
+  "parse_and_token_map_valid": 64,
+  "path_status_counts": {
+    "clean": 41,
+    "hallucinated": 23
+  },
+  "pilot_test_accessed": false,
+  "rows": 64,
+  "schema_version": "clir-hallucination-secondary-report-v1",
+  "secondary_annotator_identity_recorded": false,
+  "secondary_labels": "configs/hallucination_localization_v1/labels_secondary_v1.jsonl",
+  "secondary_labels_sha256": "65f2a6702db5d042178bf89bc6b95524c47b45809656acf1933c740874cbbdd0",
+  "secondary_raw_labels_sha256": "cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6",
+  "secondary_was_blind_to_primary_and_correctness": true
+}

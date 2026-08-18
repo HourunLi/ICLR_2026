@@ -1,0 +1,74 @@
+{
+  "adjudication_items": "configs/hallucination_localization_v1/adjudication_items_v1.jsonl",
+  "adjudication_items_sha256": "31f8da2c5802877e9fcc30c15d21844bab14a46e46f16f51ba6d5bf77c6dd127",
+  "adjudication_lineage_sha256": "f689e15c2d6f8a43d6e6d5c395d207087d64ad22c3ed55bf9df458cbccb99729",
+  "adjudication_package_contains_correctness": false,
+  "adjudication_prompt_sha256": "e6f8e5c89fc6b9803f9ff54987609e6dc675077536c7b1fbfa71f99290feaebd",
+  "calibration_status": "awaiting_adjudication",
+  "code": {
+    "commit": "010a48222729e1690d5ee42e46cdfc30a81637ce",
+    "dirty": false
+  },
+  "cohen_kappa": 0.5766262403528115,
+  "common_hallucinated_onset_metrics": {
+    "count": 15,
+    "exact": {
+      "count": 5,
+      "rate": 0.3333333333333333
+    },
+    "max_absolute_token_distance": 217,
+    "mean_absolute_token_distance": 55.8,
+    "median_absolute_token_distance": 67,
+    "within_1": {
+      "count": 5,
+      "rate": 0.3333333333333333
+    },
+    "within_3": {
+      "count": 5,
+      "rate": 0.3333333333333333
+    },
+    "within_5": {
+      "count": 5,
+      "rate": 0.3333333333333333
+    }
+  },
+  "comparison_protocol": "configs/hallucination_localization_v1/comparison_protocol_v1.json",
+  "comparison_protocol_sha256": "78add44a16d5aea493a4efa44dd4b4690fc4453b73df17713e644569d9ddea98",
+  "consensus_usable_path_counts_before_adjudication": {
+    "clean": 37,
+    "hallucinated": 5
+  },
+  "disagreement_reason_counts": {
+    "earliest_problem_claim_span": 10,
+    "earliest_problem_claim_status": 8,
+    "onset_token": 10,
+    "path_status": 12
+  },
+  "evidence_tier": "pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "path_agreement_count": 52,
+  "path_agreement_rate": 0.8125,
+  "path_confusion_primary_to_secondary": {
+    "clean->clean": 37,
+    "clean->hallucinated": 8,
+    "hallucinated->clean": 4,
+    "hallucinated->hallucinated": 15
+  },
+  "pilot_test_accessed": false,
+  "primary_labels_sha256": "1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7",
+  "primary_path_status_counts": {
+    "clean": 45,
+    "hallucinated": 19
+  },
+  "rows": 64,
+  "rows_requiring_adjudication": 22,
+  "schema_version": "clir-hallucination-agreement-report-v1",
+  "secondary_mapped_labels_sha256": "65f2a6702db5d042178bf89bc6b95524c47b45809656acf1933c740874cbbdd0",
+  "secondary_path_status_counts": {
+    "clean": 41,
+    "hallucinated": 23
+  },
+  "secondary_raw_labels_sha256": "cbc5599a82a928fb3d4433645ffb5101e136659cbc180dd9ecfe4c47e55eb0a6",
+  "trainability_gate_passed": false,
+  "training_labels_published": false
+}
