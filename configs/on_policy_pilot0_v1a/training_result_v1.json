@@ -1,0 +1,169 @@
+{
+  "schema_version": "clir-on-policy-repair-training-result-v1",
+  "evidence_tier": "pipeline_pilot",
+  "status": "completed_diagnostic_only_continue_to_hallucination_localization",
+  "annotation": {
+    "items": 31,
+    "primary_status_counts": {
+      "accepted": 28,
+      "rejected": 3
+    },
+    "secondary_status_counts": {
+      "accepted": 27,
+      "rejected": 4
+    },
+    "status_agreement": 0.967741935483871,
+    "cohen_kappa": 0.8393782383419691,
+    "status_disagreements": 1,
+    "final_status_counts": {
+      "accepted": 27,
+      "rejected": 4
+    },
+    "secondary_labels_sha256": "861578c398a026ac4d9b35dc4e71a9aaf68c230a92491608b71f7a07907c32e7",
+    "adjudication_report_sha256": "585a451040727cc2c95c6796f98355273187e88b06eeb653130a83b7b8f62b1d",
+    "adjudicated_relations_sha256": "b874fd07280e501ff1515ee3ad301fb6b8eeaabf29ae9f7752c62493ccba810e"
+  },
+  "data": {
+    "train_manifest": "run_artifacts/on_policy_pilot0_v1a/data_v1/train_mixed_precomputed_v1.jsonl",
+    "train_manifest_sha256": "5cae43026ca1fefdb14cc656e61dab5d3598e3582ba5d8ac27655f385a7e6307",
+    "train_rows": 4096,
+    "train_queries": 512,
+    "train_correct": 3668,
+    "train_incorrect": 428,
+    "consistency_rows": 54,
+    "semantic_groups": 27,
+    "potential_positive_pairs": 27,
+    "potential_negative_pairs": 702,
+    "validation_manifest": "run_artifacts/on_policy_pilot0_v1a/data_v1/validation_prefix32_precomputed_v1.jsonl",
+    "validation_manifest_sha256": "14297aa1a7d169b1e31a3970af0c2260d1a688cc69bde6fa6c3793bcac264ca8",
+    "validation_rows": 512,
+    "validation_queries": 32,
+    "validation_mixed_queries": 10,
+    "train_validation_query_overlap": 0,
+    "materialization_report_sha256": "c670490706d6e9b6c6297a837a5cb6a6f3f03f2f76bef2533b26d48864858a93"
+  },
+  "protocol": {
+    "path": "configs/on_policy_pilot0_v1a/training_protocol_v1.json",
+    "sha256": "0e2497841e4308c0b0cceff1f19980f2c9d54ecb06970aa87ba75fafdebc25cd",
+    "seed": 42,
+    "epochs": 1,
+    "batch_size": 4,
+    "matched_argument_differences": [
+      "consistency_weight",
+      "output_model",
+      "metrics_jsonl",
+      "run_json"
+    ],
+    "matched_model_config_difference": "consistency_weight_only",
+    "observed_positive_pairs_per_cell": 27,
+    "observed_negative_pairs_per_cell": 26
+  },
+  "cells": {
+    "baseline": {
+      "consistency_weight": 0.0,
+      "checkpoint_sha256": "d48a77cde509331d7a04c0c2659af2067d0a8ff5ac28d3966af8a55d4dc3d77b",
+      "metrics_sha256": "a7df0be0cdf371ee2e168ca846c9cf0e2f8700cdc511096cb850d41b732fdfe3",
+      "checkpoint_train_correctness_bce": 0.23887029229194923,
+      "validation_correctness_bce": 0.507356175008681,
+      "checkpoint_consistency": {
+        "positive": 0.000011444091796875,
+        "negative": 0.010066986083984375,
+        "score": 0.005610764696029946,
+        "total": 0.010635692045070755
+      },
+      "score_population_std": 1.6911200592459448,
+      "within_query_pairwise_accuracy": 0.5702247191011236,
+      "best_of_n_accuracy": {
+        "1": 0.84375,
+        "2": 0.875,
+        "4": 0.875,
+        "8": 0.84375,
+        "16": 0.875
+      },
+      "scored_manifest_sha256": "89513c4e7fa40ffb91511e7f44369c93a7dcc4402a0e429de80c359630c277ab",
+      "scoring_health_sha256": "ef8f7e9fd524a09cca957d214884b91325a9e0dbc613b68315457a279475980d",
+      "evaluation_sha256": "780fe452cf97588c947c2c22bfe5e951f94302891d63d13ff5a4db9fb62d043f"
+    },
+    "consistency": {
+      "consistency_weight": 1.0,
+      "checkpoint_sha256": "fb632e7372986a824b05946f8fe6a59c8427af3cfb20e3993375e10a9de2ce2e",
+      "metrics_sha256": "b6c76e1e8d768e7779e093951ea08cd49a8f033ca23a84429c2d41c8612c66e1",
+      "checkpoint_train_correctness_bce": 0.21818966191176514,
+      "validation_correctness_bce": 0.45998405228965566,
+      "checkpoint_consistency": {
+        "positive": 0.0002307891845703125,
+        "negative": 0.005275726318359375,
+        "score": 0.004059929980940069,
+        "total": 0.005922045173974766
+      },
+      "score_population_std": 1.7893351633401684,
+      "within_query_pairwise_accuracy": 0.5870786516853933,
+      "best_of_n_accuracy": {
+        "1": 0.84375,
+        "2": 0.875,
+        "4": 0.84375,
+        "8": 0.90625,
+        "16": 0.875
+      },
+      "scored_manifest_sha256": "ed9d4b3ca9d3965439b9466317b38e25d331d5d3e54d86a86e71c4dd0c25a5d4",
+      "scoring_health_sha256": "4db1af59009e4eee0d94df2e489e417229f79caa6c29c6bb57974c28c0e26422",
+      "evaluation_sha256": "404b07ef5d4439c062be74761fd0a8982fc9a461495c7e6b6c47a4896cde8a0e"
+    }
+  },
+  "matched_deltas_consistency_minus_baseline": {
+    "checkpoint_train_correctness_bce": -0.02068063038018409,
+    "validation_correctness_bce": -0.04737212271902535,
+    "checkpoint_consistency_total": -0.004713646871095989,
+    "within_query_pairwise_accuracy": 0.016853932584269672,
+    "best_of_n_accuracy": {
+      "1": 0.0,
+      "2": 0.0,
+      "4": -0.03125,
+      "8": 0.0625,
+      "16": 0.0
+    }
+  },
+  "representation_diagnostic": {
+    "path": "run_artifacts/on_policy_pilot0_v1a/representation_diagnostic_v1/report.json",
+    "sha256": "21a8a54eb76f7241f63fe483ad2e3f3f2773bc93786bbe877afd1b0098ec8afe",
+    "same_semantic_projected_cosine_mean": {
+      "random_init": 0.9961227973302206,
+      "baseline": 0.998933595639688,
+      "consistency": 0.9827237129211426
+    },
+    "different_semantic_same_style_projected_cosine_mean": {
+      "random_init": 0.9815158007661162,
+      "baseline": 0.9925675474510574,
+      "consistency": 0.7305290293004204
+    },
+    "projected_cosine_mean_gap": {
+      "random_init": 0.014606996564104358,
+      "baseline": 0.006366048188630624,
+      "consistency": 0.25219468362072217
+    },
+    "same_semantic_absolute_score_delta_mean": {
+      "random_init": 0.05217482756685327,
+      "baseline": 0.49109462676224885,
+      "consistency": 0.40546148353152806
+    },
+    "pairs_with_lower_score_delta_than_baseline": 19,
+    "pairs_with_higher_positive_cosine_than_baseline": 1,
+    "interpretation": "The active consistency objective primarily prevents global representation collapse by separating different-semantic same-style rows. It does not increase an already saturated positive-pair cosine; positive cosine decreases while the relative positive-vs-negative gap expands."
+  },
+  "pipeline_gate": {
+    "passed": true,
+    "reasons": [
+      "both_matched_cells_completed_without_nonfinite_loss",
+      "both_correctness_classes_participated_in_both_cells",
+      "all_27_positive_pairs_and_26_sampler_negative_pairs_were_observed",
+      "both_scored_manifests_have_nondegenerate_score_distributions",
+      "consistency_training_did_not_degrade_checkpoint_or_validation_correctness_bce"
+    ]
+  },
+  "claim_boundary": {
+    "formal_mechanism_claim_allowed": false,
+    "ranking_delta_interpretation": "diagnostic_only_one_seed_one_epoch_32_queries_10_informative",
+    "relation_geometry_interpretation": "in_training_relations_only",
+    "next_authorized_module": "hallucination_localization_pilot_v1"
+  }
+}

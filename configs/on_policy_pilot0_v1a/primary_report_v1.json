@@ -1,0 +1,21 @@
+{
+  "annotation_date": "2026-08-17",
+  "annotation_policy": "material_claims_only_with_local_numeric_and_logic_checks",
+  "annotator": "codex_primary_manual_review",
+  "blocking_gate": "blind_secondary_annotation_and_adjudication",
+  "derived_status_counts": {
+    "accepted": 28,
+    "rejected": 3
+  },
+  "evidence_tier": "pipeline_pilot",
+  "guide_sha256": "90dfe4589d46e1184ef5105df821450a6ead4a8d1fc2ba7eeb742367b597ee18",
+  "items_sha256": "8800150af88f021b4ffce23bd1918036eedd58b3da1663bbed5139a475d6a1c8",
+  "lineage_sha256": "3b10b028cf4c2ea2517495411b27d199972448c39641a7d030fdbec8ad5cfe1a",
+  "material_claim_specs_sha256": "8d963f9210b81105cf08d126b50bc863a815b5dbfa02879c4e499d82a61789c2",
+  "output": "configs/on_policy_pilot0_v1a/labels_primary_v1.jsonl",
+  "output_sha256": "31ddd5f5b5810bb86d340e81ddb3f2629dd20a9014a52c607f88905cf7a4ff9e",
+  "rows": 31,
+  "schema_version": "clir-on-policy-primary-annotation-report-v1",
+  "structural_checks_passed": true,
+  "training_ready": false
+}

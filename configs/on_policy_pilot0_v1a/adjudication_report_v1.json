@@ -1,0 +1,29 @@
+{
+  "adjudications": 1,
+  "adjudications_sha256": "f721fdacd94fa882b6211e7bf54e242c2a80176e173c96d5cf1010370ca6189d",
+  "cohen_kappa": 0.8393782383419691,
+  "evidence_tier": "pipeline_pilot",
+  "final_status_counts": {
+    "accepted": 27,
+    "rejected": 4
+  },
+  "items": 31,
+  "items_sha256": "8800150af88f021b4ffce23bd1918036eedd58b3da1663bbed5139a475d6a1c8",
+  "lineage_sha256": "3b10b028cf4c2ea2517495411b27d199972448c39641a7d030fdbec8ad5cfe1a",
+  "output": "configs/on_policy_pilot0_v1a/adjudicated_relations_v1.jsonl",
+  "output_sha256": "b874fd07280e501ff1515ee3ad301fb6b8eeaabf29ae9f7752c62493ccba810e",
+  "primary_labels_sha256": "31ddd5f5b5810bb86d340e81ddb3f2629dd20a9014a52c607f88905cf7a4ff9e",
+  "primary_status_counts": {
+    "accepted": 28,
+    "rejected": 3
+  },
+  "schema_version": "clir-on-policy-reannotation-adjudication-report-v1",
+  "secondary_labels_sha256": "861578c398a026ac4d9b35dc4e71a9aaf68c230a92491608b71f7a07907c32e7",
+  "secondary_status_counts": {
+    "accepted": 27,
+    "rejected": 4
+  },
+  "status_agreement": 0.967741935483871,
+  "status_disagreements": 1,
+  "training_relation_gate_passed": true
+}

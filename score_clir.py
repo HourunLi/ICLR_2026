@@ -12,6 +12,12 @@ import torch
 from torch.utils.data import DataLoader
 
 from src.clir_data import CLIRTrajectoryDataset, clir_collate, move_batch_to_device
+from src.clir_hidden_states import (
+    add_hidden_state_source_arguments,
+    load_online_hidden_state_extractor,
+    online_hidden_state_config_from_args,
+    validate_online_rows,
+)
 from src.clir_real_data import file_sha256
 from src.clir_stage_a import atomic_write_json, atomic_write_jsonl, git_state
 from src.consistency_localized_reward import (
@@ -37,6 +43,7 @@ def parse_args() -> argparse.Namespace:
         help="Optional frozen experiment protocol; must match the training checkpoint.",
     )
     parser.add_argument("--feature_root", default=None, help="Base directory for relative feature paths.")
+    add_hidden_state_source_arguments(parser)
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--pin_memory", action=argparse.BooleanOptionalAction, default=False)
@@ -118,6 +125,8 @@ def main() -> None:
         raise ValueError("persistent_workers requires num_workers > 0")
     if args.min_score_std < 0:
         raise ValueError("min_score_std must be non-negative")
+    if args.hidden_state_source == "online" and args.feature_root is not None:
+        raise ValueError("Online hidden-state extraction does not consume --feature_root")
     input_path = Path(args.input_jsonl).resolve()
     model_path = Path(args.model).resolve()
     output_path = Path(args.output_jsonl).resolve()
@@ -137,11 +146,45 @@ def main() -> None:
             "Scoring experiment protocol differs from the training checkpoint"
         )
     model_variant = model.config.model_variant
+    online_hidden_state_config = online_hidden_state_config_from_args(
+        args,
+        feature_dim=model.config.hidden_dim,
+    )
+    checkpoint_data_state = checkpoint.get("data_state")
+    if isinstance(checkpoint_data_state, Mapping):
+        checkpoint_online_config = checkpoint_data_state.get(
+            "online_hidden_state_config"
+        )
+        if (
+            checkpoint_online_config is not None
+            and (
+                online_hidden_state_config is None
+                or checkpoint_online_config
+                != online_hidden_state_config.to_dict()
+            )
+        ):
+            raise ValueError(
+                "Scoring online extractor differs from the training checkpoint"
+            )
     dataset = CLIRTrajectoryDataset(
         args.input_jsonl,
         feature_root=args.feature_root,
         check_finite=not args.skip_feature_finite_check,
         load_condition=model_variant == "clir",
+        hidden_state_source=args.hidden_state_source,
+    )
+    if online_hidden_state_config is not None:
+        validate_online_rows(dataset.rows, online_hidden_state_config)
+    hidden_state_extractor = (
+        load_online_hidden_state_extractor(
+            online_hidden_state_config,
+            device=device,
+            cache_dir=args.extractor_cache_dir,
+            local_files_only=args.extractor_local_files_only,
+            check_finite=not args.skip_feature_finite_check,
+        )
+        if online_hidden_state_config is not None
+        else None
     )
     loader = DataLoader(
         dataset,
@@ -183,12 +226,25 @@ def main() -> None:
         "score_code": git_state(PROJECT_ROOT),
         "experiment_protocol": experiment_protocol,
         "min_score_std": args.min_score_std,
+        "hidden_state_source": args.hidden_state_source,
+        "online_hidden_state_config": (
+            online_hidden_state_config.to_dict()
+            if online_hidden_state_config is not None
+            else None
+        ),
     }
     scored_scores: List[float] = []
 
     for batch in loader:
         row_indices = batch["row_index"].tolist()
         batch = move_batch_to_device(batch, device)
+        if hidden_state_extractor is not None:
+            batch = hidden_state_extractor.materialize(
+                batch,
+                include_condition=model_variant == "clir",
+            )
+        elif "hidden_states" not in batch:
+            raise ValueError("Token-only batch requires an online hidden-state extractor")
         if args.amp_dtype == "none":
             parameter_dtype = next(model.parameters()).dtype
             for key in ("hidden_states", "condition_states", "condition_embedding"):

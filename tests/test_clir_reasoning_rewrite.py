@@ -201,7 +201,37 @@ def test_incorrect_source_requires_matching_error_alignment():
     changed_error["decision"] = "reject"
     rejected = derive_acceptance_status(changed_error, checker=_checker(correctness=0))
     assert rejected["status"] == "rejected"
-    assert "incorrect_error_mechanism_preserved" in rejected["failed_checks"]
+    assert "identified_error_mechanism_preserved" in rejected["failed_checks"]
+
+
+def test_correct_outcome_may_still_have_an_internal_error():
+    internally_flawed = _report(incorrect=True)
+    accepted = derive_acceptance_status(internally_flawed, checker=_checker(correctness=1))
+    assert accepted["status"] == "accepted"
+    assert accepted["checks"]["incorrect_source_has_error_account"] is True
+
+    relocated = _report(incorrect=True)
+    relocated["error_alignment"]["same_semantic_error_location"] = False
+    relocated["decision"] = "reject"
+    rejected = derive_acceptance_status(relocated, checker=_checker(correctness=1))
+    assert rejected["status"] == "rejected"
+    assert "identified_error_mechanism_preserved" in rejected["failed_checks"]
+
+
+def test_native_compact_to_expanded_is_a_verifier_only_style_target():
+    report = _report()
+    report["style_assessment"] = {
+        "target_style": "native_compact_to_expanded",
+        "satisfied": True,
+        "evidence": "The second native trajectory expands the same steps with transitions.",
+    }
+    assert derive_acceptance_status(report, checker=_checker())["status"] == "accepted"
+    with pytest.raises(ValueError, match="style_id"):
+        build_generator_messages(
+            problem="What is the result?",
+            source_trajectory="A native trajectory.",
+            style_id="native_compact_to_expanded",
+        )
 
 
 def test_checker_unavailable_routes_to_review_instead_of_auto_accept():

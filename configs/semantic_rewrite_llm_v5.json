@@ -1,0 +1,137 @@
+{
+  "schema_version": "clir-semantic-rewrite-llm-v5",
+  "evidence_tier": "train_only_pipeline_pilot",
+  "status": "frozen_constrained_editable_line_generation_pending_execution",
+  "formal_mechanism_claim_allowed": false,
+  "source": {
+    "manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+    "split": "train",
+    "checker_version": "clir_gsm8k_numeric_v5",
+    "selected_source_ids": [
+      "gsm8k-train-01458-cand-000",
+      "gsm8k-train-03620-cand-000",
+      "gsm8k-train-01258-cand-000",
+      "gsm8k-train-05173-cand-007"
+    ],
+    "required_correctness_counts": {
+      "0": 2,
+      "1": 2
+    },
+    "require_distinct_query_ids": true
+  },
+  "identity": {
+    "query_id": "preserve_source_query_id",
+    "semantic_id": "derive_from_source_trajectory_id",
+    "style_id": "declared_rewrite_axis",
+    "source_candidate_index": "lineage_only_not_top_level"
+  },
+  "model_selection": {
+    "config": "configs/semantic_rewrite_models_v1.json",
+    "sha256": "437e1cd38e132d1cfe8bbd9ee715bc271bf220252d89ddfbe5da13aac8d1efe8"
+  },
+  "generator": {
+    "repo_id": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "tokenizer_revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "output_format": "indexed_editable_lines_v1",
+    "system_prompt": "You are a constrained line editor, not a problem solver. The annotated source may be wrong, and every mistake must remain wrong in exactly the same way. Lines marked P are protected context and will be copied by the program; never output them. Rewrite every line marked E into the requested style while preserving its exact logical claim, every numeric literal and occurrence, unit, operation, intermediate conclusion, and error. Return exactly one single-line tag for each expected E id, in the same order, with no blank lines, markdown fence, commentary, P line, or extra tag. The required syntax is <Edddd>one rewritten physical line</Edddd>.",
+    "user_prompt_template": "TARGET STYLE:\n<<STYLE_INSTRUCTION>>\n\nANNOTATED SOURCE (P = protected program-owned line; E = editable line):\n<<ANNOTATED_SOURCE_LINES>>\n\nEXPECTED EDITABLE IDS IN EXACT OUTPUT ORDER:\n<<EXPECTED_EDITABLE_IDS>>\n\nReturn exactly one <Edddd>...</Edddd> physical line for every expected id and nothing else.",
+    "protected_content_policy": "model_rewrites_only_indexed_editable_lines_program_copies_protected_and_blank_lines"
+  },
+  "verifier": {
+    "repo_id": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "tokenizer_revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "output_format": "json_object_v1",
+    "independent_from_generator": false,
+    "system_prompt": "You are a conservative rewrite fidelity auditor. Compare the source candidate reasoning with its assembled rewrite without solving the problem or judging source correctness. Reject any changed, repaired, added, removed, or reordered mathematical claim, number, unit, operation, intermediate conclusion, final answer, or source mistake. Reject prompt leakage or a surface style that did not materially change. Return exactly one JSON object and no markdown fence or commentary.",
+    "user_prompt_template": "TARGET STYLE:\n<<STYLE_INSTRUCTION>>\n\nPROBLEM (context only; do not solve it):\n<<PROBLEM>>\n\nSOURCE CANDIDATE REASONING:\n<<SOURCE_RESPONSE>>\n\nASSEMBLED REWRITTEN CANDIDATE REASONING:\n<<REWRITTEN_RESPONSE>>\n\nReturn exactly this JSON schema, using an empty issues list when there is no issue:\n{\"reasoning_meaning_preserved\": true, \"final_answer_preserved\": true, \"numbers_operations_preserved\": true, \"style_changed\": true, \"introduced_correction\": false, \"added_or_removed_claims\": false, \"decision\": \"accept|reject\", \"issues\": []}",
+    "output_keys": [
+      "reasoning_meaning_preserved",
+      "final_answer_preserved",
+      "numbers_operations_preserved",
+      "style_changed",
+      "introduced_correction",
+      "added_or_removed_claims",
+      "decision",
+      "issues"
+    ],
+    "reference_answer_visible": false,
+    "source_correctness_label_visible": false
+  },
+  "styles": [
+    {
+      "style_id": "compact_linewise",
+      "instruction": "Rewrite each editable line with shorter, direct wording. Every editable line must differ from its source line without changing its claim."
+    },
+    {
+      "style_id": "conversational_linewise",
+      "instruction": "Rewrite each editable line in simple conversational wording. Every editable line must differ from its source line without changing its claim."
+    }
+  ],
+  "decoding": {
+    "do_sample": false,
+    "temperature": null,
+    "top_p": null,
+    "top_k": null,
+    "num_beams": 1,
+    "repetition_penalty": 1.0,
+    "generator_max_new_tokens": 1536,
+    "verifier_max_new_tokens": 768,
+    "max_input_tokens": 8192,
+    "generator_parser": "indexed_editable_lines_v1",
+    "verifier_json_parser": "strict_object_or_single_json_fence_v1"
+  },
+  "deterministic_gates": {
+    "response_must_change": true,
+    "same_checker_correctness": true,
+    "same_normalized_candidate_answer": true,
+    "numeric_literal_set_equal": true,
+    "numeric_literal_sequence_equal": true,
+    "numeric_literal_parser": "clir_numeric_literal_set_v2",
+    "protected_math_lines_exact": true,
+    "same_nonempty_line_count": true,
+    "minimum_editable_line_change_ratio": 0.6,
+    "style_instruction_not_copied": true,
+    "minimum_length_ratio": 0.65,
+    "maximum_length_ratio": 1.5,
+    "incorrect_source_must_remain_incorrect": true,
+    "verifier_accept_required": true
+  },
+  "tokenization": {
+    "feature_model_id": "microsoft/Phi-3.5-mini-instruct",
+    "feature_model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "add_special_tokens": false,
+    "decode_roundtrip_required": true,
+    "hidden_state_source": "online"
+  },
+  "quality_gate": {
+    "planned_views": 8,
+    "required_accepted_views": 8,
+    "required_styles_per_semantic_group": 2,
+    "require_distinct_rewrites_per_semantic_group": true,
+    "maximum_incorrect_source_repairs": 0,
+    "human_blind_audit_required_before_scale": true,
+    "scale_target_after_human_gate": "32_train_sources_x_2_styles"
+  },
+  "execution": {
+    "launcher": "scripts/run_llm_semantic_rewrite.py",
+    "output_root": "run_artifacts/semantic_rewrite_llm_v5",
+    "shard_unit": "one_source_trajectory_all_styles",
+    "atomic_completion_markers": true,
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "required_runtime": {
+      "python_executable": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python3.11",
+      "python_version": "3.11.15",
+      "torch_version": "2.3.1+cu121",
+      "transformers_version": "4.51.2",
+      "cuda_runtime_version": "12.1"
+    }
+  }
+}

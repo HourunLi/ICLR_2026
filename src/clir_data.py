@@ -1,6 +1,6 @@
 """Data utilities for CLIR JSONL training and scoring.
 
-Each JSONL row represents one generated trajectory. Minimal fields:
+Each JSONL row represents one generated trajectory. Pre-extracted mode uses:
 
 {
   "id": "sample-0-cand-0",
@@ -11,9 +11,10 @@ Each JSONL row represents one generated trajectory. Minimal fields:
   "style_id": "direct"
 }
 
-Hidden states can be stored inline as `hidden_states`, or by path in
-`hidden_states_path`. Optional `condition_states`, prior targets, hallucination
-labels, and token advantage targets follow the names used by the model.
+Online mode instead consumes exact `prompt_token_ids` and `output_token_ids`
+plus frozen model provenance. Human-readable prompt/question/response fields
+are audit metadata and are never re-tokenized. Optional prior targets,
+hallucination labels, and token advantage targets follow the model names.
 """
 
 from __future__ import annotations
@@ -26,29 +27,13 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 import torch
 from torch import Tensor
-from torch.utils.data import BatchSampler, Dataset
+from torch.utils.data import BatchSampler, Dataset, Sampler
 
-from .clir_real_data import TOKEN_LABEL_ALIASES, validate_extracted_row
-
-
-TEXT_ID_FIELDS = {
-    "id",
-    "query_id",
-    "semantic_id",
-    "style_id",
-    "domain_id",
-    "source",
-    "prompt",
-    "context",
-    "trajectory",
-    "answer",
-}
-
-TOKEN_SEQUENCE_FIELDS = {
-    alias
-    for aliases in TOKEN_LABEL_ALIASES.values()
-    for alias in aliases
-}
+from .clir_real_data import (
+    TOKEN_LABEL_ALIASES,
+    validate_extracted_row,
+    validate_rollout_row,
+)
 
 
 def read_jsonl(path: str | Path) -> List[Dict[str, Any]]:
@@ -74,7 +59,7 @@ def write_jsonl(path: str | Path, rows: Iterable[Dict[str, Any]]) -> None:
 
 
 class CLIRTrajectoryDataset(Dataset):
-    """JSONL dataset for pre-extracted hidden-state trajectories."""
+    """JSONL trajectories backed by precomputed features or exact token IDs."""
 
     def __init__(
         self,
@@ -84,12 +69,18 @@ class CLIRTrajectoryDataset(Dataset):
         check_finite: bool = True,
         require_correctness: bool = False,
         load_condition: bool = True,
+        hidden_state_source: str = "precomputed",
     ) -> None:
         self.jsonl_path = Path(jsonl_path)
         self.feature_root = Path(feature_root) if feature_root is not None else self.jsonl_path.parent
         self.check_finite = check_finite
         self.require_correctness = require_correctness
         self.load_condition = load_condition
+        if hidden_state_source not in {"precomputed", "online"}:
+            raise ValueError(
+                "hidden_state_source must be either 'precomputed' or 'online'"
+            )
+        self.hidden_state_source = hidden_state_source
         self.rows = read_jsonl(self.jsonl_path)
         if not self.rows:
             raise ValueError(f"No rows found in {self.jsonl_path}")
@@ -104,12 +95,30 @@ class CLIRTrajectoryDataset(Dataset):
                     raise ValueError(
                         f"Training row {row_index} correctness must be numeric 0 or 1, got {value!r}"
                     )
+        if self.hidden_state_source == "online":
+            for row in self.rows:
+                validate_rollout_row(row)
 
     def __len__(self) -> int:
         return len(self.rows)
 
     def __getitem__(self, index: int) -> Dict[str, Any]:
         row = dict(self.rows[index])
+        if self.hidden_state_source == "online":
+            output_token_ids = list(row["output_token_ids"])
+            item: Dict[str, Any] = {
+                "row_index": index,
+                "id": row.get("id", str(index)),
+                "query_id": row.get(
+                    "query_id",
+                    row.get("candidate_group_id", row.get("prompt_id", str(index))),
+                ),
+                "prompt_token_ids": list(row["prompt_token_ids"]),
+                "output_token_ids": output_token_ids,
+            }
+            item.update(extract_metadata(row, len(output_token_ids)))
+            return item
+
         hidden_states = load_tensor_field(row, "hidden_states", "hidden_states_path", self.feature_root)
         if hidden_states.ndim != 2:
             raise ValueError("Each hidden state item must have shape [time, hidden_dim]")
@@ -260,27 +269,51 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     if not batch:
         raise ValueError("Cannot collate an empty batch")
 
-    max_time = max(item["hidden_states"].shape[0] for item in batch)
-    hidden_dim = batch[0]["hidden_states"].shape[1]
-    hidden_dtype = batch[0]["hidden_states"].dtype
-    hidden_states = torch.zeros(len(batch), max_time, hidden_dim, dtype=hidden_dtype)
-    mask = torch.zeros(len(batch), max_time, dtype=torch.float32)
+    has_hidden = ["hidden_states" in item for item in batch]
+    has_tokens = [
+        "prompt_token_ids" in item and "output_token_ids" in item
+        for item in batch
+    ]
+    if all(has_hidden):
+        source = "precomputed"
+        max_time = max(item["hidden_states"].shape[0] for item in batch)
+    elif all(has_tokens) and not any(has_hidden):
+        source = "online"
+        max_time = max(len(item["output_token_ids"]) for item in batch)
+    else:
+        raise ValueError(
+            "A CLIR batch must contain either all precomputed features or all exact token IDs"
+        )
 
+    mask = torch.zeros(len(batch), max_time, dtype=torch.float32)
     for row, item in enumerate(batch):
-        states = item["hidden_states"]
-        length = states.shape[0]
-        hidden_states[row, :length] = states
+        length = (
+            item["hidden_states"].shape[0]
+            if source == "precomputed"
+            else len(item["output_token_ids"])
+        )
         mask[row, :length] = 1.0
 
     output: Dict[str, Any] = {
         "row_index": torch.tensor([item["row_index"] for item in batch], dtype=torch.long),
         "ids": [item["id"] for item in batch],
         "query_ids_raw": [item["query_id"] for item in batch],
-        "hidden_states": hidden_states,
         "mask": mask,
     }
 
-    if any("condition_states" in item for item in batch):
+    if source == "precomputed":
+        hidden_dim = batch[0]["hidden_states"].shape[1]
+        hidden_dtype = batch[0]["hidden_states"].dtype
+        hidden_states = torch.zeros(len(batch), max_time, hidden_dim, dtype=hidden_dtype)
+        for row, item in enumerate(batch):
+            states = item["hidden_states"]
+            hidden_states[row, : states.shape[0]] = states
+        output["hidden_states"] = hidden_states
+    else:
+        output["prompt_token_ids"] = [item["prompt_token_ids"] for item in batch]
+        output["output_token_ids"] = [item["output_token_ids"] for item in batch]
+
+    if source == "precomputed" and any("condition_states" in item for item in batch):
         max_condition_time = max(item.get("condition_states", torch.empty(0, hidden_dim)).shape[0] for item in batch)
         condition_states = torch.zeros(len(batch), max_condition_time, hidden_dim, dtype=hidden_dtype)
         condition_mask = torch.zeros(len(batch), max_condition_time, dtype=torch.float32)
@@ -294,7 +327,7 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         output["condition_states"] = condition_states
         output["condition_mask"] = condition_mask
 
-    if any("condition_embedding" in item for item in batch):
+    if source == "precomputed" and any("condition_embedding" in item for item in batch):
         condition_embedding = torch.zeros(len(batch), hidden_dim, dtype=hidden_dtype)
         condition_embedding_mask = torch.zeros(len(batch), dtype=torch.float32)
         for row, item in enumerate(batch):
@@ -552,6 +585,30 @@ class SemanticGroupBatchSampler(BatchSampler):
         return batches
 
 
+class EpochRandomSampler(Sampler[int]):
+    """Shuffle a finite dataset from an explicit ``(seed, epoch)`` stream.
+
+    PyTorch's default ``RandomSampler`` can share the global/worker generator
+    used by ``DataLoader``.  With persistent workers, iterator construction
+    consumes that stream differently after a process restart.  Keeping sample
+    order in this dedicated sampler makes interrupted and uninterrupted CLIR
+    runs use exactly the same row order for every epoch.
+    """
+
+    def __init__(self, data_source: Dataset, *, seed: int = 0) -> None:
+        self.data_source = data_source
+        self.seed = int(seed)
+        self.epoch = 0
+
+    def __iter__(self) -> Iterator[int]:
+        generator = torch.Generator().manual_seed(self.seed + self.epoch)
+        self.epoch += 1
+        return iter(torch.randperm(len(self.data_source), generator=generator).tolist())
+
+    def __len__(self) -> int:
+        return len(self.data_source)
+
+
 def move_batch_to_device(batch: Dict[str, Any], device: torch.device | str) -> Dict[str, Any]:
     moved: Dict[str, Any] = {}
     for key, value in batch.items():
@@ -561,6 +618,7 @@ def move_batch_to_device(batch: Dict[str, Any], device: torch.device | str) -> D
 
 __all__ = [
     "CLIRTrajectoryDataset",
+    "EpochRandomSampler",
     "SemanticGroupBatchSampler",
     "clir_collate",
     "move_batch_to_device",

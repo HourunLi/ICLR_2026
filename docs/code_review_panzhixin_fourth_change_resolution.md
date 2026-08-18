@@ -65,3 +65,18 @@
 - launcher 正确生成 9 条 train、9 条 score、9 条 evaluate 和 1 条 summary 命令，未执行 GPU 阶段。
 
 这里的验证只证明代码和协议契约可执行，不构成 Stage 1B v4 效果证据。
+
+## §13 追加审查的后续修复
+
+审查报告后来追加的 §13 指出了两个在上述记录之后发现的问题。当前代码已处理，但历史 Stage 1B v4
+artifact 不原地修改：
+
+- 训练健康门不再读取 epoch 内边训练边累计的平均 BCE。每个 epoch 保存前，final checkpoint 会在
+  完整 train split 上以 eval/no-grad 模式重新评估；`clir-training-health-v3` 明确记录
+  `measurement=checkpoint_full_train_split_no_grad_eval`，并校验 evaluation example count。
+- 普通 shuffle loader 改用显式 `(seed, epoch)` sampler；DataLoader worker/base-seed generator 与
+  reward-model 全局 RNG 分离。覆盖 `num_workers=4, pin_memory=true, persistent_workers=true` 的
+  中断/续训回归对模型 state、optimizer state 和 metrics 做递归 bit-exact 比较并通过。
+
+历史 v4 summary 的 1/9 仍是冻结证据；只读重算的 4/9 只用于纠正诊断口径。任何重新发布都必须使用
+新协议、新提交和新 output root。

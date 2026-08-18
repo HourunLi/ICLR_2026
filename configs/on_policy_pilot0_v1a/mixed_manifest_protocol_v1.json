@@ -1,0 +1,54 @@
+{
+  "schema_version": "clir-on-policy-mixed-manifest-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "route": "A_on_policy_equivalence_mining_repaired_v1a",
+  "inputs": {
+    "train_base": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+    },
+    "validation_base": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36"
+    },
+    "lineage": {
+      "path": "configs/on_policy_pilot0_v1a/annotation_lineage_v1.jsonl",
+      "sha256": "3b10b028cf4c2ea2517495411b27d199972448c39641a7d030fdbec8ad5cfe1a"
+    },
+    "adjudicated_relations": {
+      "path": "configs/on_policy_pilot0_v1a/adjudicated_relations_v1.jsonl",
+      "sha256": "b874fd07280e501ff1515ee3ad301fb6b8eeaabf29ae9f7752c62493ccba810e"
+    }
+  },
+  "train_materialization": {
+    "preserve_source_row_order": true,
+    "preserve_source_row_id": true,
+    "duplicate_trajectories": false,
+    "add_consistency_metadata_only_to_final_accepted_pairs": true,
+    "semantic_id": "adjudicated_pair_item_id",
+    "style_ids": [
+      "native_compact",
+      "native_expanded"
+    ],
+    "expected_base_rows": 4096,
+    "expected_correct_rows": 3668,
+    "expected_incorrect_rows": 428,
+    "expected_accepted_pairs": 27,
+    "expected_consistency_rows": 54
+  },
+  "validation_materialization": {
+    "selection": "ordered_first_unique_32_queries_in_validation_base",
+    "expected_queries": 32,
+    "expected_candidates_per_query": 16,
+    "consistency_metadata": false,
+    "purpose": "query_disjoint_pipeline_pilot_health_and_ranking_diagnostic"
+  },
+  "feature_integrity_basis": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "skip_repeated_full_finite_scan_allowed": true
+  },
+  "output_root": "run_artifacts/on_policy_pilot0_v1a/data_v1",
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

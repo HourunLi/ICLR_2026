@@ -54,6 +54,23 @@ def _command(train: Path, val: Path, output: Path, epochs: int) -> list[str]:
     ]
 
 
+def _assert_nested_tensor_equal(left, right) -> None:
+    if torch.is_tensor(left):
+        assert torch.equal(left, right)
+        return
+    if isinstance(left, dict):
+        assert left.keys() == right.keys()
+        for key in left:
+            _assert_nested_tensor_equal(left[key], right[key])
+        return
+    if isinstance(left, (list, tuple)):
+        assert len(left) == len(right)
+        for left_value, right_value in zip(left, right):
+            _assert_nested_tensor_equal(left_value, right_value)
+        return
+    assert left == right
+
+
 def test_full_checkpoint_resume_matches_uninterrupted_training(tmp_path: Path):
     train = tmp_path / "train.jsonl"
     val = tmp_path / "val.jsonl"
@@ -78,6 +95,14 @@ def test_full_checkpoint_resume_matches_uninterrupted_training(tmp_path: Path):
     assert resumed_state["completed_epoch"] == 2
     assert len(resumed_state["metrics"]) == 2
     assert resumed_state["metrics"][1]["train"]["applicable_counts"]["final"] == 4
+    assert resumed_state["metrics"][1]["training_health"]["measurement"] == (
+        "checkpoint_full_train_split_no_grad_eval"
+    )
+    assert resumed_state["metrics"][1]["training_health"][
+        "observed_train_correctness_bce"
+    ] == resumed_state["metrics"][1]["checkpoint_train_evaluation"]["losses"][
+        "final"
+    ]
     for name, value in resumed_state["state_dict"].items():
         assert torch.equal(value, full_state["state_dict"][name])
 
@@ -97,6 +122,61 @@ def test_full_checkpoint_resume_matches_uninterrupted_training(tmp_path: Path):
     ]
     assert resumed_state["execution_device"] == "cpu"
     assert resumed_state["training_segments"][-1]["completed_epoch"] == 2
+
+
+def test_resume_with_frozen_persistent_worker_flags_is_bit_exact(tmp_path: Path):
+    train = tmp_path / "train.jsonl"
+    val = tmp_path / "val.jsonl"
+    _write_rows(train, "train-q")
+    _write_rows(val, "val-q")
+    resumed = tmp_path / "resumed.pt"
+    uninterrupted = tmp_path / "uninterrupted.pt"
+    loader_flags = [
+        "--num_workers",
+        "4",
+        "--pin_memory",
+        "--persistent_workers",
+    ]
+
+    subprocess.run(
+        _command(train, val, resumed, 1) + loader_flags,
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        _command(train, val, resumed, 2)
+        + loader_flags
+        + ["--resume_from", str(resumed)],
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        _command(train, val, uninterrupted, 2) + loader_flags,
+        cwd=PROJECT_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    resumed_state = torch.load(resumed, map_location="cpu", weights_only=False)
+    uninterrupted_state = torch.load(
+        uninterrupted, map_location="cpu", weights_only=False
+    )
+    _assert_nested_tensor_equal(
+        resumed_state["state_dict"], uninterrupted_state["state_dict"]
+    )
+    _assert_nested_tensor_equal(
+        resumed_state["optimizer_state_dict"],
+        uninterrupted_state["optimizer_state_dict"],
+    )
+    assert resumed_state["metrics"] == uninterrupted_state["metrics"]
+    assert resumed_state["training_args"]["num_workers"] == 4
+    assert resumed_state["training_args"]["pin_memory"] is True
+    assert resumed_state["training_args"]["persistent_workers"] is True
 
 
 def test_explicit_validation_rejects_query_leakage(tmp_path: Path):

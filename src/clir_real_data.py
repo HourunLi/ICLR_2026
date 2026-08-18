@@ -724,6 +724,56 @@ def _validate_token_ids(values: Any, field: str, identifier: Any) -> list[int]:
     return token_ids
 
 
+def forward_all_layer_features(
+    model: Any,
+    token_ids: Sequence[int],
+    *,
+    device: Optional[str | torch.device] = None,
+) -> tuple[Tensor, int, int]:
+    """Run one exact unpadded sequence and concatenate returned layer states."""
+
+    exact_ids = _validate_token_ids(token_ids, "token_ids", "forward-all-layers")
+    if not exact_ids:
+        raise ValueError("All-layer extraction cannot forward an empty token sequence")
+    if device is None:
+        device = getattr(model, "device", None)
+    if device is None:
+        try:
+            device = next(model.parameters()).device
+        except (AttributeError, StopIteration):
+            device = torch.device("cpu")
+
+    input_ids = torch.tensor([exact_ids], dtype=torch.long, device=device)
+    attention_mask = torch.ones_like(input_ids)
+    with torch.no_grad():
+        outputs = model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            output_hidden_states=True,
+            use_cache=False,
+            return_dict=True,
+        )
+        hidden_states = getattr(outputs, "hidden_states", None)
+        if not hidden_states:
+            raise ValueError("Model did not return hidden_states")
+
+        layer_hidden_size: Optional[int] = None
+        layers: list[Tensor] = []
+        for layer_index, state in enumerate(hidden_states):
+            if state.ndim != 3 or state.shape[0] != 1 or state.shape[1] != len(exact_ids):
+                raise ValueError(
+                    f"Hidden state {layer_index} has shape {tuple(state.shape)}, "
+                    f"expected [1,{len(exact_ids)},H]"
+                )
+            if layer_hidden_size is None:
+                layer_hidden_size = int(state.shape[-1])
+            elif state.shape[-1] != layer_hidden_size:
+                raise ValueError("All hidden-state layers must have the same hidden dimension")
+            layers.append(state[0])
+        features = torch.cat(layers, dim=-1)
+    return features, len(layers), int(layer_hidden_size or 0)
+
+
 def extract_aligned_hidden_states(
     model: Any,
     prompt_token_ids: Sequence[int],
@@ -749,53 +799,23 @@ def extract_aligned_hidden_states(
     if not isinstance(dtype, torch.dtype):
         raise ValueError(f"Unsupported storage dtype: {storage_dtype}")
 
-    if device is None:
-        device = getattr(model, "device", None)
-    if device is None:
-        try:
-            device = next(model.parameters()).device
-        except (AttributeError, StopIteration):
-            device = torch.device("cpu")
-
-    def forward_features(token_ids: Sequence[int]) -> tuple[Tensor, int, int]:
-        input_ids = torch.tensor([list(token_ids)], dtype=torch.long, device=device)
-        attention_mask = torch.ones_like(input_ids)
-        with torch.inference_mode():
-            outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                output_hidden_states=True,
-                use_cache=False,
-                return_dict=True,
-            )
-        hidden_states = getattr(outputs, "hidden_states", None)
-        if not hidden_states:
-            raise ValueError("Model did not return hidden_states")
-
-        expected_length = len(token_ids)
-        layer_hidden_size: Optional[int] = None
-        layers: list[Tensor] = []
-        for layer_index, state in enumerate(hidden_states):
-            if state.ndim != 3 or state.shape[0] != 1 or state.shape[1] != expected_length:
-                raise ValueError(
-                    f"Hidden state {layer_index} has shape {tuple(state.shape)}, "
-                    f"expected [1,{expected_length},H]"
-                )
-            if layer_hidden_size is None:
-                layer_hidden_size = int(state.shape[-1])
-            elif state.shape[-1] != layer_hidden_size:
-                raise ValueError("All hidden-state layers must have the same hidden dimension")
-            layers.append(state[0])
-        features = torch.cat(layers, dim=-1).to(dtype=dtype, device="cpu")
-        return features, len(layers), int(layer_hidden_size or 0)
-
-    all_features, layer_count, per_layer_hidden_size = forward_features(prompt_ids + output_ids)
+    all_features, layer_count, per_layer_hidden_size = forward_all_layer_features(
+        model,
+        prompt_ids + output_ids,
+        device=device,
+    )
+    all_features = all_features.to(dtype=dtype, device="cpu")
     # A contiguous slice can still retain the full prompt+output storage. Clone
     # both views so each artifact contains only its declared token positions;
     # this also prevents a condition file from carrying unused output bytes.
     trajectory = all_features[len(prompt_ids) :].clone()
     if canonical_condition is None:
-        condition, condition_layer_count, condition_hidden_size = forward_features(prompt_ids)
+        condition, condition_layer_count, condition_hidden_size = forward_all_layer_features(
+            model,
+            prompt_ids,
+            device=device,
+        )
+        condition = condition.to(dtype=dtype, device="cpu")
         condition = condition.clone()
         if condition_layer_count != layer_count or condition_hidden_size != per_layer_hidden_size:
             raise ValueError("Prompt-only condition metadata differs from trajectory metadata")
@@ -845,6 +865,7 @@ __all__ = [
     "canonical_json_sha256",
     "check_gsm8k_response",
     "extract_aligned_hidden_states",
+    "forward_all_layer_features",
     "extract_gsm8k_candidate_answer",
     "extract_gsm8k_reference",
     "file_sha256",

@@ -45,6 +45,14 @@ every token-localized CLIR target indexed to the same generated sequence. The fu
 checkpoint/data revisions, generation settings, and terminal-token policy are recorded in
 `docs/pilot_protocol.md` and `configs/phi35_gsm8k_pilot_v1.json`.
 
+The storage representation and the canonical data representation are now separated. Exact saved
+`prompt_token_ids` and `output_token_ids`, together with frozen model/tokenizer/protocol provenance,
+are canonical. A run may either load audited pre-extracted BF16 tensors or reproduce the same all-layer
+features inside each training/scoring batch with the frozen task model. Online materialization uses an
+unpadded per-trajectory forward and a separate prompt-only condition forward; it never re-tokenizes
+the human-readable prompt or response. The source mode is frozen per experiment because online mode
+trades persistent storage for repeated task-model inference on every epoch.
+
 ### Full-layer encoder and controlled baselines
 
 For Phi-3.5-mini, the raw per-token width is `D_raw = 33 * 3072 = 101376`. CLIR cannot apply
@@ -236,7 +244,8 @@ where `L_final` is the original SWIFT correctness BCE or a pairwise preference l
 
 ## Training Pipeline
 
-1. Generate `N` trajectories per query with the task LLM and collect hidden states.
+1. Generate `N` trajectories per query with the task LLM and save exact prompt/output token IDs;
+   either pre-extract hidden states or materialize them online under the same frozen extraction contract.
 2. Label final correctness using answer checkers or verifier models.
 3. Generate `K` LLM-guided rewrites for each trajectory and collect hidden states under teacher forcing or regeneration.
 4. Filter rewrites that change the final answer or evidence relation.
@@ -251,7 +260,8 @@ where `L_final` is the original SWIFT correctness BCE or a pairwise preference l
 The initial implementation in this repository is self-contained:
 
 - `src/consistency_localized_reward.py`: SWIFT-style reward/gate backbone, token-level query/context attention fusion, PRISM consistency, hallucination localization, MIL, pseudo-onset tail loss, and guarded dual-prior localization.
-- `src/clir_data.py`: JSONL dataset, collate utilities, and semantic-group batch sampler for pre-extracted hidden states.
+- `src/clir_data.py`: dual-source JSONL dataset, collate utilities, and semantic-group batch sampler.
+- `src/clir_hidden_states.py`: provenance-gated exact-token online all-layer materialization used by both training and scoring.
 - `train_clir.py`: single-trajectory BCE plus CLIR auxiliary losses, semantic-group batching, and dual-prior phase scheduling.
 - `score_clir.py`: reward scoring, hallucination probability, pseudo-onset inference, prior diagnostics, and Best-of-N selection.
 - `examples/create_toy_clir_data.py`: synthetic hidden-state data for smoke testing.

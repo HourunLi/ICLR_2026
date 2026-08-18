@@ -30,7 +30,15 @@ CLAIM_RELATIONS = {
 }
 CONFIDENCE_VALUES = {"high", "medium", "low"}
 MODEL_DECISIONS = {"accept", "reject", "review"}
-STYLE_IDS = {"terse_formal", "explanatory_conversational"}
+GENERATOR_STYLE_IDS = {"terse_formal", "explanatory_conversational"}
+# Native on-policy pairs have no requested generator style.  For the repaired
+# Pilot-0 protocol we orient each pair from the shorter native trajectory to
+# the longer one and ask only whether there is a real compact-to-expanded
+# surface contrast.  Keep this separate from generator styles so a native
+# role cannot accidentally be passed to the rewrite generator.
+VERIFIER_STYLE_TARGETS = GENERATOR_STYLE_IDS | {"native_compact_to_expanded"}
+# Backwards-compatible public name used by earlier callers.
+STYLE_IDS = GENERATOR_STYLE_IDS
 
 _TOP_LEVEL_KEYS = {
     "schema_version",
@@ -320,7 +328,7 @@ def validate_verifier_report(value: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("verifier.style_assessment must be an object")
     style_assessment = dict(style_assessment)
     _require_exact_keys(style_assessment, _STYLE_ASSESSMENT_KEYS, "style_assessment")
-    if style_assessment["target_style"] not in STYLE_IDS:
+    if style_assessment["target_style"] not in VERIFIER_STYLE_TARGETS:
         raise ValueError("style_assessment.target_style has an unsupported value")
     _require_bool(style_assessment["satisfied"], "style_assessment.satisfied")
     _require_text(style_assessment["evidence"], "style_assessment.evidence")
@@ -467,12 +475,16 @@ def derive_acceptance_status(
                     source_correctness == 0
                     and checker_result["rewrite_correctness"] == 1
                 ),
-                "error_alignment_applicability": error["applicable"]
-                == (source_correctness == 0),
-                "incorrect_error_mechanism_preserved": source_correctness == 1
+                # Final-answer correctness is not a certificate that the
+                # trajectory contains no internal reasoning error.  An
+                # incorrect outcome must have an aligned error account, while
+                # a correct outcome may still declare an internal error.  In
+                # either case, every declared error must be preserved.
+                "incorrect_source_has_error_account": source_correctness == 1
+                or error["applicable"],
+                "identified_error_mechanism_preserved": not error["applicable"]
                 or bool(
-                    error["applicable"]
-                    and error["same_error_mechanism"]
+                    error["same_error_mechanism"]
                     and error["same_semantic_error_location"]
                     and error["same_downstream_effect"]
                 ),
@@ -484,8 +496,8 @@ def derive_acceptance_status(
                 "checker_same_outcome": False,
                 "checker_same_correctness": False,
                 "incorrect_source_not_repaired": False,
-                "error_alignment_applicability": not error["applicable"],
-                "incorrect_error_mechanism_preserved": not error["applicable"],
+                "incorrect_source_has_error_account": False,
+                "identified_error_mechanism_preserved": not error["applicable"],
             }
         )
 
@@ -505,7 +517,6 @@ def derive_acceptance_status(
         )
         or (
             checker_result["available"]
-            and checker_result["source_correctness"] == 0
             and error["applicable"]
             and any(
                 error[key] is False

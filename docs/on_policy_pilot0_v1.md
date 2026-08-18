@@ -2,6 +2,12 @@
 
 最后更新：2026-08-17
 
+> **历史状态已撤销。** 2026-08-17 重新审核发现 operational verifier 没有执行 v8 的双向
+> material-claim/risk 证书，且把 final correctness 错当成“内部无错误”。本页的 121 Silver accept、
+> 31 组/62 行发布和后续训练只保留为历史诊断，不再具有训练资格。原始 Phi candidate manifest 与
+> source/hash 血缘仍有效。当前修复状态见
+> [on_policy_pilot0_reaudit_v1.md](on_policy_pilot0_reaudit_v1.md)。
+
 ## 结论
 
 本轮在 `pipeline_pilot` 证据层完成了 Phi 原生等价候选构建、Silver verifier 筛选、exact-token online

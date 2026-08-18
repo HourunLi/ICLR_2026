@@ -1,0 +1,53 @@
+{
+  "schema_version": "clir-semantic-rewrite-model-selection-v1",
+  "status": "model_selection_frozen_full_rewrite_protocol_pending",
+  "frozen_date": "2026-08-15",
+  "evidence_tier": "pipeline_pilot",
+  "task_and_feature_model": {
+    "repo_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_dtype": "bfloat16",
+    "role": "source_trajectory_generation_and_exact_token_teacher_forced_hidden_state_extraction"
+  },
+  "rewrite_generator": {
+    "repo_id": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "tokenizer_revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "parameter_scale": "3.09B"
+  },
+  "rewrite_verifier": {
+    "repo_id": "Qwen/Qwen2.5-3B-Instruct",
+    "revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "tokenizer_revision": "aa8e72537993ba99e69dfaafa59ed015b17504d1",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "independent_from_generator": false
+  },
+  "claim_boundary": {
+    "same_checkpoint_generation_and_verification": "pilot_self_verification_only",
+    "formal_mechanism_claim_allowed": false,
+    "required_compensating_gates": [
+      "deterministic_final_answer_equivalence",
+      "numeric_and_equation_drift_checks",
+      "incorrect_source_must_remain_incorrect",
+      "stratified_human_blind_audit"
+    ],
+    "replacement_trigger": "replace_verifier_model_family_if_false_acceptance_or_incorrect_repair_is_not_acceptably_low"
+  },
+  "license_provenance": {
+    "generator_and_verifier_license": "Qwen Research License",
+    "use_scope": "non_commercial_academic_research",
+    "required_action": "retain_model_provenance_and_review_attribution_and_release_conditions_before_distribution"
+  },
+  "not_frozen_here": [
+    "rewrite_prompt",
+    "verifier_prompt_and_json_schema",
+    "decoding_parameters",
+    "rewrite_axes",
+    "source_selection",
+    "quality_thresholds"
+  ]
+}

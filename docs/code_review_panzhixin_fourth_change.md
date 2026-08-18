@@ -8,6 +8,13 @@
 
 ---
 
+> **⚠️ 先读 §13。**§0–§12 审查的是 `a49891d`（Stage 1B v3）。此后工作树前进了三个 commit，本报告
+> 已被采纳（§2、§5.1 的建议都实现了），`DEFAULT_PROTOCOL` 已切到 v4，v4 结果已锁定。
+> **§13 修正了本报告的两条结论（§6.4 漏检、§6.8 结论错误），并给出一个新的 P0：
+> 门禁读的是 epoch 均值而非最终 checkpoint，误杀了 3 个本该通过的 cell。**
+
+---
+
 ## §0 总结论
 
 **上一轮的 3 个 P0 有 2 个真修好了，第 3 个被诚实降级而不是被伪造。**这一轮的改动质量明显高于上
@@ -278,11 +285,14 @@ all_correct）。checker 版本字段在 8000 行候选上全部是 `clir_gsm8k_
 
 约 4000 倍改善，选择结果完全稳定。这条修得很干净。
 
-### 6.4 prior-collapse 门禁的**参考量**在数学上是对的
+### 6.4 prior-collapse 门禁的**参考量**在数学上是对的（但被比较的另一边是错的，见 §13）
 
-我担心过门禁的参考熵算错。实测：`losses.final` 确实是未加权的 masked BCE-with-logits 均值；一个
-常数流行度预测器的 BCE 是 **0.3369354904**，门禁算出的参考值是 **0.3369355140**，差 **2.4e-8**。
-参考量本身没问题，问题只在 §5 的比较方式和 §4 的覆盖范围。
+我担心过门禁的参考熵算错。实测：一个常数流行度预测器的 BCE 是 **0.3369354904**，门禁算出的参考值是
+**0.3369355140**，差 **2.4e-8**。参考量本身没问题。
+
+> **⚠️ 本节当时漏掉了一件事。**我只验证了比较的**先验那一边**，没有验证**被比较的那一边**。
+> `losses.final` 不是"最终模型的 BCE"，而是**整个 epoch 的样本加权均值**
+> （`train_clir.py:469`）。这个漏检后来变成了 v4 的 P0 —— 详见 **§13**。
 
 ### 6.5 v3 训练在真实特征上端到端跑通
 
@@ -305,20 +315,20 @@ outcome-only 对照。作者没有编造 rewrite/verifier/prior 标注来让检�
 它的含义：**Stage 1B v3 只能作为容量/优化对照，不能作为 CLIR 机制有效性的证据**，机制实验仍然需要
 外部生成的标注。
 
-### 6.8 同设备 resume 仍然是位精确的（重写 `_restore_rng_state` 没有破坏它）
+### 6.8 ~~同设备 resume 仍然是位精确的~~ **—— 本节结论错误，已作废，见 §13.3**
 
-这一轮重写了 `_restore_rng_state`（`:490-506`，改成逐设备恢复），我担心它破坏续训的位精确性。实测
-对照：同一份 toy 数据、`clir` 变体 + `layer_transformer` 编码器、seed 42、同一张卡上，
-"直接跑 2 epoch" 对比 "跑 1 epoch 后 resume 再跑 1 epoch"：
-
-| 对比项 | 结果 |
-|---|---|
-| 权重张量 | **69 / 69 位完全相同**，最大偏差 0.000e+00 |
-| Adam 一阶/二阶动量 | **195 / 195 位完全相同**，最大偏差 0.000e+00 |
-| epoch 2 的 train/val loss | 2.8300 / 3.6726，两边一致 |
-
-这条修得很干净，续训不需要担心。（顺带确认：训练/验证 query 泄漏守卫是活的 —— 我故意传同一个文件
-时它正确报错；`--force` 与 `--resume_from` 互斥也有显式检查。）
+> **⚠️ 我原先在这里写"续训位精确、可以放心"。那是错的。**我的测试漏掉了 launcher 实际会发出的
+> 三个 loader 参数（`--num_workers 4 --pin_memory --persistent_workers`）。补上之后：
+>
+> | 配置 | 权重位相同 | 最大偏差 |
+> |---|---|---|
+> | 无 `--persistent_workers`（我原来测的） | 69 / 69 | 0.000e+00 |
+> | 有 `--persistent_workers`（**launcher 实际发出的**） | **44 / 69** | 7.451e-09 |
+>
+> 冻结协议里 `persistent_workers: true`，所以**位精确在真实配置下不成立**。详见 §13.3。
+>
+> 这一节唯一仍然成立的部分：训练/验证 query 泄漏守卫是活的（我故意传同一个文件时它正确报错），
+> `--force` 与 `--resume_from` 互斥也有显式检查。
 
 ### 6.9 测试套件
 
@@ -631,3 +641,179 @@ $P -m pytest -q
 ```
 
 预期 `124 passed`。
+
+---
+
+## §13 追加：v4 已经落地，本报告的两条结论需要修正，并发现一个新 P0
+
+**背景变化。**我在写 §0–§12 期间，工作树从我审查的 `a49891d` 前进了三个 commit：
+
+```
+58194bb  Record semantic rewrite pilot audit              <- 现 HEAD
+bc393cf  Lock Stage 1B v4 result and start rewrite pilot
+b1c4fae  Resolve fourth CLIR audit and freeze Stage 1B v4  <- 本报告在此被采纳
+a49891d  Resolve third CLIR audit and freeze Stage 1B v3   <- 我审查的树
+```
+
+`scripts/run_stage1b_validation.py:26` 的 `DEFAULT_PROTOCOL` 现在指向
+`configs/stage1b_validation_v4.json`。**§0–§12 全部是针对 v3 写的**，以下是针对 v4 现状的修正。
+
+### 13.1 本报告的两条建议已被采纳，实现是对的
+
+- **§2 的死锁**：`summarize_clir.py` 现在有 `--allow-failed-cells`，并在产物里写
+  `matrix_complete` / `matrix_status.failed_cells`（含每个失败 cell 的 `evidence_sha256`）/
+  `result_status` / `formal_primary_claim_allowed`。这正是 §2 建议的显式降级路径。
+- **§5.1 的 `abs()`**：门禁改为单边（`train_clir.py:645-646`）：
+  `relative_improvement = (prior_entropy - final_correctness_bce) / prior_entropy`，
+  `passed = relative_improvement >= tolerance`。`abs()` 只作为诊断字段保留，不再参与判定。
+
+### 13.2 【P0】但 §5.1 修好之后，门禁把 9 格里的 8 格判死了 —— 其中 3 格是误杀
+
+v4 已锁定的结果（`run_artifacts/stage1b_v4/summary.json`，作者自己的产物）：
+
+```
+matrix_complete: false     included_cell_count: 1     failed_cell_count: 8
+result_status: "incomplete_diagnostic_only"
+formal_primary_claim_allowed: false
+available_seeds_by_variant: {strict_swift: [], encoded_swift: [42], clir: []}
+```
+
+**先说公道话**：这个产物是诚实的 —— 没有伪造，8 个失败 cell 各带证据哈希，并明确禁止 formal
+primary claim。§2 的机制按设计工作了。
+
+**但门禁读的是错的量。**`train_clir.py:729` / `:1030` 喂给门禁的是
+`train["losses"]["final"]`，而 `train_clir.py:469` 把它算成
+`value / max(examples, 1)` —— **整个 epoch 所有 batch 的样本加权均值**，不是最终 checkpoint 的 BCE。
+对一个在 epoch 内持续下降的损失，epoch 均值必然高于终点值。
+
+我用 `run_epoch(..., optimizer=None)`（与训练完全相同的损失路径，no-grad）对**全部 9 个已有
+checkpoint** 在完整 4096 行训练集上重算了真实的最终 BCE。`encoder_dropout = 0.0`，所以 train/eval
+模式没有差别，两个数字直接可比：
+
+| cell | 先验熵 | 门禁用的 epoch 均值 | rel | 门禁 | **最终 checkpoint 真实 BCE** | **rel** | 应判 | 翻转 |
+|---|---|---|---|---|---|---|---|---|
+| `seed_42/strict_swift` | 0.33484 | 0.43613 | −0.3025 | 失败 | **0.30811** | **+0.0798** | **通过** | **是** |
+| `seed_43/strict_swift` | 0.33484 | 0.43811 | −0.3084 | 失败 | **0.23835** | **+0.2882** | **通过** | **是** |
+| `seed_44/strict_swift` | 0.33484 | 0.41478 | −0.2387 | 失败 | **0.24465** | **+0.2694** | **通过** | **是** |
+| `seed_42/encoded_swift` | 0.33484 | 0.31952 | +0.0458 | 通过 | 0.25843 | +0.2282 | 通过 | 否 |
+| `seed_43/encoded_swift` | 0.33484 | 0.36654 | −0.0947 | 失败 | 0.35333 | −0.0552 | 失败 | 否 |
+| `seed_44/encoded_swift` | 0.33484 | 0.36305 | −0.0842 | 失败 | 0.37154 | −0.1096 | 失败 | 否 |
+| `seed_42/clir` | 0.33484 | 0.52667 | −0.5729 | 失败 | 0.48728 | −0.4552 | 失败 | 否 |
+| `seed_43/clir` | 0.33484 | 0.40792 | −0.2182 | 失败 | 0.41119 | −0.2280 | 失败 | 否 |
+| `seed_44/clir` | 0.33484 | 0.51374 | −0.5343 | 失败 | 0.47392 | −0.4154 | 失败 | 否 |
+
+**3 个 cell 翻转，全部是 `strict_swift`，而且不是勉强通过**：+0.0798 / +0.2882 / +0.2694，是 1%
+阈值的 **8 倍 / 29 倍 / 27 倍**。门禁把整整一行变体全部误杀了。
+
+机制在 per-epoch 曲线上一目了然（`seed_42/strict_swift`）：
+
+```
+epoch 1: train_final=0.826143    epoch 4: train_final=0.466925
+epoch 2: train_final=0.586429    epoch 5: train_final=0.436125   <- 门禁用这个
+epoch 3: train_final=0.485579    最终模型真实 BCE = 0.308114     <- 应该用这个
+```
+
+5 个 epoch 之后损失仍在陡降（0.467 → 0.436），所以 epoch 均值与终点值的差距始终很大。**这就是为什么
+几乎每格都失败**：所有 cell 都还在曲线的陡峭段。
+
+**修法**（不需要重训，checkpoint 已经存在）：在最后一个 epoch 之后加一次 no-grad 全量前向，用它的
+`losses["final"]` 喂门禁。实测每个 cell 约 4–5 分钟，9 格并行不到 10 分钟。我用的脚本见 §13.5。
+
+### 13.3 【P1】§6.8 的位精确结论作废：真实配置下 resume 不是位精确的
+
+`--persistent_workers` 为真时（**冻结协议就是真**），`DataLoader.__iter__` 复用迭代器并走
+`_reset()`，而 `_reset()` 不重新抽 `_base_seed`。于是 epoch 1 消耗 2 次全局 CPU RNG 抽样、后续 epoch
+只消耗 1 次；而**续训进程总是重新走 2 次抽样的首迭代器路径**，导致 `_restore_rng_state()` 之后
+RandomSampler 的种子取自被恢复流的不同位置 → shuffle 顺序不同 → 权重不同。
+
+我自己的对照（同一份数据、同一个 kill 点、只改这一个 flag）：
+
+| 配置 | 权重位相同 | 最大偏差 |
+|---|---|---|
+| `--no-persistent_workers` | 69 / 69 | 0.000e+00 |
+| `--persistent_workers`（launcher 实际发出的） | **44 / 69** | 7.451e-09 |
+
+我的偏差很小只因为 toy 集只有 2 个 batch。在真实特征上并行审查测到的量级是
+max|Δ| = **2.2e-3**，epoch-3 训练损失 **0.5130（续训）vs 0.5799（不中断）**，相对差 11.5%。
+
+与 **§8**（resume 在 `run.json` 里不留任何痕迹）叠加，这才是完整的问题：
+**续训会改变数字，而且产物里看不出发生过续训。**
+
+`tests/test_clir_training_state.py:37` 的 resume 回归测试同样漏掉了这三个 flag，所以测试套件
+也抓不到它。修法：给非分组路径的 DataLoader 传显式 `generator` 并按 (seed, epoch) 逐 epoch 重播种
+（`SemanticGroupBatchSampler` 已经这么做了）；或者最省事 —— 从 config 里去掉
+`persistent_workers`（实测即位精确）。**回归测试必须带上 launcher 的真实 loader flag。**
+
+### 13.4 修正后的实验结论：坏消息，但是有意义的坏消息
+
+把门禁修对之后，9 格的真实判定是 **4/9 通过**（而非 1/9），且分布极有规律：
+
+| 变体 | 参数量 | 通过 | 最终 checkpoint 相对先验 |
+|---|---|---|---|
+| `strict_swift` | 202,754 | **3 / 3** | +0.0798 / +0.2882 / +0.2694 |
+| `encoded_swift` | 3,435,266 | 1 / 3 | +0.2282 / −0.0552 / −0.1096 |
+| `clir` | 9,547,273 | **0 / 3** | −0.4552 / −0.2280 / −0.4154 |
+
+**最小的模型训得最好，最大的模型全部比常数先验更差，而且是差很多。**这不是门禁 bug，是关于模型的
+真实结论：容量越大越训不动。它与 §4 的证据一致 —— v1 里 `clir` 的 query 内排序准确率
+0.4763 / 0.5735，本来就接近随机。
+
+所以修好门禁**不能**让 v4 产出主张（clir 一格不过，encoded_swift 只过 1 格）。但诊断完全不同：
+现在锁定的产物读起来像"整条流水线坏了"，实际情况是**流水线没坏，是 CLIR 变体本身没在学**。
+这个区别决定下一步该做什么 —— 该查的是优化（lr / 预热 / 归一化 / prior phase 的权重），不是基础设施。
+
+### 13.5 复现 §13.2（把这段存成 `/tmp/gatecheck.py`）
+
+```python
+"""Recompute the FINAL checkpoint's mean train BCE and compare with the gate's number."""
+import json, sys, torch
+sys.path.insert(0, '.')
+import train_clir as tc
+from src.clir_data import CLIRTrajectoryDataset
+from score_clir import load_model_with_checkpoint
+
+seed, variant = sys.argv[1], sys.argv[2]
+run = json.load(open(f'run_artifacts/stage1b_v4/models/seed_{seed}/{variant}.run.json'))
+h = run['health_gate']
+device = torch.device('cuda')
+model, _ = load_model_with_checkpoint(
+    f'run_artifacts/stage1b_v4/models/seed_{seed}/{variant}.pt', device)
+ds = CLIRTrajectoryDataset(
+    'run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl', None, check_finite=False)
+loader = tc.make_loader(ds, batch_size=2, indices=list(range(len(ds.rows))),
+                        shuffle=False, group_by_semantic_id=False, seed=42,
+                        num_workers=4, pin_memory=True, persistent_workers=False)
+out = tc.run_epoch(model, loader, device, None, prior_phase='joint', amp_dtype='none')
+final_ckpt_bce = out['losses']['final']
+prior = h['constant_prior_bce']; gate_bce = h['observed_train_correctness_bce']
+tol = h['minimum_relative_improvement']
+ri_gate = (prior - gate_bce) / prior
+ri_true = (prior - final_ckpt_bce) / prior
+print(f'seed_{seed}/{variant}   (examples={out["examples"]})')
+print(f'  prior_entropy                 = {prior:.10f}')
+print(f'  gate used (EPOCH MEAN)        = {gate_bce:.10f}  rel_impr={ri_gate:+.6f} passed={ri_gate>=tol}')
+print(f'  FINAL CHECKPOINT actual train = {final_ckpt_bce:.10f}  rel_impr={ri_true:+.6f} passed={ri_true>=tol}')
+print(f'  VERDICT FLIPS: {(ri_gate>=tol) != (ri_true>=tol)}')
+```
+
+九格并行（每格约 4–5 分钟，8 张 L20Z 上不到 10 分钟）：
+
+```
+i=0
+for cell in "42 strict_swift" "42 encoded_swift" "42 clir" "43 strict_swift" \
+            "43 encoded_swift" "43 clir" "44 strict_swift" "44 encoded_swift" "44 clir"; do
+  set -- $cell
+  CUDA_VISIBLE_DEVICES=$((i % 8)) nohup $P /tmp/gatecheck.py $1 $2 > /tmp/gate_$1_$2.log 2>&1 &
+  i=$((i+1))
+done
+```
+
+### 13.6 修正后的处理顺序（取代 §10）
+
+1. **修 §13.2 的门禁测量口径**（P0，一次 no-grad 前向）。这是唯一挡在"能不能读懂 v4 结果"前面的东西，
+   而且不需要重训。
+2. **用修好的门禁重跑 9 格的 gate 判定 + summarize**，拿到真实的 4/9 而不是误导性的 1/9。
+3. **接受 §13.4 的结论并转向优化排查** —— `clir` 0/3 比常数先验更差，这是当前最重要的实验事实。
+4. **修 §13.3 的 resume 位精确性 + §8 的 resume provenance**，趁 v5 还没开跑。
+5. **加 §4 的 pairwise 排序门禁** —— 在 §13.4 的背景下它更重要了：它能直接量化"clir 没在学"。
+6. §5.2 的容差余量、§7 的归档数据决策，仍然有效但优先级最低。

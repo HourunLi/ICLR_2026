@@ -1,0 +1,60 @@
+{
+  "schema_version": "clir-semantic-rewrite-model-selection-v3",
+  "status": "qwen7b_model_scale_diagnostic_frozen",
+  "frozen_date": "2026-08-17",
+  "evidence_tier": "pipeline_pilot",
+  "task_and_feature_model": {
+    "repo_id": "microsoft/Phi-3.5-mini-instruct",
+    "revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_dtype": "bfloat16",
+    "role": "source_trajectory_generation_and_exact_token_teacher_forced_hidden_state_extraction"
+  },
+  "rewrite_generator": {
+    "repo_id": "Qwen/Qwen2.5-7B-Instruct",
+    "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "tokenizer_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "parameter_scale": "7.61B"
+  },
+  "rewrite_verifier": {
+    "repo_id": "Qwen/Qwen2.5-7B-Instruct",
+    "revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "tokenizer_revision": "a09a35458c702b33eeacc393d103063234e8bc28",
+    "torch_dtype": "bfloat16",
+    "deployment": "local",
+    "independent_from_generator": false
+  },
+  "selection_rationale": {
+    "trigger": "Qwen2.5-3B constrained generation and Falcon3-3B model-family fallback both failed the immutable automated gate",
+    "controlled_factor": "increase_qwen2.5_checkpoint_scale_from_3.09B_to_7.61B",
+    "comparison_policy": "reuse_v5_sources_prompts_decoding_parsers_and_quality_thresholds_without_relaxation",
+    "exposed_gate_status": "diagnostic_only_not_a_new_blind_gate"
+  },
+  "claim_boundary": {
+    "same_checkpoint_generation_and_verification": "pilot_self_verification_only",
+    "formal_mechanism_claim_allowed": false,
+    "current_four_sources_are_blind": false,
+    "scale_allowed_from_this_diagnostic": false,
+    "required_compensating_gates": [
+      "deterministic_final_answer_equivalence",
+      "numeric_and_equation_drift_checks",
+      "incorrect_source_must_remain_incorrect",
+      "new_unseen_train_only_blind_gate",
+      "stratified_human_blind_audit"
+    ],
+    "next_decision": "use_failure_taxonomy_to_choose_unchanged_protocol_or_programmatic_span_locking_before_a_new_blind_gate"
+  },
+  "license_provenance": {
+    "generator_and_verifier_license": "Apache-2.0",
+    "license_source": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct/blob/a09a35458c702b33eeacc393d103063234e8bc28/LICENSE",
+    "required_action": "retain_model_revision_license_and_attribution_provenance"
+  },
+  "not_frozen_here": [
+    "future_span_locking_protocol",
+    "future_prompt_development_split",
+    "future_unseen_blind_gate_sources",
+    "future_independent_verifier"
+  ]
+}

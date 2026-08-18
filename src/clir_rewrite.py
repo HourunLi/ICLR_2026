@@ -220,7 +220,9 @@ def select_pilot_sources(
     return selected
 
 
-def _encode_exact(tokenizer: Any, response: str) -> list[int]:
+def encode_exact_response(tokenizer: Any, response: str) -> list[int]:
+    """Encode a response on the frozen feature-token axis with exact roundtrip."""
+
     encoded = tokenizer.encode(response, add_special_tokens=False)
     if not isinstance(encoded, Sequence) or isinstance(encoded, (str, bytes)) or not encoded:
         raise ValueError("Tokenizer returned no rewrite token IDs")
@@ -292,7 +294,7 @@ def build_rewrite_plan(
             rewritten_response = apply_rewrite_transform(source_response, transform)
             if invert_rewrite_transform(rewritten_response, transform) != source_response:
                 raise AssertionError("Internal reversible rewrite failure")
-            output_ids = source_tokens if transform == "identity" else _encode_exact(
+            output_ids = source_tokens if transform == "identity" else encode_exact_response(
                 tokenizer, rewritten_response
             )
             rewrite_check = check_gsm8k_response(
@@ -515,6 +517,7 @@ __all__ = [
     "REWRITE_SCHEMA",
     "apply_rewrite_transform",
     "build_rewrite_plan",
+    "encode_exact_response",
     "invert_rewrite_transform",
     "materialize_rewrite_views",
     "select_pilot_sources",

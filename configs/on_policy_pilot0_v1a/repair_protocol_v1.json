@@ -1,0 +1,77 @@
+{
+  "schema_version": "clir-on-policy-pilot0-repair-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "route": "A_on_policy_equivalence_mining",
+  "status": "repair_in_progress_not_training_ready",
+  "inputs": {
+    "candidate_manifest": {
+      "path": "run_artifacts/on_policy_pilot0_v1/candidate_build/candidates.jsonl",
+      "sha256": "9fdbc90f58dcf1026efca7babb79982fa5825306fd6fc09a5c6117e320e61994",
+      "status": "preserved_valid_high_recall_candidates"
+    },
+    "published_v1_manifest": {
+      "path": "run_artifacts/on_policy_pilot0_v1/published_silver_v1/train_online.jsonl",
+      "sha256": "e62add6806ea4d35aa90aec5f27ecc13df8209058f14c434b61227c7f32f771e",
+      "status": "quarantined_roster_only_not_labels_or_training_data"
+    },
+    "source_manifest": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+      "status": "preserved_base_training_manifest"
+    }
+  },
+  "quarantine": {
+    "verifier_results": {
+      "path": "run_artifacts/on_policy_pilot0_v1/verifier_mistral24_v1/all_results.jsonl",
+      "sha256": "a45a5ceb11b5d7a48395cbc7d7d5e872015748deef66fd4030d5a9c893728ad2",
+      "reason": "flat_fields_were_templated_and_no_bidirectional_claim_or_risk_certificate_was_collected"
+    },
+    "published_v1_training_eligibility": "revoked",
+    "v1_training_runs": "diagnostic_only_not_reusable_as_rewrite_efficacy_evidence",
+    "loss_weight_choice_negative_0_5_score_1_0": "not_frozen"
+  },
+  "selection_roster": {
+    "source": "unique_semantic_ids_in_published_v1_manifest_in_first_occurrence_order",
+    "expected_pairs": 31,
+    "old_v1_decisions_used_as_labels": false,
+    "backfill_rejected_queries": false
+  },
+  "pair_orientation": {
+    "source": "strictly_shorter_exact_output_token_sequence",
+    "source_style_id": "native_compact",
+    "rewrite": "strictly_longer_exact_output_token_sequence",
+    "rewrite_style_id": "native_expanded",
+    "target_style": "native_compact_to_expanded",
+    "candidate_index_is_style": false
+  },
+  "annotation": {
+    "schema": "clir-reasoning-equivalence-verifier-v1_inside_clir-on-policy-claim-annotation-v1",
+    "claim_scope": "material_claims_only",
+    "annotators": 2,
+    "secondary_blind_to_primary": true,
+    "disagreements_require_adjudication": true,
+    "correct_final_outcome_implies_no_internal_error": false,
+    "allowed": [
+      "directly_entailed_explanatory_bridge",
+      "near_equivalent_approximate_wording_when_no_quantity_or_conclusion_changes",
+      "step_splitting_merging_and_reorganization"
+    ],
+    "hard_reject": [
+      "new_or_relocated_reasoning_error",
+      "different_solution_method",
+      "essential_omission_or_contradiction",
+      "different_final_conclusion"
+    ]
+  },
+  "post_annotation_training": {
+    "base_rows": 4096,
+    "retain_correct_and_incorrect_outcome_rows": true,
+    "consistency_metadata_only_on_adjudicated_accept_pairs": true,
+    "incorrect_trajectories_require_rewrite_in_first_pass": false,
+    "rejected_pair_backfill_required": false,
+    "matched_no_consistency_baseline_required": true,
+    "old_all_positive_62_row_training_forbidden": true
+  },
+  "output_root": "configs/on_policy_pilot0_v1a",
+  "next_module_blocked_until_repair_training_gate": true
+}

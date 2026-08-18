@@ -1,0 +1,125 @@
+{
+  "schema_version": "clir-on-policy-repair-training-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "route": "A_on_policy_equivalence_mining_repaired_v1a",
+  "purpose": "Verify that the adjudicated on-policy equivalence relations activate the existing consistency objective in a mixed correctness-training run; this is not a formal mechanism-efficacy experiment.",
+  "inputs": {
+    "train": {
+      "path": "run_artifacts/on_policy_pilot0_v1a/data_v1/train_mixed_precomputed_v1.jsonl",
+      "sha256": "5cae43026ca1fefdb14cc656e61dab5d3598e3582ba5d8ac27655f385a7e6307",
+      "rows": 4096,
+      "queries": 512,
+      "correct": 3668,
+      "incorrect": 428,
+      "consistency_rows": 54,
+      "semantic_groups": 27
+    },
+    "validation": {
+      "path": "run_artifacts/on_policy_pilot0_v1a/data_v1/validation_prefix32_precomputed_v1.jsonl",
+      "sha256": "14297aa1a7d169b1e31a3970af0c2260d1a688cc69bde6fa6c3793bcac264ca8",
+      "rows": 512,
+      "queries": 32,
+      "candidates_per_query": 16,
+      "correct": 430,
+      "incorrect": 82,
+      "query_overlap_with_train": 0,
+      "selection": "ordered_first_unique_32_queries_in_validation_base"
+    },
+    "adjudicated_relations": {
+      "path": "configs/on_policy_pilot0_v1a/adjudicated_relations_v1.jsonl",
+      "sha256": "b874fd07280e501ff1515ee3ad301fb6b8eeaabf29ae9f7752c62493ccba810e",
+      "accepted": 27,
+      "rejected": 4
+    }
+  },
+  "feature_integrity_gate": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "failure_count": 0,
+    "skip_repeated_full_finite_scan": true
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seed": 42,
+    "epochs": 1,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": true,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "only_epoch_1",
+    "early_stopping": false,
+    "prior_collapse_gate": "disabled_for_pipeline_pilot",
+    "loss_weights_shared": {
+      "final": 1.0,
+      "negative_consistency": 1.0,
+      "score_consistency": 0.1,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0
+    }
+  },
+  "cells": {
+    "baseline": {
+      "consistency_weight": 0.0,
+      "output_root": "run_artifacts/on_policy_pilot0_v1a/train_baseline_v1"
+    },
+    "consistency": {
+      "consistency_weight": 1.0,
+      "consistency_margin": 0.2,
+      "output_root": "run_artifacts/on_policy_pilot0_v1a/train_consistency_v1"
+    }
+  },
+  "evaluation": {
+    "score_same_query_disjoint_validation_manifest": true,
+    "score_batch_size": 2,
+    "score_compute_dtype": "float32",
+    "best_of_n_k": [1, 2, 4, 8, 16],
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "bootstrap_replicates": 2000,
+    "bootstrap_unit": "query",
+    "confidence_level": 0.95,
+    "paired_relation_diagnostic": "all_27_training_relations_before_vs_after"
+  },
+  "pipeline_gate": {
+    "required": [
+      "both_cells_complete_without_nonfinite_loss",
+      "both_cells_observe_both_correctness_classes",
+      "both_cells_have_identical_data_hashes_and_training_budget",
+      "consistency_cell_observes_at_least_one_positive_and_one_negative_consistency_pair",
+      "scoring_health_passes_for_both_cells"
+    ],
+    "interpretation": "Passing permits engineering work to continue to hallucination localization. Any ranking or representation delta is diagnostic only because there is one seed, one epoch, 27 in-training relations, and 32 validation queries.",
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "order": ["baseline", "consistency"],
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "status": "authorized_by_user"
+  }
+}

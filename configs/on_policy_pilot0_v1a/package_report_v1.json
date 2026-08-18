@@ -1,0 +1,19 @@
+{
+  "blocking_gate": "independent_primary_and_secondary_annotations_then_adjudication",
+  "claim_scope": "material_claims_only",
+  "evidence_tier": "pipeline_pilot",
+  "items": 31,
+  "items_path": "configs/on_policy_pilot0_v1a/annotation_items_v1.jsonl",
+  "items_sha256": "8800150af88f021b4ffce23bd1918036eedd58b3da1663bbed5139a475d6a1c8",
+  "lineage_path": "configs/on_policy_pilot0_v1a/annotation_lineage_v1.jsonl",
+  "lineage_sha256": "3b10b028cf4c2ea2517495411b27d199972448c39641a7d030fdbec8ad5cfe1a",
+  "old_v1_decisions_used_as_labels": false,
+  "queries": 31,
+  "repair_config": "configs/on_policy_pilot0_v1a/repair_protocol_v1.json",
+  "repair_config_sha256": "c7cc193bf18df9e27bd1244959ad3017023a857532ff2dea2689512948759894",
+  "rewrite_role": "native_expanded",
+  "schema_version": "clir-on-policy-reannotation-package-report-v1",
+  "source_role": "native_compact",
+  "style_target": "native_compact_to_expanded",
+  "training_ready": false
+}

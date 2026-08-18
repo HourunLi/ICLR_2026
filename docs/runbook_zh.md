@@ -94,9 +94,10 @@ preflight、不启动 GPU：
 
 ## 4. Stage 1B v4：正式执行
 
-状态说明：v4 已在 2026-08-15 完成一次冻结 3×3。9 个 cell 中 1 个完整通过、8 个在训练健康门
-失败，正式 summary 是 diagnostic-only。下面命令保留为可复现运行说明，不授权覆盖现有 artifact；
-任何新正式运行都必须发布新协议与新目录。
+状态说明：v4 已在 2026-08-15 完成一次冻结 3×3。历史 summary 按有缺陷的 BCE 门禁实现记录
+1 个通过、8 个训练健康失败；第四轮审查 §13 对 final checkpoint 的只读重算为 4/9（strict 3/3、
+encoded 1/3、CLIR 0/3）。两种口径都只允许 diagnostic-only，历史 artifact 不原地回写。下面命令
+保留为可复现运行说明，不授权覆盖现有 artifact；任何修正后的正式运行必须发布新协议与新目录。
 
 正式执行前必须同时满足：
 
@@ -135,8 +136,9 @@ launcher 不允许一次隐式执行整批 cell。调度器必须明确给出 se
 
 ## 5. 健康门失败
 
-v4 的健康门依次为：train BCE 相对常数先验改善至少 1%、score population std 至少 0.1、
-query 内 pairwise 排序准确率至少 0.60。
+v4 协议要求的健康门依次为：final checkpoint 在完整 train split 上的 BCE 相对常数先验改善至少
+1%、score population std 至少 0.1、query 内 pairwise 排序准确率至少 0.60。当前 v4 代码第一项
+误用了最后一个 epoch 的 batch-average BCE；不要据此把历史 1/9 当作正确健康分类。
 
 任何门失败都应保留证据并退出非零；这是预期结果，不应关门重跑。继续完成其他独立 cell，最后用：
 
@@ -184,6 +186,10 @@ resolved device。续训必须复用原 metrics/run 路径，`--epochs` 表示�
 run/checkpoint 会记录 `resumed_from`、`start_epoch` 和 `training_segments`。CPU↔CUDA 或其他
 resolved device 变化会被拒绝；不要通过手工编辑 checkpoint 绕过。
 
+当前实现用显式 `(seed, epoch)` sampler 固定 shuffle，并把 DataLoader worker generator 与模型 RNG
+分离。覆盖 `num_workers=4, pin_memory=true, persistent_workers=true` 的回归已验证中断续训与
+不间断训练在模型、优化器和 metrics 上 bit-exact。
+
 `--force` 不是通用覆盖开关，只能重启 `status=failed, completed_epoch=0` 且没有 checkpoint/
 metrics 的旧记录。真实部分训练或完成产物必须 resume 或使用新目录。
 
@@ -200,11 +206,62 @@ Stage 1B v4 不含机制监督。外部 annotation 必须先绑定样本身份�
 长度、onset/path 一致性、prior 值域和 reconstruction 维度；缺失项保持缺失。通过小样本人工盲审、
 覆盖门和质量门之后，发布新的 mechanism protocol，不能原地修改 v4。
 
-## 9. 历史 artifact
+## 9. Online hidden state
+
+新采集的 rewrite manifest 不必写 `hidden_states_path/condition_states_path`，但每行必须保留
+`prompt/question/response`、精确 `prompt_token_ids/output_token_ids`、监督字段和完整 provenance。
+训练与打分都追加同一组参数：
+
+```bash
+--hidden_state_source online \
+--extractor_model_id microsoft/Phi-3.5-mini-instruct \
+--extractor_model_revision 2fe192450127e6a83f7441aef6e3ca586c338b77 \
+--extractor_tokenizer_revision 2fe192450127e6a83f7441aef6e3ca586c338b77 \
+--extractor_torch_dtype bfloat16 \
+--extractor_trust_remote_code \
+--extractor_layer_count 33 \
+--extractor_per_layer_hidden_size 3072 \
+--extractor_cache_dir /prodcpfs/user/panzhixin/hf_cache \
+--extractor_local_files_only
+```
+
+模型在进程内只加载一次；trajectory 每次按原始未 padding token 序列重现，condition 走独立
+prompt-only forward。每个 epoch 都会重新抽取，因此在扩大数据前应同时测总训练时间和 peak GPU
+memory。正式协议必须固定 online/precomputed，所有对比 variant/seed 使用同一种模式。
+
+rewrite generator/verifier 的 Qwen 首版 checkpoint 见 `configs/semantic_rewrite_models_v1.json`，
+Falcon3 fallback 见 `configs/semantic_rewrite_models_v2.json`，Qwen-7B scale diagnostic 见
+`configs/semantic_rewrite_models_v3.json`；它们不参与 feature 抽取，feature 始终来自上面的 Phi
+checkpoint。
+
+## 10. 真实 LLM rewrite gate
+
+唯一入口是 `scripts/run_llm_semantic_rewrite.py`。本地 Qwen-3B、Falcon3-3B、Qwen-7B 权重与 Phi
+tokenizer 已缓存；默认配置为冻结且已失败的 Qwen-7B v7，只允许查看/恢复已有 shard，不允许覆盖：
+
+```bash
+"$P" scripts/run_llm_semantic_rewrite.py --stage preflight
+"$P" scripts/run_llm_semantic_rewrite.py --stage rewrite
+"$P" scripts/run_llm_semantic_rewrite.py --stage audit
+```
+
+真实执行需要 `--execute`，rewrite 阶段还需指定 CUDA。任何新尝试必须复制为新的协议版本和新的
+`output_root`，不能覆盖 v1–v7。v4+ 会强制校验 SWIFT 解释器和 torch/transformers/CUDA 版本；系统
+Python 会在 preflight 前被拒绝。v5 的 Qwen constrained generation 和只换 Falcon3 checkpoint 的
+v6 都是 0/8；只把 Qwen 扩到 7.61B 的 v7 是 1/8，也未授权扩展到 32-source。v1 出现 1 次错误轨迹
+被修正；v2–v7 repair 均为 0，但当前同 checkpoint verifier 仍只能作为辅助信号。v7 的
+`scale_authorization_eligible=false` 是强制机器字段。不要继续用这 4 条已暴露样本调 prompt；先在独立
+development sources 上实现数字/单位 span locking，只有新的独立 blind gate 达到 8/8 自动门并通过
+人工盲审后才能发布 rewrite 数据。
+
+## 11. 历史 artifact
 
 - `configs/stage1b_validation_v1/v2/v3.json` 和对应文档是冻结历史。
+- `configs/semantic_rewrite_llm_v1` 至 `v7` 及各自 output root 是失败门禁/诊断证据，不因仓库收敛删除。
+- Stage 1B v4 的 `summary.json` 也是冻结历史；其 1/9 分类已知受 BCE 门禁实现错误影响，正确的
+  versioned 修复不能覆盖原 artifact。
 - Stage 1B v1 scored 文件缺少当前 `clir-reward-scoring-v2` provenance，当前 evaluator 会正确拒绝；
   如确需诊断，需要重新打分，不能放宽验证。
 - `run_artifacts/` 是实验证据目录，不因“仓库瘦身”删除。
-- `docs/code_review_panzhixin_*_change.md` 是审查证据，不是运行说明；当前行为以代码、测试和 v4
+- `docs/code_review_panzhixin_*_change.md` 是审查证据，不是运行说明；当前行为以代码、测试和 v7
   协议为准。

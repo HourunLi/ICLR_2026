@@ -16,11 +16,19 @@ from torch.utils.data import DataLoader, Subset
 
 from src.clir_data import (
     CLIRTrajectoryDataset,
+    EpochRandomSampler,
     SemanticGroupBatchSampler,
     clir_collate,
     move_batch_to_device,
 )
 from src.clir_real_data import file_sha256
+from src.clir_hidden_states import (
+    OnlineHiddenStateExtractor,
+    add_hidden_state_source_arguments,
+    load_online_hidden_state_extractor,
+    online_hidden_state_config_from_args,
+    validate_online_rows,
+)
 from src.clir_stage_a import atomic_write_json, atomic_write_jsonl, git_state
 from src.consistency_localized_reward import (
     RewardConfig,
@@ -30,11 +38,14 @@ from src.consistency_localized_reward import (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Train CLIR on pre-extracted hidden states.")
+    parser = argparse.ArgumentParser(
+        description="Train CLIR on pre-extracted or exact-token online hidden states."
+    )
     parser.add_argument("--train_jsonl", required=True, help="Training JSONL file.")
     parser.add_argument("--feature_root", default=None, help="Base directory for training feature paths.")
     parser.add_argument("--val_jsonl", default=None, help="Explicit query-disjoint validation JSONL.")
     parser.add_argument("--val_feature_root", default=None, help="Base directory for validation feature paths.")
+    add_hidden_state_source_arguments(parser)
     parser.add_argument("--output_model", required=True, help="Atomic latest/full-state checkpoint path.")
     parser.add_argument("--resume_from", default=None, help="Full-state checkpoint to resume.")
     parser.add_argument(
@@ -201,6 +212,12 @@ def validate_dataset_feature_contract(
 ) -> None:
     """Cross-check CLI architecture values against extracted feature metadata."""
 
+    if dataset.hidden_state_source == "online":
+        # OnlineHiddenStateConfig is authoritative. Some rewrite manifests
+        # retain historical metadata only on the original view; requiring
+        # every regenerated view to carry a precomputed-payload record would
+        # reintroduce the storage-layer coupling this mode removes.
+        return
     metadata_rows = [row.get("feature_metadata") for row in dataset.rows]
     present = [metadata for metadata in metadata_rows if isinstance(metadata, Mapping)]
     if not present:
@@ -286,10 +303,15 @@ def make_loader(
         raise ValueError("num_workers must be non-negative")
     if persistent_workers and num_workers == 0:
         raise ValueError("persistent_workers requires num_workers > 0")
+    # Never let DataLoader worker/base-seed bookkeeping consume the reward
+    # model's global Torch RNG stream.  This generator is deliberately
+    # separate from the epoch-indexed sampler below.
+    worker_generator = torch.Generator().manual_seed(seed + 1_000_003)
     loader_kwargs = {
         "num_workers": num_workers,
         "pin_memory": pin_memory,
         "persistent_workers": persistent_workers,
+        "generator": worker_generator,
     }
     if group_by_semantic_id and shuffle:
         sampler = SemanticGroupBatchSampler(
@@ -307,13 +329,36 @@ def make_loader(
             **loader_kwargs,
         )
     subset = Subset(dataset, indices)
+    if shuffle:
+        return DataLoader(
+            subset,
+            batch_size=batch_size,
+            sampler=EpochRandomSampler(subset, seed=seed),
+            collate_fn=clir_collate,
+            **loader_kwargs,
+        )
     return DataLoader(
         subset,
         batch_size=batch_size,
-        shuffle=shuffle,
+        shuffle=False,
         collate_fn=clir_collate,
         **loader_kwargs,
     )
+
+
+def set_loader_epoch(loader: DataLoader, epoch: int) -> None:
+    """Set a one-based training epoch without depending on prior iterations."""
+
+    if epoch <= 0:
+        raise ValueError("Loader epoch must be positive")
+    zero_based_epoch = epoch - 1
+    batch_sampler = getattr(loader, "batch_sampler", None)
+    if isinstance(batch_sampler, SemanticGroupBatchSampler):
+        batch_sampler.epoch = zero_based_epoch
+        return
+    sampler = getattr(loader, "sampler", None)
+    if isinstance(sampler, EpochRandomSampler):
+        sampler.epoch = zero_based_epoch
 
 
 def prior_phase_for_epoch(mode: str, epoch: int) -> str:
@@ -414,6 +459,7 @@ def run_epoch(
     prior_phase: str,
     amp_dtype: str = "none",
     max_grad_norm: float = 0.0,
+    hidden_state_extractor: OnlineHiddenStateExtractor | None = None,
 ) -> Dict[str, Any]:
     training = optimizer is not None
     model.train(training)
@@ -429,6 +475,15 @@ def run_epoch(
     with grad_context:
         for batch in loader:
             batch = move_batch_to_device(batch, device)
+            if hidden_state_extractor is not None:
+                batch = hidden_state_extractor.materialize(
+                    batch,
+                    include_condition=model.config.model_variant == "clir",
+                )
+            elif "hidden_states" not in batch:
+                raise ValueError(
+                    "Token-only batch requires an online hidden-state extractor"
+                )
             if not amp_enabled:
                 parameter_dtype = next(model.parameters()).dtype
                 for key in ("hidden_states", "condition_states", "condition_embedding"):
@@ -526,6 +581,14 @@ RESUME_PINNED_ARGS = (
     "val_every_n_epochs",
     "prior_collapse_tolerance",
     "fail_on_prior_collapse",
+    "hidden_state_source",
+    "extractor_model_id",
+    "extractor_model_revision",
+    "extractor_tokenizer_revision",
+    "extractor_torch_dtype",
+    "extractor_trust_remote_code",
+    "extractor_layer_count",
+    "extractor_per_layer_hidden_size",
 )
 
 
@@ -537,6 +600,14 @@ LEGACY_RESUME_DEFAULTS: Dict[str, Any] = {
     "val_every_n_epochs": 1,
     "prior_collapse_tolerance": 0.0,
     "fail_on_prior_collapse": False,
+    "hidden_state_source": "precomputed",
+    "extractor_model_id": None,
+    "extractor_model_revision": None,
+    "extractor_tokenizer_revision": None,
+    "extractor_torch_dtype": "bfloat16",
+    "extractor_trust_remote_code": False,
+    "extractor_layer_count": None,
+    "extractor_per_layer_hidden_size": None,
 }
 
 
@@ -671,6 +742,43 @@ def _constant_prior_health(
     }
 
 
+def _checkpoint_training_health(
+    checkpoint_train_metrics: Mapping[str, Any],
+    *,
+    epoch: int,
+    positive_count: int,
+    example_count: int,
+    tolerance: float,
+) -> Dict[str, Any]:
+    """Build the health gate from a no-grad full-train checkpoint evaluation."""
+
+    losses = checkpoint_train_metrics.get("losses")
+    if not isinstance(losses, Mapping) or "final" not in losses:
+        raise ValueError("Checkpoint train evaluation lacks final correctness BCE")
+    observed_examples = int(checkpoint_train_metrics.get("examples", -1))
+    if observed_examples != example_count:
+        raise ValueError(
+            "Checkpoint train evaluation did not cover the complete train split: "
+            f"expected {example_count}, observed {observed_examples}"
+        )
+    health = _constant_prior_health(
+        positive_count=positive_count,
+        example_count=example_count,
+        final_correctness_bce=float(losses["final"]),
+        tolerance=tolerance,
+    )
+    health.update(
+        {
+            "schema_version": "clir-training-health-v3",
+            "measurement": "checkpoint_full_train_split_no_grad_eval",
+            "checkpoint_epoch": int(epoch),
+            "model_mode": "eval",
+            "shuffle_order": "explicit_seed_plus_epoch_complete_coverage",
+        }
+    )
+    return health
+
+
 def _checkpoint_execution_device(checkpoint: Mapping[str, Any]) -> str | None:
     recorded = checkpoint.get("execution_device")
     if isinstance(recorded, str) and recorded:
@@ -764,6 +872,12 @@ def main() -> None:
         raise ValueError("Use explicit --val_jsonl or legacy --val_fraction, not both")
     if args.val_feature_root and not args.val_jsonl:
         raise ValueError("--val_feature_root requires --val_jsonl")
+    if args.hidden_state_source == "online" and (
+        args.feature_root is not None or args.val_feature_root is not None
+    ):
+        raise ValueError(
+            "Online hidden-state extraction does not consume --feature_root/--val_feature_root"
+        )
     if args.epochs <= 0:
         raise ValueError("epochs must be positive")
     if args.val_every_n_epochs <= 0:
@@ -776,6 +890,10 @@ def main() -> None:
         raise ValueError("fail_on_prior_collapse requires a positive prior_collapse_tolerance")
     set_seed(args.seed)
     device = resolve_device(args.device)
+    online_hidden_state_config = online_hidden_state_config_from_args(
+        args,
+        feature_dim=args.hidden_dim,
+    )
     output = Path(args.output_model).resolve()
     metrics_path = Path(args.metrics_jsonl).resolve() if args.metrics_jsonl else output.with_suffix(output.suffix + ".metrics.jsonl")
     run_path = Path(args.run_json).resolve() if args.run_json else output.with_suffix(output.suffix + ".run.json")
@@ -798,6 +916,7 @@ def main() -> None:
         check_finite=not args.skip_feature_finite_check,
         require_correctness=True,
         load_condition=args.model_variant == "clir",
+        hidden_state_source=args.hidden_state_source,
     )
     if args.val_jsonl:
         val_dataset = CLIRTrajectoryDataset(
@@ -806,6 +925,7 @@ def main() -> None:
             check_finite=not args.skip_feature_finite_check,
             require_correctness=True,
             load_condition=args.model_variant == "clir",
+            hidden_state_source=args.hidden_state_source,
         )
         train_indices = list(range(len(train_dataset)))
         val_indices = list(range(len(val_dataset)))
@@ -821,6 +941,21 @@ def main() -> None:
     train_positive_count = sum(int(train_dataset.rows[index]["correctness"]) for index in train_indices)
 
     config = make_config(args)
+    if online_hidden_state_config is not None:
+        validate_online_rows(train_dataset.rows, online_hidden_state_config)
+        if val_dataset is not train_dataset:
+            validate_online_rows(val_dataset.rows, online_hidden_state_config)
+        if config.encoder_type == "layer_transformer" and (
+            config.num_feature_layers != online_hidden_state_config.layer_count
+            or config.per_layer_dim
+            != online_hidden_state_config.per_layer_hidden_size
+        ):
+            raise ValueError(
+                "Online extractor layer layout differs from the reward encoder: "
+                f"extractor={online_hidden_state_config.layer_count}x"
+                f"{online_hidden_state_config.per_layer_hidden_size}, "
+                f"encoder={config.num_feature_layers}x{config.per_layer_dim}"
+            )
     validate_dataset_feature_contract(train_dataset, config, "train")
     if val_indices is not None:
         validate_dataset_feature_contract(val_dataset, config, "validation")
@@ -841,6 +976,7 @@ def main() -> None:
 
     model = build_reward_model(config).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    hidden_state_extractor = None
     train_sha256 = file_sha256(args.train_jsonl)
     val_sha256 = file_sha256(args.val_jsonl) if args.val_jsonl else None
     if args.expected_train_sha256 and train_sha256 != args.expected_train_sha256:
@@ -861,6 +997,9 @@ def main() -> None:
         "val_rows": len(val_indices) if val_indices is not None else 0,
         "val_queries": len(val_queries),
     }
+    if online_hidden_state_config is not None:
+        data_state["hidden_state_source"] = "online"
+        data_state["online_hidden_state_config"] = online_hidden_state_config.to_dict()
     start_epoch = 0
     metric_rows: list[Dict[str, Any]] = []
     metrics_recovery: Dict[str, Any] | None = None
@@ -911,8 +1050,6 @@ def main() -> None:
             start_epoch,
         )
 
-    if isinstance(getattr(train_loader, "batch_sampler", None), SemanticGroupBatchSampler):
-        train_loader.batch_sampler.epoch = start_epoch
     if start_epoch > args.epochs:
         raise ValueError(f"Checkpoint completed {start_epoch} epochs; target is only {args.epochs}")
     if epoch_checkpoint_dir is not None:
@@ -954,6 +1091,12 @@ def main() -> None:
         "encoder_type": config.encoder_type,
         "input_dim": config.hidden_dim,
         "model_dim": config.model_dim,
+        "hidden_state_source": args.hidden_state_source,
+        "online_hidden_state_config": (
+            online_hidden_state_config.to_dict()
+            if online_hidden_state_config is not None
+            else None
+        ),
         "trainable_parameters": count_trainable_parameters(model),
         "data_state": data_state,
         "experiment_protocol": experiment_protocol,
@@ -1005,12 +1148,48 @@ def main() -> None:
         return
 
     try:
+        if online_hidden_state_config is not None:
+            # Loading a frozen Hugging Face model may touch global RNG state.
+            # Keep reward initialization/resume and subsequent training
+            # randomness identical to the precomputed path for the same seed.
+            training_rng_state = _rng_state()
+            try:
+                hidden_state_extractor = load_online_hidden_state_extractor(
+                    online_hidden_state_config,
+                    device=device,
+                    cache_dir=args.extractor_cache_dir,
+                    local_files_only=args.extractor_local_files_only,
+                    check_finite=not args.skip_feature_finite_check,
+                )
+            finally:
+                _restore_rng_state(training_rng_state)
         for epoch in range(start_epoch + 1, args.epochs + 1):
             prior_phase = prior_phase_for_epoch(args.prior_phase_mode, epoch)
+            set_loader_epoch(train_loader, epoch)
             train_metrics = run_epoch(
                 model, train_loader, device, optimizer, prior_phase=prior_phase,
                 amp_dtype=args.amp_dtype, max_grad_norm=args.max_grad_norm,
+                hidden_state_extractor=hidden_state_extractor,
             )
+            # The health gate is about the published checkpoint, not the
+            # average of losses observed while that checkpoint was changing.
+            # Reuse the complete train loader in eval/no-grad mode, with an
+            # explicit epoch order, and isolate the evaluation from training
+            # RNG state so resume remains exact.
+            checkpoint_eval_rng_state = _rng_state()
+            try:
+                set_loader_epoch(train_loader, epoch)
+                checkpoint_train_metrics = run_epoch(
+                    model,
+                    train_loader,
+                    device,
+                    optimizer=None,
+                    prior_phase="joint",
+                    amp_dtype=args.amp_dtype,
+                    hidden_state_extractor=hidden_state_extractor,
+                )
+            finally:
+                _restore_rng_state(checkpoint_eval_rng_state)
             val_metrics = None
             should_validate = (
                 val_loader is not None
@@ -1018,18 +1197,22 @@ def main() -> None:
             )
             if should_validate:
                 val_metrics = run_epoch(
-                    model, val_loader, device, optimizer=None, prior_phase="joint", amp_dtype=args.amp_dtype
+                    model, val_loader, device, optimizer=None, prior_phase="joint",
+                    amp_dtype=args.amp_dtype,
+                    hidden_state_extractor=hidden_state_extractor,
                 )
             metric_record = {
                 "epoch": epoch,
                 "prior_phase": prior_phase,
                 "train": train_metrics,
+                "checkpoint_train_evaluation": checkpoint_train_metrics,
                 "validation": val_metrics,
             }
-            metric_record["training_health"] = _constant_prior_health(
+            metric_record["training_health"] = _checkpoint_training_health(
+                checkpoint_train_metrics,
+                epoch=epoch,
                 positive_count=train_positive_count,
                 example_count=len(train_indices),
-                final_correctness_bce=float(train_metrics["losses"]["final"]),
                 tolerance=args.prior_collapse_tolerance,
             )
             metric_rows.append(metric_record)
@@ -1060,6 +1243,10 @@ def main() -> None:
             run_record["completed_epoch"] = epoch
             atomic_write_json(run_path, run_record)
             message = f"epoch={epoch} prior_phase={prior_phase} train_total={train_metrics['losses'].get('total', 0.0):.4f}"
+            message += (
+                " checkpoint_train_bce="
+                f"{checkpoint_train_metrics['losses'].get('final', float('nan')):.4f}"
+            )
             if val_metrics is not None:
                 message += f" val_total={val_metrics['losses'].get('total', 0.0):.4f}"
             print(message)

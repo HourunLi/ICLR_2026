@@ -1,0 +1,615 @@
+{
+  "schema_version": "clir-on-policy-primary-material-claims-v1",
+  "annotator": "codex_primary_manual_review",
+  "annotation_date": "2026-08-17",
+  "policy": "material_claims_only_with_local_numeric_and_logic_checks",
+  "items": [
+    {
+      "item_id": "OPA-94e82f01f4769ade",
+      "aligned_claims": [
+        {
+          "source_claim": "Five squirrels need 5 × 130 = 650 acorns, leaving 650 - 575 = 75 to collect.",
+          "rewrite_claim": "The five squirrels need 650 acorns in total and still need 650 - 575 = 75 acorns.",
+          "explanation": "Both trajectories use the same total-need and remaining-need calculations."
+        },
+        {
+          "source_claim": "Dividing the remaining 75 acorns among five squirrels gives 15 more per squirrel.",
+          "rewrite_claim": "The 75 additional acorns divided by five gives 15 acorns per squirrel.",
+          "explanation": "The final division and conclusion are identical."
+        }
+      ],
+      "style_evidence": "The expanded trajectory separates the given collection into its own step and spells out each formula, while the compact trajectory combines those statements."
+    },
+    {
+      "item_id": "OPA-26a8d95781569cde",
+      "aligned_claims": [
+        {
+          "source_claim": "Fifteen books with 30 puzzles each contain 450 puzzles.",
+          "rewrite_claim": "The total puzzle count is 15 × 30 = 450.",
+          "explanation": "The puzzle-count inference is unchanged."
+        },
+        {
+          "source_claim": "At three minutes per puzzle, 450 puzzles take 1350 minutes.",
+          "rewrite_claim": "The total time is 450 × 3 = 1350 minutes.",
+          "explanation": "The requested total in minutes is preserved."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "1350 divided by 60 equals 22 with no remainder.",
+          "source_evidence": "The source establishes a total of 1350 minutes.",
+          "relation": "contradicted",
+          "explanation": "1350 = 22 × 60 + 30, so the rewrite's no-remainder statement is false even though it later gives the correct 30-minute remainder."
+        }
+      ],
+      "global_overrides": {
+        "same_intermediate_conclusions": false,
+        "introduced_new_error": true
+      },
+      "unresolved_risks": {
+        "numeric-change-0": "The added 60-minute conversion contains the false intermediate assertion that 1350/60 has no remainder.",
+        "negation-change-0": "The new word 'no' occurs in the materially false claim 'no remainder'."
+      },
+      "risk_notes": {
+        "quantifier-change-0": "Extra uses of 'total' repeat the same 450-puzzle and 1350-minute quantities.",
+        "comparative-change-0": "The added 'more practical' remark does not itself alter the time quantity."
+      },
+      "style_evidence": "The rewrite is visibly more expanded and adds a separate hour/minute conversion section.",
+      "decision": "reject",
+      "issues": [
+        "The expanded trajectory introduces the false claim that 1350 divided by 60 has no remainder."
+      ]
+    },
+    {
+      "item_id": "OPA-9e8cfc9818a7c01f",
+      "aligned_claims": [
+        {
+          "source_claim": "Four $20 entrees cost $80, and adding the $10 appetizer gives a $90 subtotal.",
+          "rewrite_claim": "The entrees total $80 and the appetizer makes the subtotal $90.",
+          "explanation": "Both trajectories compute the same pre-tip subtotal."
+        },
+        {
+          "source_claim": "A 20% tip on $90 is $18, so the restaurant total is $108.",
+          "rewrite_claim": "Converting 20% to 0.2 gives an $18 tip and a $108 final total.",
+          "explanation": "The percentage calculation and final conclusion are equivalent."
+        }
+      ],
+      "style_evidence": "The expanded version splits appetizer, entree, subtotal, percentage conversion, and final addition into separate explanatory steps."
+    },
+    {
+      "item_id": "OPA-db717f1b3c855f00",
+      "aligned_claims": [
+        {
+          "source_claim": "Two papayas turn yellow Friday and four turn yellow Sunday because Sunday is twice Friday.",
+          "rewrite_claim": "Friday contributes two yellow papayas and Sunday contributes 2 × 2 = 4.",
+          "explanation": "The daily yellow-fruit counts are identical."
+        },
+        {
+          "source_claim": "Sequentially subtracting 2 and 4 from 14 leaves eight green papayas.",
+          "rewrite_claim": "Adding the six yellow papayas and subtracting six from 14 leaves eight green papayas.",
+          "explanation": "Aggregating the two subtractions is an equivalent reorganization of the same dependency chain."
+        }
+      ],
+      "style_evidence": "The compact version subtracts day by day, while the expanded version first totals the yellow papayas and then performs one subtraction."
+    },
+    {
+      "item_id": "OPA-1f826a3dfaa814fd",
+      "aligned_claims": [
+        {
+          "source_claim": "Brady earns $1500 + $450 = $1950.",
+          "rewrite_claim": "Adding Brady's $450 advantage to Dwayne's $1500 gives Brady $1950.",
+          "explanation": "The individual-income calculation is the same."
+        },
+        {
+          "source_claim": "Their combined income is $1950 + $1500 = $3450.",
+          "rewrite_claim": "Brady and Dwayne together earn $3450.",
+          "explanation": "The combined total and conclusion match exactly."
+        }
+      ],
+      "style_evidence": "The expanded response separates equation setup from each arithmetic evaluation and repeats the combined total in prose."
+    },
+    {
+      "item_id": "OPA-0d5aaeef45e0fcde",
+      "aligned_claims": [
+        {
+          "source_claim": "The conclusion is 3 × 450 = 1350 words and introduction plus conclusion is 1800 words.",
+          "rewrite_claim": "The conclusion is 1350 words and the two framing sections total 1800 words.",
+          "explanation": "The fixed-section lengths are identical."
+        },
+        {
+          "source_claim": "The four body sections share 5000 - 1800 = 3200 words, so each is 800 words.",
+          "rewrite_claim": "The remaining 3200 words divided among four equal body sections gives 800 words each.",
+          "explanation": "The remainder, division, and final answer are preserved."
+        }
+      ],
+      "style_evidence": "The expanded trajectory names every formula and isolates final presentation as a fifth step."
+    },
+    {
+      "item_id": "OPA-3d257320e28e9a5f",
+      "aligned_claims": [
+        {
+          "source_claim": "Three hundred watts at $4 per watt cost $1200.",
+          "rewrite_claim": "Multiplying $4 per watt by 300 watts gives $1200.",
+          "explanation": "The electricity-cost calculation is identical."
+        },
+        {
+          "source_claim": "Adding the $150 late fee produces a $1350 total.",
+          "rewrite_claim": "The $1200 electricity cost plus the $150 fee equals $1350.",
+          "explanation": "The final addition and conclusion agree."
+        }
+      ],
+      "style_evidence": "The expanded response spells out factor labels and total-amount formulas around the same two calculations."
+    },
+    {
+      "item_id": "OPA-817dc95df11db9aa",
+      "aligned_claims": [
+        {
+          "source_claim": "Five found tickets are worth $15, leaving $15 of the $30 value attributable to game tickets.",
+          "rewrite_claim": "The equation 3(5x + 5) = 30 encodes five found tickets and five games with x tickets each.",
+          "explanation": "The equation consolidates the same ticket-value relationships used by the source."
+        },
+        {
+          "source_claim": "The game tickets total five, so five equal games give one ticket per game.",
+          "rewrite_claim": "Solving the equation gives x = 1 and five game tickets in total.",
+          "explanation": "The solved quantity and final conclusion match."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "The total number of tickets is not affected by the number of tickets per game.",
+          "source_evidence": "The source derives the total game tickets and then divides them across games.",
+          "relation": "contradicted",
+          "explanation": "The rewrite itself defines total tickets as 5x + 5, which does depend on x; the added negated claim is false."
+        }
+      ],
+      "global_overrides": {
+        "same_key_inferences": false,
+        "same_intermediate_conclusions": false,
+        "introduced_new_error": true
+      },
+      "unresolved_risks": {
+        "negation-change-0": "The new negation occurs in the false claim that the total ticket count is not affected by x."
+      },
+      "risk_notes": {
+        "numeric-change-0": "The added equation and its 10-ticket check are arithmetically consistent with x = 1.",
+        "quantifier-change-0": "Uses of 'all' and 'total' mostly restate the combined ticket pool; the separate negated dependency claim is handled as an unresolved risk.",
+        "causal-change-0": "Removing 'therefore' does not alter the valid arithmetic dependency chain."
+      },
+      "style_evidence": "The rewrite uses an algebraic equation and a longer explanatory check, giving a clear surface and organization contrast.",
+      "decision": "reject",
+      "issues": [
+        "The rewrite adds a logically false statement that total tickets do not depend on tickets won per game."
+      ]
+    },
+    {
+      "item_id": "OPA-76220b8d723fcf0f",
+      "aligned_claims": [
+        {
+          "source_claim": "The four chickens contribute 4 + 3 + 2 + 2 = 11 eggs.",
+          "rewrite_claim": "Summing Gertrude, Blanche, Nancy, and Martha's eggs gives 11.",
+          "explanation": "The collection total uses the same four counts."
+        },
+        {
+          "source_claim": "Dropping two of the 11 eggs leaves nine.",
+          "rewrite_claim": "Subtracting the two dropped eggs from 11 leaves nine eggs.",
+          "explanation": "The subtraction and final answer are identical."
+        }
+      ],
+      "style_evidence": "The expanded response divides the collection by pairs of chickens and labels each quantity before summing."
+    },
+    {
+      "item_id": "OPA-3b66df82f53ea755",
+      "aligned_claims": [
+        {
+          "source_claim": "With tail B/2 and head B/6, total length satisfies B + B/2 + B/6 = 30.",
+          "rewrite_claim": "Substituting T = B/2 and H = B/6 into total length gives 30 = B + B/2 + B/6.",
+          "explanation": "The variable definitions and governing equation match."
+        },
+        {
+          "source_claim": "Combining fractions gives 10B/6 = 30, hence B = 18 and tail length is nine inches.",
+          "rewrite_claim": "The common-denominator calculation yields B = 18 and T = 18/2 = 9 inches.",
+          "explanation": "The algebra and requested tail length are the same."
+        }
+      ],
+      "style_evidence": "The expanded version separates variable definition, substitution, denominator conversion, solving, and tail evaluation into nine explicit steps."
+    },
+    {
+      "item_id": "OPA-ee5cd00c85afc778",
+      "aligned_claims": [
+        {
+          "source_claim": "One quarter of 180 is 45, leaving 135 students.",
+          "rewrite_claim": "The breakup group is 45 and subtracting it from 180 leaves 135.",
+          "explanation": "The first exclusion and remainder are identical."
+        },
+        {
+          "source_claim": "One third of 135 is 45; subtracting those 45 and another 20 leaves 70 passing students.",
+          "rewrite_claim": "After 45 no-shows and 20 students below D are removed from 135, 70 passed.",
+          "explanation": "The remaining exclusions and final count match."
+        }
+      ],
+      "style_evidence": "The expanded version isolates the given group of 20 as its own step and explains each subtraction in prose."
+    },
+    {
+      "item_id": "OPA-e325dff8f16e11c4",
+      "aligned_claims": [
+        {
+          "source_claim": "The second week has half of 5000, or 2500 cases.",
+          "rewrite_claim": "Dividing the first week's 5000 by two gives 2500 second-week cases.",
+          "explanation": "The second-week inference is unchanged."
+        },
+        {
+          "source_claim": "Adding 5000, 2500, and 2000 gives 9500 cases over three weeks.",
+          "rewrite_claim": "The three listed weekly counts sum to 9500.",
+          "explanation": "The total and conclusion are identical."
+        }
+      ],
+      "style_evidence": "The expanded response lists each week's count before evaluating the same sum in a separate step."
+    },
+    {
+      "item_id": "OPA-4d57bce3b1a13b81",
+      "aligned_claims": [
+        {
+          "source_claim": "Each chest receives 700 gold coins and 100 silver coins.",
+          "rewrite_claim": "Dividing 3500 and 500 by five gives 700 gold and 100 silver coins per chest.",
+          "explanation": "The gold and silver distributions are the same."
+        },
+        {
+          "source_claim": "Twice 500 gives 1000 bronze coins, or 200 per chest, and all three types total 1000 per chest.",
+          "rewrite_claim": "The 1000 bronze coins give 200 per chest, so 700 + 100 + 200 = 1000 coins per chest.",
+          "explanation": "The bronze calculation and final per-chest total agree."
+        }
+      ],
+      "style_evidence": "The expanded response nests named formulas under four numbered stages and repeatedly identifies per-chest versus total quantities."
+    },
+    {
+      "item_id": "OPA-7a705ef65cbaca40",
+      "aligned_claims": [
+        {
+          "source_claim": "Seventy-five percent of 804 is 603 passing students.",
+          "rewrite_claim": "Converting 75% to 0.75 and multiplying by 804 gives 603 passers.",
+          "explanation": "The percentage calculation is the same."
+        },
+        {
+          "source_claim": "Subtracting 603 from 804 leaves 201 students who did not pass.",
+          "rewrite_claim": "The non-passing count is 804 - 603 = 201.",
+          "explanation": "The complement and final answer match."
+        }
+      ],
+      "style_evidence": "The expanded trajectory explicitly separates percentage conversion, multiplication, subtraction setup, and evaluation."
+    },
+    {
+      "item_id": "OPA-a8ea4ca23e4c64f0",
+      "aligned_claims": [
+        {
+          "source_claim": "Six columns times three rows makes 18 brownies.",
+          "rewrite_claim": "The pan contains 6 × 3 = 18 brownies.",
+          "explanation": "The grid calculation is identical."
+        },
+        {
+          "source_claim": "Dividing 18 brownies among six people gives three each.",
+          "rewrite_claim": "Eighteen divided by six is three brownies per person.",
+          "explanation": "The equal allocation and conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded response adds named equations and repeats the simplified answer in prose and boxed form."
+    },
+    {
+      "item_id": "OPA-4965b9325dc2a789",
+      "aligned_claims": [
+        {
+          "source_claim": "If 35% of the allowance is $14, then 0.35A = 14 and A = $40.",
+          "rewrite_claim": "Converting 35% to 0.35 gives 0.35A = 14 and A approximately $40.",
+          "explanation": "The equation has the exact solution $40; the word 'approximately' weakens wording but does not change the value used or conclusion in this pilot."
+        },
+        {
+          "source_claim": "Subtracting the $14 spent from $40 leaves $26.",
+          "rewrite_claim": "The remaining allowance is $40 - $14 = $26.",
+          "explanation": "The final subtraction and answer are exact and identical."
+        }
+      ],
+      "risk_notes": {
+        "numeric-change-0": "The added 35/100 conversion is exact, and the rewrite continues to use exactly $40 and $26 despite saying 'approximately' once.",
+        "quantifier-change-0": "Fewer repetitions of 'total' do not alter what A denotes.",
+        "comparative-change-0": "The added word 'after' only locates the remaining balance after spending."
+      },
+      "style_evidence": "The expanded version introduces variable A, shows percent-to-decimal conversion, and separates equation setup from solving."
+    },
+    {
+      "item_id": "OPA-a8b3a9c186b0ca8d",
+      "aligned_claims": [
+        {
+          "source_claim": "Sixty seconds divided by a 15-second firing interval gives four shots per minute.",
+          "rewrite_claim": "There are 60/15 = 4 shots in a minute.",
+          "explanation": "The firing-frequency inference is identical."
+        },
+        {
+          "source_claim": "Four shots lasting five seconds each produce 20 flame-seconds per minute.",
+          "rewrite_claim": "Multiplying four shots per minute by five seconds per shot gives 20 seconds per minute.",
+          "explanation": "The duration calculation and conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded response previews the two operations and then restates them with units in separate sections."
+    },
+    {
+      "item_id": "OPA-bd461727c44bb4a1",
+      "aligned_claims": [
+        {
+          "source_claim": "Three quarters of 100 units is 75 occupied units, yielding $30,000 rent per month at $400 each.",
+          "rewrite_claim": "The occupancy calculation gives 75 units and their monthly rent is 75 × $400 = $30,000.",
+          "explanation": "The occupied count and monthly income are identical."
+        },
+        {
+          "source_claim": "Twelve months at $30,000 produce $360,000 annual rent.",
+          "rewrite_claim": "Annual income is $30,000 × 12 = $360,000.",
+          "explanation": "The yearly multiplication and conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded response repeatedly names occupancy, monthly-income, and annual-income formulas and gives two boxed presentations."
+    },
+    {
+      "item_id": "OPA-66baf6d843aa25af",
+      "aligned_claims": [
+        {
+          "source_claim": "A 30% profit on the $20 cost is $6, making the selling price $26.",
+          "rewrite_claim": "Converting 30% to 0.30 yields a $6 profit and a $26 selling price.",
+          "explanation": "The markup calculation is unchanged."
+        },
+        {
+          "source_claim": "A 50% discount on $26 is $13, so the sale price is $13.",
+          "rewrite_claim": "Converting 50% to 0.50 gives a $13 discount and a $13 final price.",
+          "explanation": "The discount and final conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded response spells out both decimal conversions and labels cost, profit, discount, and sale price separately."
+    },
+    {
+      "item_id": "OPA-9206237b0809e167",
+      "aligned_claims": [
+        {
+          "source_claim": "Kenley has 2 × 34 = 68 stuffed animals and Tenly has 68 + 5 = 73.",
+          "rewrite_claim": "Doubling McKenna's 34 gives Kenley 68, then adding five gives Tenly 73.",
+          "explanation": "The two derived individual counts are identical."
+        },
+        {
+          "source_claim": "The three counts sum to 34 + 68 + 73 = 175.",
+          "rewrite_claim": "McKenna, Kenley, and Tenly have 175 stuffed animals in total.",
+          "explanation": "The final sum and conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded trajectory adds prose around each relationship and explicitly names all three addends before totaling them."
+    },
+    {
+      "item_id": "OPA-4b4c8fa805f51e49",
+      "aligned_claims": [
+        {
+          "source_claim": "From 15 snakes, the chain gives 30 monkeys, 25 lions, 33 pandas, and exactly 11 dogs because 33/3 = 11.",
+          "rewrite_claim": "The same chain yields 30 monkeys, 25 lions, 33 pandas, and 11 dogs.",
+          "explanation": "The animal counts themselves are preserved."
+        },
+        {
+          "source_claim": "Adding 15, 30, 25, 33, and 11 gives 114 animals.",
+          "rewrite_claim": "The five animal counts total 114.",
+          "explanation": "The final total and conclusion match."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "The dog count is 11 because a fractional animal must be rounded down.",
+          "source_evidence": "The source computes (1/3) × 33 = 11 exactly.",
+          "relation": "contradicted",
+          "explanation": "No fractional result or rounding occurs; the rewrite adds a false procedural justification."
+        }
+      ],
+      "global_overrides": {
+        "same_intermediate_conclusions": false,
+        "introduced_new_error": true
+      },
+      "risk_notes": {
+        "numeric-change-0": "The repeated animal counts remain 15, 30, 25, 33, 11, and 114; the separate rounding error is semantic rather than a changed numeral.",
+        "quantifier-change-0": "Extra uses of 'total' repeat the final sum and do not create the rounding error."
+      },
+      "style_evidence": "The rewrite is more expanded, labels each species equation, and lists all counts before the final sum.",
+      "decision": "reject",
+      "issues": [
+        "The rewrite falsely says that the exact integer result 33/3 = 11 was rounded down."
+      ]
+    },
+    {
+      "item_id": "OPA-ee0faca11117747b",
+      "aligned_claims": [
+        {
+          "source_claim": "A full tablet charge takes 53 minutes and half a 26-minute phone charge takes 13 minutes.",
+          "rewrite_claim": "The tablet takes 53 minutes and the halfway phone charge is 26/2 = 13 minutes.",
+          "explanation": "The two component durations are identical."
+        },
+        {
+          "source_claim": "Adding 53 and 13 gives 66 minutes total.",
+          "rewrite_claim": "The two charging durations sum to 66 minutes.",
+          "explanation": "The addition and final answer match."
+        }
+      ],
+      "style_evidence": "The expanded version states why the half-charge operation is used and names both terms in the final sum."
+    },
+    {
+      "item_id": "OPA-5d63fcc016593ab6",
+      "aligned_claims": [
+        {
+          "source_claim": "Six songs plus four songs makes ten songs, and ten four-minute songs last 40 minutes.",
+          "rewrite_claim": "The two sides total ten songs and 10 × 4 gives 40 minutes.",
+          "explanation": "The song count and requested duration are identical."
+        },
+        {
+          "source_claim": "The tape length is 40 minutes.",
+          "rewrite_claim": "The response retains 40 minutes as a boxed final representation.",
+          "explanation": "Despite adding another format, the rewrite explicitly preserves the source conclusion."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "Forty minutes can be written as zero hours and 40 minutes, displayed as 0:40.",
+          "source_evidence": "The source establishes a 40-minute duration.",
+          "relation": "entailed_elaboration",
+          "explanation": "The added unit-format conversion expresses the same duration; the approximate decimal hour is not used to change the final quantity."
+        }
+      ],
+      "risk_notes": {
+        "numeric-change-0": "The added 0.6667-hour intermediate is an approximate representation of 40/60 hours, and the rewrite still explicitly boxes 40 minutes.",
+        "quantifier-change-0": "The added word 'only' distinguishes the optional minutes-only format and does not change the duration."
+      },
+      "style_evidence": "The expanded response adds a separate unit-conversion section and alternate hour:minute presentation, creating a strong organization difference."
+    },
+    {
+      "item_id": "OPA-f6c9ca738db789ec",
+      "aligned_claims": [
+        {
+          "source_claim": "Jen takes 30 seconds, Susan takes 40, Mary takes 80, and Tiffany takes 73.",
+          "rewrite_claim": "Using the same dependency chain gives times 30, 40, 80, and 73 seconds.",
+          "explanation": "Every runner's derived time matches."
+        },
+        {
+          "source_claim": "The four leg times sum to 223 seconds.",
+          "rewrite_claim": "Adding 80 + 40 + 30 + 73 gives 223 seconds.",
+          "explanation": "The team total and final conclusion are identical."
+        }
+      ],
+      "style_evidence": "The expanded version writes a named equation for each runner and restates every unit in the final sum."
+    },
+    {
+      "item_id": "OPA-da6568f1834dbce7",
+      "aligned_claims": [
+        {
+          "source_claim": "Splitting 450 miles equally gives 150 miles per car, requiring 3, 15, and 10 gallons.",
+          "rewrite_claim": "Each car drives 150 miles and consumes 3, 15, and 10 gallons at its stated mileage.",
+          "explanation": "The mileage allocation and fuel quantities match."
+        },
+        {
+          "source_claim": "The cars use 28 gallons total, costing 28 × $2 = $56.",
+          "rewrite_claim": "Pricing each car's fuel as $6, $30, and $20 and summing gives $56.",
+          "explanation": "Distributing the $2 multiplication across cars is an equivalent arithmetic reorganization."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "The individual fuel costs are $6, $30, and $20.",
+          "source_evidence": "The source gives the corresponding 3, 15, and 10 gallons and a uniform $2 per gallon.",
+          "relation": "entailed_elaboration",
+          "explanation": "Each per-car cost follows directly from source quantities and the same price."
+        }
+      ],
+      "style_evidence": "The expanded trajectory changes the final aggregation from total gallons first to explicit per-car costs before summing."
+    },
+    {
+      "item_id": "OPA-30086202d5bd9deb",
+      "aligned_claims": [
+        {
+          "source_claim": "Phillip's 40 plus eight gives Ben 48 apples.",
+          "rewrite_claim": "Ben has 40 + 8 = 48 apples.",
+          "explanation": "Ben's count is unchanged."
+        },
+        {
+          "source_claim": "Three eighths of 48 is 18 apples for Tom.",
+          "rewrite_claim": "Multiplying 3 × 48 = 144 and dividing by eight gives Tom 18 apples.",
+          "explanation": "The rewrite uses the equivalent multiply-then-divide evaluation of the same fraction."
+        }
+      ],
+      "style_evidence": "The expanded response changes the fraction simplification order and adds a visibly different LaTeX-formatting explanation after the result."
+    },
+    {
+      "item_id": "OPA-dc20b0a249c9cda1",
+      "aligned_claims": [
+        {
+          "source_claim": "Serving 42 people at about six per batch requires seven batches.",
+          "rewrite_claim": "Dividing 42 by six gives seven guacamole batches.",
+          "explanation": "The required batch count is identical."
+        },
+        {
+          "source_claim": "Seven batches at four avocados each require 28 avocados.",
+          "rewrite_claim": "Multiplying seven by four gives 28 avocados.",
+          "explanation": "The final multiplication and conclusion match."
+        }
+      ],
+      "style_evidence": "The expanded response previews the two-stage plan and repeats each formula with longer variable labels."
+    },
+    {
+      "item_id": "OPA-b10700935e6a953c",
+      "aligned_claims": [
+        {
+          "source_claim": "Toby works 2x - 10 hours and Rebecca works 2x - 18 hours.",
+          "rewrite_claim": "The same relationships are simplified to Toby = 2x - 10 and Rebecca = 2x - 18.",
+          "explanation": "The symbolic worker-hour relationships match."
+        },
+        {
+          "source_claim": "The total equation reduces to 5x - 28 = 157, giving x = 37 and Rebecca 56 hours.",
+          "rewrite_claim": "Solving x + (2x - 10) + (2x - 18) = 157 gives x = 37 and Rebecca = 56.",
+          "explanation": "The equation, solution, and requested conclusion are identical."
+        }
+      ],
+      "style_evidence": "The expanded trajectory simplifies Rebecca's expression earlier and writes every inverse operation on both sides explicitly."
+    },
+    {
+      "item_id": "OPA-2f80c66732a6c113",
+      "aligned_claims": [
+        {
+          "source_claim": "Reading 20 while receiving six clears a net 14 messages per day.",
+          "rewrite_claim": "The daily net clearance is 20 - 6 = 14 messages.",
+          "explanation": "The net-rate inference is unchanged."
+        },
+        {
+          "source_claim": "Ninety-eight messages divided by 14 per day takes seven days.",
+          "rewrite_claim": "Dividing the initial 98 by the net 14 gives seven days.",
+          "explanation": "The duration calculation and final answer match."
+        }
+      ],
+      "style_evidence": "The expanded response foregrounds the interaction of reading and arrivals and uses named rate terms throughout."
+    },
+    {
+      "item_id": "OPA-f4fe966ddc5f7170",
+      "aligned_claims": [
+        {
+          "source_claim": "Twice the 23 dodged cars means 46 feathers were pulled in the second crossing.",
+          "rewrite_claim": "The second crossing removes 23 × 2 = 46 feathers.",
+          "explanation": "The stated feather-loss calculation is identical."
+        },
+        {
+          "source_claim": "Subtracting 46 from 5263 leaves 5217 feathers.",
+          "rewrite_claim": "The total loss of 46 subtracted from 5263 gives 5217 remaining.",
+          "explanation": "The final subtraction and conclusion match."
+        }
+      ],
+      "rewrite_only_claims": [
+        {
+          "rewrite_claim": "No feathers were pulled out during the first crossing.",
+          "source_evidence": "The source attributes the only feather loss to the person in the second crossing and subtracts only 46.",
+          "relation": "entailed_elaboration",
+          "explanation": "This makes explicit the source's existing dependency and subtraction rather than changing the assumed loss."
+        }
+      ],
+      "risk_notes": {
+        "numeric-change-0": "The reduced repetition of 5263 does not alter the initial or final feather count.",
+        "negation-change-0": "The explicit 'no feathers' statement states the assumption already used by the source when it subtracts only the second-crossing loss.",
+        "quantifier-change-0": "The words 'only' and 'total' clarify that 46 is the complete loss already assumed in the source calculation."
+      },
+      "style_evidence": "The expanded trajectory inserts a separate total-loss step and explicitly states the source's implicit no-loss assumption for the first crossing."
+    },
+    {
+      "item_id": "OPA-b6491d0dbe79165e",
+      "aligned_claims": [
+        {
+          "source_claim": "Weekday newspaper and novel reading total 150 and 300 minutes, or 450 minutes.",
+          "rewrite_claim": "Five weekday sessions give 150 newspaper minutes and 300 novel minutes.",
+          "explanation": "The weekday component times are identical."
+        },
+        {
+          "source_claim": "Doubled weekend sessions contribute 120 newspaper and 240 novel minutes, so the weekly total is 810.",
+          "rewrite_claim": "Weekend totals are 120 and 240; combining category totals 270 and 540 gives 810 minutes.",
+          "explanation": "The rewrite regroups the same weekday and weekend quantities by reading category."
+        }
+      ],
+      "risk_notes": {
+        "numeric-change-0": "The added category subtotals 270 and 540 equal 150+120 and 300+240, and still sum to 810.",
+        "quantifier-change-0": "The added 'each' refers to each weekend day and correctly applies the doubled daily times."
+      },
+      "style_evidence": "The compact response groups by weekday versus weekend, whereas the expanded response first groups by newspaper versus novel and then recombines category totals."
+    }
+  ]
+}

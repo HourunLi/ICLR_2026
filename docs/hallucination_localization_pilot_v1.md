@@ -1,20 +1,24 @@
 # Hallucination Localization Pilot v1
 
-状态：设计冻结，尚未生成标签或运行训练
+状态：Route A v1a 修复训练门已通过；开始 selection/annotation protocol
 
-日期：2026-08-17
+日期：2026-08-18
 
 证据等级：`pipeline pilot`
 
-本文冻结 semantics consistency Pilot-0 之后的下一个机制模块：hallucination localization。
+本文定义 semantics consistency Pilot-0 之后的下一个机制模块：hallucination localization。
+Route A v1a 已完成双标、裁决、4096 行 mixed consistency manifest 和匹配训练门；旧 62 行 manifest
+仍禁止训练。本模块现恢复执行，先冻结 selection/annotation protocol，再生成 primary 与 blind
+secondary package。
 首轮目标不是证明 CLIR 提升 Best-of-N，而是用一批可审计的真实标签跑通
 `path_hallucinated`、`hallucination_onset`、token localization loss 和 negative-tail reward
 的最小闭环。
 
 ## 1. 为什么现在做这个模块
 
-on-policy equivalence mining 已经证明 consistency 数据、真实 Phi hidden states 和训练接口能够闭环，
-但小样本诊断也表明 consistency 目标的正负项存在明显权重敏感性。继续扩大 consistency 数据之前，
+on-policy equivalence mining 已经证明 consistency 数据、真实 Phi hidden states 和训练接口能够闭环。
+v1a 修复训练进一步显示，现有 consistency loss 主要分离跨语义表示，而不是提高已饱和的正对 cosine。
+继续扩大 consistency 数据之前，
 应独立验证 CLIR 的第二个核心假设：轨迹在首个不受支持的推理主张之前仍可能有价值，之后的表示应被
 识别并降权。
 
@@ -184,5 +188,5 @@ population std。64 条 pilot 的 BoN 变化不能作为方法效果结论，也
 - noisy-or MIL 的长度偏置是否会在真实标签上出现；
 - negative-tail shaping 是否改善排序，还是仅让 localization 指标变好。
 
-因此当前唯一被授权的下一动作是构造 64-row selection manifest 与 annotation protocol；本文不授权
-扩量标签、读取测试集或宣称 hallucination localization 已有效。
+因此当前开始执行的动作是构造 64-row selection manifest 与 annotation protocol；本文不授权扩量
+标签、读取测试集或宣称 hallucination localization 已有效。
