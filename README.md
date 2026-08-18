@@ -1,6 +1,6 @@
 # CLIR: Consistency-Localized Intrinsic Rewards
 
-最后更新：2026-08-18
+最后更新：2026-08-19
 
 CLIR 研究如何利用真实 LLM hidden states，为 Best-of-N 轨迹排序学习比最终 correctness 更细的监督：
 语义一致性、首个 hallucination 的定位，以及后续 dual-prior evidence localization。仓库实现自包含的
@@ -18,7 +18,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
-| dual-prior localization | direct-target D0–D3 与原始 mutual-distillation M0/M1 三种子 pilot 均已完成 | 保留双向 stop-gradient mutual MSE，不以 containment 替换；下一步单独验证 reward-gate integration |
+| dual-prior localization | direct-target 与原始 mutual 均通过；首个 shared-gradient reward-gate pilot 为 diagnostic-only | 保留双向 stop-gradient mutual MSE；当前不采用会损伤 key AP 的 gate 接法 |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -75,20 +75,26 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   seed 分别相对下降 `27.0%/24.0%/33.3%`，均值 `28.1%`；key/complete unit AP 相对 M0 均值仅
   `-.0085/-.0008`，correctness AUROC 持平，map probability difference/correlation 为 `.295/.793`。所有冻结
   guard 3/3 通过，因此保留原始 mutual MSE；这仍不说明 Best-of-N 改善。
+- Reward-gate G0/G1 完成 2 cells × 3 seeds。G1 把 held-out gate→fused-prior MSE 平均降低 `79.6%`，gate
+  effective-token fraction 从 `.929` 降到 `.370`，与 fused prior 的 `.379` 接近；但 key unit AP 平均下降
+  `.0766`，只有 1/3 seeds 通过冻结保护线。状态为 `completed_reward_gate_integration_diagnostic_only`：保留
+  direct priors 与原 mutual，当前不采用 shared-gradient gate alignment，也不在结果后放宽门槛。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-Dual-prior mutual-distillation gate 已以 `completed_pass_original_mutual_distillation` 关闭。下一步不做
-containment replacement，而是另发只改变 reward-gate integration 的 matched protocol：以当前 M1 为 control，
-只开启 gate 对 fused prior 的对齐，同时保护 prior localization、map separation、correctness 与最终 ranking。
-reconstruction 继续等待独立 768-d target，不得使用 same-candidate pooling。完整 direct-target 结果见
+首个 reward-gate integration 已完成但未获采用：gate 学会了 detached fused prior，却通过共享表示损伤稀疏
+key localization。下一道门若继续 dual prior，应另发 head-only gate-alignment 协议：auxiliary gate loss 使用
+detached token features，只更新 gate head；final correctness BCE、direct priors 与原 mutual `.25` 保持不变，
+且不扫描本轮 shared-gradient 权重。该修复通过后才能进入 query-grouped ranking/Best-of-N。reconstruction
+继续等待独立 768-d target，不得使用 same-candidate pooling。完整 direct-target 结果见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md) 与
-`configs/dual_prior_evidence_v1/training_result_v1.json`；新协议见
+`configs/dual_prior_evidence_v1/training_result_v1.json`；mutual 结果见
 [Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)，机器结果为
-`configs/dual_prior_mutual_distillation_v1/training_result_v1.json`。
+`configs/dual_prior_mutual_distillation_v1/training_result_v1.json`；首个 gate 结果见
+[Dual-Prior Reward-Gate Integration Pilot v1](docs/dual_prior_reward_gate_pilot_v1.md)。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
@@ -131,6 +137,8 @@ reconstruction 继续等待独立 768-d target，不得使用 same-candidate poo
 | `scripts/run_dual_prior_matrix_v1.py` | dual-prior 多 cell × 多 seed 的独占 GPU launcher |
 | `scripts/summarize_dual_prior_pilot_v1.py` | direct-target learnability 与位置基线采用门 |
 | `scripts/summarize_dual_prior_mutual_distillation_v1.py` | 原始 mutual-distillation 协同目标与保护门 |
+| `scripts/evaluate_dual_prior_gate_predictions_v1.py` | gate/fused-prior 对齐、熵、score 分解与保护诊断 |
+| `scripts/summarize_dual_prior_reward_gate_v1.py` | G0/G1 三种子 reward-gate 采用门 |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
@@ -165,6 +173,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   D0–D3 direct-target 结果
 - [docs/dual_prior_mutual_distillation_pilot_v1.md](docs/dual_prior_mutual_distillation_pilot_v1.md)：原始双向
   stop-gradient mutual-distillation 的冻结协议、三种子结果与下一道 gate-integration 门
+- [docs/dual_prior_reward_gate_pilot_v1.md](docs/dual_prior_reward_gate_pilot_v1.md)：首个 shared-gradient
+  reward-gate integration 的量级审计、三种子失败与 head-only repair 方向
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

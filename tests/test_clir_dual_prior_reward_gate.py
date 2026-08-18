@@ -12,6 +12,7 @@ from src.consistency_localized_reward import dual_prior_losses
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "configs/dual_prior_reward_gate_v1/training_protocol_v1.json"
 AUDIT = ROOT / "configs/dual_prior_reward_gate_v1/loss_scale_audit_v1.json"
+RESULT = ROOT / "configs/dual_prior_reward_gate_v1/training_result_v1.json"
 
 
 def test_gate_alignment_detaches_fused_prior_but_updates_gate():
@@ -133,3 +134,24 @@ def test_gate_integration_metric_matches_training_objective():
     assert metrics["mean_overlap_mass"] == pytest.approx(0.875)
     assert metrics["raw_mean_gate"]["mean"] == pytest.approx(0.45)
     assert metrics["token_score"]["mean"] == pytest.approx(1.0)
+
+
+def test_completed_reward_gate_result_is_retained_as_diagnostic_only():
+    result = json.loads(RESULT.read_text(encoding="utf-8"))
+    assert result["status"] == "completed_reward_gate_integration_diagnostic_only"
+    assert result["required_matrix_cells"] == result["completed_matrix_cells"] == 6
+    assert result["original_mutual_formula_preserved"] is True
+    assert result["mutual_distillation_weight"] == 0.25
+    assert result["gate_alignment_weight"] == 10.0
+    assert result["gate_fused_prior_detached"] is True
+    assert result["selection_passed"] is False
+    assert result["passing_seed_counts"]["gate_alignment_improves"] == 3
+    assert result["passing_seed_counts"]["key_localization_protected"] == 1
+    assert result["passing_seed_counts"]["all"] == 0
+    mean = result["mean_metrics_and_deltas"]
+    assert mean["dev_gate_objective_mse_relative_reduction"] > 0.7
+    assert mean["gate_key_unit_ap_vs_control"] < -0.05
+    assert result["ranking_or_best_of_n_evaluated"] is False
+    assert result["reconstruction_enabled"] is False
+    assert result["containment_replacement_used"] is False
+    assert result["pilot_test_accessed"] is False

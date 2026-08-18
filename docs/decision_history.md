@@ -292,6 +292,25 @@ pipeline pilot 中降低了自身 branch-attention discrepancy 且没有不可�
 使用 prior，Best-of-N 也未评价，不能把该结果写成最终 reward 增益。下一步若推进，应单独冻结 gate-prior
 integration，而不是再以 containment 替换 mutual。
 
+### 7.9 reward-gate v1：目标学到了，但 shared-gradient 接法损伤 key localization
+
+在读取任何 gate-enabled 结果前，先用历史 M1 的零权重 gate diagnostic 审计数值与梯度量级。默认 `.25`
+只产生约为 final-BCE gate-head gradient `.6%` 的中位梯度；在预先列出的 `.25/1/5/10` 中，`10` 是第一个
+满足中位 ratio `.15–.50`、逐 seed 不超过 `1.0`、shared-encoder ratio 不超过 `.05` 的候选。因此冻结
+G0/G1：两格都保留 direct BCE 与原 mutual `.25`，唯一变化是 gate alignment `0→10`。
+
+6/6 cells 从 clean commit `b0deb78` 完成。G1 将 held-out gate→fused-prior MSE 平均降低 `79.6%`，gate
+effective-token fraction 从 `.929` 降至 `.370`，与 fused prior `.379` 接近；所以 objective 本身不是无效。
+complete unit AP 平均提高 `.0102`，correctness AUROC 平均下降 `.0370`，均通过保护门。但 key unit AP
+平均下降 `.0766`，seeds 42/43/44 的 delta 为 `-.1322/-.0109/-.0867`，只有 1/3 满足冻结的 `>=-.05`；
+没有 seed 同时通过所有门，机器状态为 `completed_reward_gate_integration_diagnostic_only`。
+
+因此不在结果后放宽门槛，也不采用或扫描当前 shared-gradient gate weight。`fused_prior.detach()` 只阻断
+当步对 prior map 的直接梯度，gate auxiliary 仍经 token features 更新共享 encoder；当前机制诊断是这一
+shared path 干扰了更稀疏的 key 分支。direct priors 与原 mutual 方法继续保留。若修复，优先另发 head-only
+协议：用 detached token features 计算 auxiliary gate alignment，只更新 gate-head 参数，并以梯度回归证明
+shared encoder/key/complete heads 不接收该 auxiliary 梯度。通过后再进入 query-grouped Best-of-N。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。
@@ -305,6 +324,8 @@ integration，而不是再以 containment 替换 mutual。
   不永久否证；重开必须显式控制 matched clean positional baseline，并发布新协议。
 - consistency、localization、dual prior 首轮分开训练，避免无法归因。
 - dual-prior/reconstruction 不用全零或 same-candidate pooling 伪造缺失 external targets。
+- 不采用首个 shared-gradient reward-gate alignment，也不以事后放宽 key-AP 门或扫描同一路径权重覆盖失败；
+  可能的 head-only repair 必须另发协议。
 - `pilot_test/final_test` 在 validation/calibration 冻结前不用于选择。
 
 ## 9. 详细历史入口

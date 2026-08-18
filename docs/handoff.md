@@ -1,6 +1,6 @@
 # CLIR 当前交接
 
-最后更新：2026-08-18
+最后更新：2026-08-19
 
 本文件只保留当前可执行状态。研究设计见 `docs/proposal.md`，历史路线与弃用原因见
 `docs/decision_history.md`；Localization v1 的 contaminated-tail 实验见
@@ -11,8 +11,9 @@
 
 ## 1. 当前停止点
 
-Dual-prior direct-target 与原始 mutual-distillation gates 均已完成，最新冻结状态为
-`completed_pass_original_mutual_distillation`，证据等级为 `pipeline pilot`：
+Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate integration 均已完成。direct/mutual
+继续保留；最新 gate 状态为 `completed_reward_gate_integration_diagnostic_only`，证据等级为
+`pipeline pilot`：
 
 - secondary 64/64 完成，key/complete macro unit F1 为 `.5469/.8456`；16 条 exact agreement，48 条
   disagreement 全部 role-blind adjudicated；
@@ -27,7 +28,13 @@ Dual-prior direct-target 与原始 mutual-distillation gates 均已完成，最�
 - M1 的 held-out symmetric attention MSE 三 seed 相对下降 `27.0%/24.0%/33.3%`，均值 `28.1%`；
 - key/complete unit AP 相对 M0 均值为 `-.0085/-.0008`，correctness AUROC 持平；两图 probability difference
   `.295`、correlation `.793`，全部 guard 3/3 通过；
-- gate alignment、reconstruction 仍关闭，pilot/final test 未读。
+- G0/G1 复跑同一 M1 control，唯一变化是 gate-to-detached-fused-prior alignment `0→10`；权重在读取任何
+  G1 结果前由历史 M1 loss/gradient scale audit 冻结；
+- G1 的 held-out gate MSE 三 seed 都下降，均值 `79.6%`；gate effective-token fraction `.929→.370`，与
+  fused prior `.379` 接近，证明 gate objective 可优化；
+- G1 的 complete unit AP 平均 `+.0102`、correctness AUROC `-.0370`，但 key unit AP 平均 `-.0766`，只有
+  1/3 seeds 满足 `delta>=-.05`；因此 shared-gradient gate alignment 不获采用；
+- direct priors 与原 mutual `.25` 不受该裁决影响。reconstruction 仍关闭，pilot/final test 未读。
 
 此前 Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
 `completed_fail_keep_t0`，证据等级仍是 `pipeline pilot`：
@@ -90,8 +97,9 @@ clean-matched positional control 的新协议。
 4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
    通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
 5. Dual-prior v1 的 labels、gold、direct-target D0–D3 与原始 mutual-distillation M0/M1 均已通过。原始
-   symmetric stop-gradient mutual MSE 是保留方法，containment 不作为替代。下一步单独验证 reward gate 对
-   fused prior 的使用；reconstruction 继续关闭且仍只接受独立 768-d target。
+   symmetric stop-gradient mutual MSE 是保留方法，containment 不作为替代。首个 shared-gradient gate
+   alignment 虽学会 fused prior，但因 key AP 损失不采用；若修复，优先让 auxiliary gate loss 只更新 gate
+   head、不进入共享 encoder。reconstruction 继续关闭且仍只接受独立 768-d target。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
 训练入口。
@@ -183,20 +191,38 @@ clean-matched positional control 的新协议。
 - 裁决：`completed_pass_original_mutual_distillation`；完整说明见
   `docs/dual_prior_mutual_distillation_pilot_v1.md`。
 
+### Dual-prior reward-gate integration v1
+
+- 量级审计：`configs/dual_prior_reward_gate_v1/loss_scale_audit_v1.json`；默认 `.25` 的 gate-head gradient
+  ratio 中位数只有 `.0060`，按预先规则冻结唯一权重 `10.0`，未读取任何 G1 结果；
+- 冻结协议：`configs/dual_prior_reward_gate_v1/training_protocol_v1.json`，SHA256
+  `46bf816ab55d0f2ba28e63bef83ab820732bd0ad045db4853a25010fb587e751`；
+- G0/G1 均保留 direct BCE + 原 mutual `.25`，只改变 gate alignment `0→10`，3 seeds × 5 epochs；
+- 机器结果：`configs/dual_prior_reward_gate_v1/training_result_v1.json`，SHA256
+  `bc94e06516c31a5f616f6ea6bb91ec67149bff8e052af43d85a69e7965c67c9b`；6/6 cells 位于
+  `run_artifacts/dual_prior_reward_gate_v1/pilot_v1/`；
+- 裁决：`completed_reward_gate_integration_diagnostic_only`。gate alignment 3/3 有效，但 key-localization
+  protection 只有 1/3 通过；完整说明见 `docs/dual_prior_reward_gate_pilot_v1.md`。
+
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight 或重跑已经通过的 M0/M1。下一步若继续 dual prior，是一个新的单变量
-reward-gate integration gate：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽已失败 G1 的 key-AP 门槛。下一步若继续 dual prior，
+应发布新的 head-only reward-gate repair，而不是扫描当前 shared-gradient 权重：
 
-1. G0：复用当前 M1 机制（direct BCE + 原始 mutual distillation），但 reward gate 不对齐 prior；
-2. G1：只开启现有 gate-to-detached-fused-prior alignment，mutual 公式与权重不变；
-3. 先审计现有 `attention_mse` gate loss 的数值尺度，再在读取 G0/G1 结果前冻结唯一权重，不做 sweep；
-4. 采用门同时看 gate-prior alignment、key/complete localization、map separation、correctness，并最终要求在同一
-   candidate pool 上评价 ranking/Best-of-N；只让 gate map 更像 prior 不足以证明 reward 有益；
-5. containment 不替代相互蒸馏。reconstruction 仍等待独立 768-d target。
+1. H0：复用当前 G0（direct BCE + 原始 mutual `.25`，gate alignment 关闭）；
+2. H1：生产分数仍使用同一个 gate head，但 auxiliary gate-alignment forward 使用 detached token features，
+   使该 auxiliary loss 只更新 gate-head 参数，不进入 shared encoder；
+3. 在冻结训练前增加梯度路径回归：只 backward gate auxiliary 时，gate-head 梯度非零，shared encoder、key head、
+   complete head 梯度严格为零；final BCE 路径保持原样；
+4. 保留 G0/G1 的数据、三 seeds、预算、mutual 公式/权重与全部 protection guards，不扫描本轮权重；
+5. H1 通过后再进入同一 query 下多 candidate 的 ranking/Best-of-N；当前 64 rows 每题一条，不能评价选择收益。
+
+当前 G1 的 gate alignment 大幅改善但 key AP 受损，机制解释是 gate auxiliary 梯度经共享表示产生 interference；
+这是下一门要隔离验证的假设，不是已经证明的因果结论。containment 不替代相互蒸馏，reconstruction 仍等待
+独立 768-d target。
 
 reconstruction 仍要求独立 768-d target，禁止 same-candidate pooling。exact onset 与下一代 clean-matched tail
 repair 留在 backlog，不阻塞当前 collaboration comparison。
@@ -217,15 +243,16 @@ repair 留在 backlog，不阻塞当前 collaboration comparison。
 ## 6. 当前证据边界
 
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
-- Route A v1a、Localization v1/v2/v2b/v2c/v2d、Dual-prior direct-target/mutual-distillation v1 都是
+- Route A v1a、Localization v1/v2/v2b/v2c/v2d、Dual-prior direct-target/mutual-distillation/reward-gate v1 都是
   `pipeline pilot`。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权，不能自动迁移为 hallucination Gold。
 - T2 的 AP/ranking signal 在 v2c 仍存在，但 absolute-margin implementation 的 tail locality 0/3 seed 通过；
   R1 虽解决统一 shift，却没有 clean anchor，并明显损伤当前 sparse AP。只能选择 T0 并暂缓这两个实现，
   不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
 - 不能宣称 consistency、hallucination localization 或 tail shaping 已改善 Best-of-N，也不能说 tail 已被
-  永久证伪或已获 mixed-training 授权。Dual-prior 当前只能宣称 direct targets 可学且原始 mutual objective
-  在 held-out 上有效降低 branch discrepancy，不能宣称最终排序增益。
+  永久证伪或已获 mixed-training 授权。Dual-prior 当前只能宣称 direct targets 可学、原始 mutual objective
+  在 held-out 上有效降低 branch discrepancy，以及首个 gate objective 可被优化；由于 key AP protection 失败且
+  没有 query-grouped pool，不能宣称当前 gate 接法获采用或最终排序增益。
 
 ## 7. 验证与入口
 
@@ -249,6 +276,7 @@ docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
 docs/hallucination_relative_tail_pilot_v2d.md     relative R1 单-cell 修复试验
 docs/dual_prior_evidence_pilot_v1.md              dual-prior gold、D0–D3 与下一门
 docs/dual_prior_mutual_distillation_pilot_v1.md   原始 mutual distillation 三种子结果
+docs/dual_prior_reward_gate_pilot_v1.md           shared-gradient gate 三种子结果与 head-only repair
 docs/clir_supervision_protocol.md                  外部监督与 sparse-mask 契约
 docs/decision_history.md                          历史路线与转向理由
 
