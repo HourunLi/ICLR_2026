@@ -116,11 +116,56 @@ v1 从 train-primary 选择 64 条不同 query，32 correct / 32 incorrect，并
 个 query。Mistral-24B primary 原始 run 为 60/64 schema-valid；4 条只含 quote 空白漂移或零基索引错误。
 确定性合同修复器完成 10 处 whitespace-equivalent quote alignment 和 1 处 derived onset index，强制
 保证 path/status/reason/confidence/summary 不变。最终 64/64 token-map-valid，45 clean / 19
-hallucinated。该结果仍是 candidate Silver，等待 secondary、agreement 和裁决。
+hallucinated。secondary 回收后 path agreement 为 `81.25%`、kappa `0.5766`；22 条阻塞分歧经内部盲审，
+最终冻结为 41 clean / 23 hallucinated。共同判 positive 的 15 条只有 `5/15` onset exact match，因此标签
+仍是 Silver pipeline pilot，不是人工 Gold。
 
-协议和当前停止点见 `docs/hallucination_localization_pilot_v1.md`。
+v1 的 contaminated onset-tail H1/H2 虽有 path signal，却没有超过 token absolute-position baseline，
+exact onset `±5` 全为 `0/6`。v2 随后把现有 claim reviews 物化为 sparse reviewed-span target：S1 span AP
+`.4156` 高于 S0 onset-tail `.3713` 与 position `.3933`，但 paired bootstrap 区间跨 0；exact onset 仍未
+通过。协议和冻结结果见 `docs/hallucination_localization_pilot_v1.md` 与
+`docs/hallucination_localization_pilot_v2.md`。
 
-## 7. 已拒绝或暂缓的选择
+## 7. Full-tail 撤销审计与 v2b 直接比较
+
+### 7.1 为什么撤销“抛弃 tail”的强表述
+
+历史文档混用了两类假设：onset-tail classification 把 onset 后全部 token 标为 hallucinated；negative-tail
+reward shaping 则把 onset 后全部 token value 压低。v2 的 S0/S1 足以让 onset-tail classification 不成为
+当前首选，但 S1−S0 bootstrap interval `[-.0319,+.1277]` 跨 0，不能永久否证。v1 H2 的 shaping 虽未过
+locality gate，却从未和当前 S1 sparse target 配对，也不能据此永久否证 full-tail shaping。
+
+语义审计进一步显示，full tail 与 token ground truth 明显不同：train 的 3,220 个 tail token 中 2,237
+个未审、61 个明确 supported；dev 的 1,460 个中 805 个未审、127 个明确 supported。full tail 因而只能
+定义为“首错后整段 reward 受污染”的独立假设，而不能称为 token hallucination label。是否惩罚错误后的
+正确恢复步骤属于 reward semantics，不能由 sparse labels 推导。
+
+因此先冻结 `tail_hypothesis_audit_v2b.json`，其正式裁决是：已有证据不足以永久抛弃 tail；在完成直接
+比较前仍不得用于 mixed/test training。
+
+### 7.2 冻结比较与结果
+
+v2b 在同一 48/16 split、seed 42、5 epochs、架构、features、correctness BCE 和 S1 sparse BCE 下，只改
+`tail_weight=0/.1/.5`。预设 guards 要求相对 T0 同时改善 tail−pre 与 tail−clean gap，explicit-token
+value-risk AP 不下降，span AP 最多下降 `.02`，correctness AUROC 最多下降 `.05`。
+
+轻权重 T1 `.1` 失败。历史权重 T2 `.5` 的 span AP `.4535`、value-risk AP `.5002`、correctness AUROC
+`.9524`，tail−pre `-.3097`、tail−clean `-2.7142`，通过全部 point-estimate guards。T2−T0 paired
+bootstrap 的 tail−pre gap 为 `-.6421 [-1.4337,-.0868]`，value-risk AP 为
+`+.0560 [+.0082,+.1077]`；span AP interval 仍跨 0。所有 exact-onset `±5` 仍为 `0/6`。
+
+冻结裁决是：**不永久抛弃 full-tail shaping，保留 T2 `.5` 进入扩大 validation 与多 seed 的 matched
+T0/T2 比较；不授权 mixed training、测试集、Best-of-N 或 formal claim。** onset-tail classification S0
+仍未被选择，但也没有被永久证伪。审计、协议、机器结果和解释分别为：
+
+```text
+configs/hallucination_localization_v2/tail_hypothesis_audit_v2b.json
+configs/hallucination_localization_v2/tail_comparison_protocol_v2b.json
+configs/hallucination_localization_v2/tail_comparison_result_v2b.json
+docs/hallucination_tail_comparison_v2b.md
+```
+
+## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。
 - 不把 correctness 等同于 reasoning equivalence 或 hallucination label。
@@ -128,11 +173,12 @@ hallucinated。该结果仍是 candidate Silver，等待 secondary、agreement �
 - NLL/off-policy score 先作为 diagnostic，不在首轮设硬 gate。
 - consistency loss 暂不修改；旧 tiny sweep 的权重不冻结为新默认。
 - localization 首轮 `pseudo_tail_weight=0`，避免未校准 head 循环自训练。
+- 不采用本轮失败的 light tail `.1`；full-tail `.5` 只保留作扩大验证，不等于 mixed-training 授权。
 - consistency、localization、dual prior 首轮分开训练，避免无法归因。
 - dual-prior/reconstruction 不用全零或 same-candidate pooling 伪造缺失 external targets。
 - `pilot_test/final_test` 在 validation/calibration 冻结前不用于选择。
 
-## 8. 详细历史入口
+## 9. 详细历史入口
 
 - `docs/stage1_results.md`：Stage 1 small-scale real 结果
 - `docs/stage1b_v4_protocol.md`：冻结但仅诊断的 Stage 1B v4
@@ -144,3 +190,4 @@ hallucinated。该结果仍是 candidate Silver，等待 secondary、agreement �
 - `configs/verifier_selection_v1/`：relation verifier 双标 selection set
 - `configs/on_policy_pilot0_v1a/`：v1a labels、manifest、protocol 和结果
 - `configs/hallucination_localization_v1/`：localization selection、labels 和报告
+- `docs/hallucination_tail_comparison_v2b.md`：tail 撤销审计、direct comparison 与严格结论边界

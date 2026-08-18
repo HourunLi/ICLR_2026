@@ -279,6 +279,11 @@ baseline，任何 cell 都没有一个 onset 落在 `±5`。train-only threshold
 H2 将 dev tail margin violation 降为 `0%`，但 mean token value 同时变成 clean `-2.55`、pre-onset
 `-3.84`、tail `-4.33`。tail 相对更负，却不是局部下调，故 negative-tail locality 不通过。
 
+这里的裁决只表示 **v1 H2 未通过当轮 locality gate**，不构成对 full-tail hypothesis 的永久否证。
+H2 同时使用 contaminated onset-tail classification，未与后来保留的 S1 sparse-span target 直接比较。
+2026-08-18 的 v2b 撤销审计因此重新冻结了 matched T0/T1/T2；其中 `.5` full-tail cell 通过 pilot guards，
+仅保留作扩大 validation 与多 seed 对照。见 `docs/hallucination_tail_comparison_v2b.md`。
+
 机器可读结论在 `training_result_v1.json`：engineering pipeline passed、path ranking promising；
 `onset_localization_gate_passed=false`、`negative_tail_locality_gate_passed=false`、
 `authorize_pseudo_tail=false`、`authorize_mixed_3968_row_mechanism_run=false`。

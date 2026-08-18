@@ -6,6 +6,11 @@
 
 证据等级：`pipeline pilot`，不是人工 Gold 或 formal mechanism evidence
 
+> 后续状态说明（2026-08-18）：本文件冻结的是 v2 span-target 选择。第 6 节的“不启用 negative-tail”是
+> **v2 当时未授权**，不是永久否证。用户要求撤销审计后，v2b 已在当前 S1 target 上完成 matched
+> `tail_weight=0/.1/.5` 比较；`.5` 通过 point-estimate pilot guards，现仅保留作扩大 validation 与多
+> seed 比较。见 `docs/hallucination_tail_comparison_v2b.md`。
+
 ## 1. 本轮修复什么
 
 v1 用 `hallucination_onset` 生成 contaminated-tail 标签：首错之前为 0，首错及之后全部为 1。它虽然
@@ -117,7 +122,7 @@ constrained decoder，并与 raw first-crossing 同时比较；不能把 post-ho
 - 保留 S1 unweighted sparse claim-span BCE，作为后续扩大数据与多 seed 验证的 token branch；
 - exact onset gate 仍为 false；
 - 不启用 pseudo-tail；
-- 不启用 negative-tail value shaping；
+- 在 v2 冻结点不启用 negative-tail value shaping；这不是永久否证，后续必须另发 matched protocol；
 - 不跑 mixed 3968-row mechanism training；
 - 不读取 pilot/final test；
 - 不宣称 hallucination localization 改善 Best-of-N。
@@ -134,3 +139,21 @@ run_artifacts/hallucination_localization_v2/pilot_span_v2a/
 ```
 
 这些标签继承 v1 双 AI 标注与内部盲审裁决的证据边界，仍然不是人工 Gold。
+
+## 7. 后续 v2b 撤销审计（不回写 v2 结果）
+
+v2b 先确认旧证据不足以永久抛弃 full-tail shaping，再以相同 S1/data/seed/架构/预算直接比较
+`tail_weight=0/.1/.5`。`.1` 失败，`.5` 的 span AP `.4535`、explicit-token value-risk AP `.5002`、
+correctness AUROC `.9524`，并通过 relative locality；因此保留 `.5` 进入扩大 validation 与多 seed
+验证。它仍未获 mixed training 授权，也没有解决 exact onset（`±5 = 0/6`）。
+
+这项后续结果不把 full tail 改写成 token 标签：dev full tail 的 1,460 个 token 中，805 个未审，已审
+部分还有 127 个 supported token。其语义只能是 error-contamination reward hypothesis。冻结审计、协议和
+结果见：
+
+```text
+configs/hallucination_localization_v2/tail_hypothesis_audit_v2b.json
+configs/hallucination_localization_v2/tail_comparison_protocol_v2b.json
+configs/hallucination_localization_v2/tail_comparison_result_v2b.json
+docs/hallucination_tail_comparison_v2b.md
+```

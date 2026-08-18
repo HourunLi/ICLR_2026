@@ -114,5 +114,9 @@ Stage 1B v4 的 train 4096 行与 validation 8000 行仍保持 outcome-only。�
 - row/query/token hash、annotation provenance、target/mask 长度与取值均通过；
 - S1 sparse span BCE 的 point-estimate token gate 通过，但 bootstrap 区间跨 0，exact onset gate 失败。
 
-当前下一步是单独冻结 boundary/segment onset Pilot；在它通过前不启用 pseudo-tail、negative-tail shaping
-或 mixed-data mechanism run。完整结果见 `docs/hallucination_localization_pilot_v2.md`。
+后续 v2b 撤销审计确认：旧证据不足以永久否证 full-tail shaping。相同 S1/data/seed/预算下，
+`tail_weight=.5` 通过预设 point-estimate guards，现只允许进入扩大 validation 与多 seed 的 matched T0/T2
+比较；`.1` cell 不保留。full tail 有意覆盖 supported/unreviewed post-onset token，是独立
+error-contamination reward hypothesis，不是 `token_hallucination_target`。boundary/onset 仍须单独验证；
+pseudo-tail 与 mixed-data mechanism run 继续禁止。完整结果见
+`docs/hallucination_tail_comparison_v2b.md` 与 `docs/hallucination_localization_pilot_v2.md`。

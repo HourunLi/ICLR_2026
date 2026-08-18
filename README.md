@@ -17,7 +17,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | correctness baseline | `strict_swift / encoded_swift / clir` 共用候选、split 和预算 | correctness 只监督 outcome，不伪造机制标签 |
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
-| hallucination localization | S1：对已审 claim span 做 unweighted sparse token BCE；path/onset 分开判门 | unreviewed token 必须 mask；exact onset 当前未通过 |
+| hallucination localization | S1 sparse token BCE；另保留 T2 `.5` full-tail value shaping 做扩大验证 | full tail 是 error-contamination reward 假设，不是 token 真值；exact onset 未通过 |
 | dual-prior localization | 等 consistency 与 hallucination 模块分别验证后再做 | key/complete/reconstruction 必须来自外部 target |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
@@ -45,20 +45,27 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 - 四个 matched 5-epoch cell 中，unweighted sparse S1 的 dev span-token AP `.416`，超过 onset-tail S0
   `.371` 和 absolute-position `.393`；claim-mean AP `.464` 也超过 position `.422`。因此 point-estimate
   token gate 通过并保留 S1。2,000 次 query bootstrap 区间仍跨 0，不能视为稳定机制证据。
-- exact onset 仍未通过：S1 fixed MAE 从 `134.2` 降到 `82.5`，但六个 positive 的 `±5` 仍为 `0/6`，
-  train-only calibration 不能修复。pseudo-tail、negative-tail shaping 和 mixed-data run 继续禁止。
+- v2b 撤销审计确认旧证据不足以永久否证 tail。matched T0/T1/T2 中，T2（S1 + full-tail
+  `weight=.5`）的 span AP `.454`、explicit-token value-risk AP `.500`、correctness AUROC `.952`，通过全部
+  预设 point-estimate guards；其相对 T0 的 tail−pre gap bootstrap difference 为 `-.642`
+  `[-1.434,-.087]`，value-risk AP difference 为 `+.056` `[+.008,+.108]`。因此 T2 仅获扩大 validation 与
+  多 seed 比较资格；轻权重 T1 失败，mixed-data run 未获授权。
+- exact onset 仍未通过：T0/T2 的 fixed MAE 为 `82.5/71.7`，六个 positive 的 `±5` 均为 `0/6`。
+  pseudo-tail 继续禁止；full tail 不得称为 token hallucination ground truth。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-Hallucination Localization v2 已冻结为 `completed_span_token_gate_passed_onset_gate_failed`。下一轮不要再
-调 class weight 或把 path MIL 混进 S1；应单独冻结 causal boundary/segment objective 或 transition-
-constrained onset decoder，并与 raw first-crossing 对照。之后扩大 positive labels、跑多 seed，只有 span
-ranking 和 onset 两道门都稳定后才讨论 pseudo-tail 或 mixed-data mechanism run。
+Hallucination Localization v2b 已冻结为 `completed_retain_tail_for_larger_validation`。下一轮并行但分开做：
+一条在扩大 validation 上用多个训练 seed matched 比较 T0（S1 only）与 T2（S1 + `.5` full tail），继续检查
+relative locality、semantic value、span 和 correctness 四门；另一条单独验证 causal boundary/segment
+objective 或 transition-constrained onset decoder。两条都稳定前，不进入 pseudo-tail 或 mixed-data
+mechanism run。
 
 完整停止条件和标签定义见
+[Hallucination Full-Tail v2b](docs/hallucination_tail_comparison_v2b.md) 与
 [Hallucination Localization Pilot v2](docs/hallucination_localization_pilot_v2.md)。
 
 ## 受保护的数据契约
@@ -115,6 +122,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 - [docs/handoff.md](docs/handoff.md)：当前可执行状态、artifact 和下一步
 - [docs/proposal.md](docs/proposal.md)：研究假设、目标函数与完整 ablation 设计
 - [docs/hallucination_localization_pilot_v2.md](docs/hallucination_localization_pilot_v2.md)：当前模块结果
+- [docs/hallucination_tail_comparison_v2b.md](docs/hallucination_tail_comparison_v2b.md)：tail 撤销审计、
+  matched 比较与保留边界
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的
