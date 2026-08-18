@@ -19,6 +19,7 @@ from src.consistency_localized_reward import (
     path_hallucination_probability,
     path_level_hallucination_mil,
     path_no_hallucination_log_probability,
+    relative_tail_margin_loss,
 )
 from train_clir import _component_counts, make_config, parse_args
 
@@ -278,6 +279,87 @@ def test_explicit_sparse_hallucination_target_overrides_onset_tail_and_weights_p
     assert tail["token_bce"].item() == pytest.approx(torch.log(torch.tensor(2.0)).item())
 
 
+def test_relative_tail_margin_is_shift_invariant_and_anchors_every_tail_token():
+    values = torch.tensor([[2.0, 1.0, 2.0, 1.0]], requires_grad=True)
+    mask = torch.ones_like(values)
+    onset = torch.tensor([2])
+    loss = relative_tail_margin_loss(values, mask, onset, None, margin=0.5)
+    shifted = relative_tail_margin_loss(values - 17.0, mask, onset, None, margin=0.5)
+
+    assert loss.item() == pytest.approx(0.5)
+    assert shifted.item() == pytest.approx(loss.item())
+    loss.backward()
+    assert torch.all(values.grad[0, :2] < 0)
+    assert values.grad[0, 2] > 0
+    assert values.grad[0, 3] == 0
+    assert values.grad.sum().item() == pytest.approx(0.0, abs=1e-7)
+
+
+def test_relative_tail_margin_excludes_onset_zero_and_averages_rows_equally():
+    values = torch.tensor(
+        [
+            [0.0, 0.0, 1.0, 1.0],
+            [9.0, 9.0, 9.0, 9.0],
+            [0.0, 1.0, 0.0, 0.0],
+        ],
+        requires_grad=True,
+    )
+    mask = torch.ones_like(values)
+    onset = torch.tensor([2, 0, -1])
+    loss = relative_tail_margin_loss(values, mask, onset, None, margin=0.5)
+
+    assert loss.item() == pytest.approx(2.25)
+    loss.backward()
+    assert torch.all(values.grad[1:] == 0)
+
+
+def test_zero_relative_tail_weight_preserves_old_loss_dictionary_and_total():
+    shared = {
+        "hidden_dim": 8,
+        "projection_dim": 4,
+        "tail_weight": 0.0,
+        "pseudo_tail_weight": 0.0,
+        "mil_weight": 0.0,
+        "token_reward_weight": 0.0,
+        "progress_weight": 0.0,
+        "prior_weight": 0.0,
+        "consistency_weight": 0.0,
+        "hallucination_target_mode": "explicit",
+    }
+    control = ConsistencyLocalizedReward(
+        RewardConfig(**shared, relative_tail_weight=0.0)
+    )
+    candidate = ConsistencyLocalizedReward(
+        RewardConfig(**shared, relative_tail_weight=0.5)
+    )
+    candidate.load_state_dict(control.state_dict())
+    batch = {
+        "hidden_states": torch.randn(2, 4, 8),
+        "mask": torch.ones(2, 4),
+        "correctness": torch.tensor([1.0, 0.0]),
+        "hallucination_onset": torch.tensor([2, -1]),
+        "onset_label_mask": torch.tensor([True, True]),
+        "token_hallucination_target": torch.tensor(
+            [[0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 0.0]]
+        ),
+        "token_hallucination_mask": torch.ones(2, 4, dtype=torch.bool),
+    }
+
+    _, control_losses = control.training_step(batch)
+    _, candidate_losses = candidate.training_step(batch)
+
+    assert "localization_relative_tail_margin" not in control_losses
+    assert "localization_relative_tail_margin" in candidate_losses
+    for key, value in control_losses.items():
+        if key != "total":
+            assert candidate_losses[key].item() == pytest.approx(value.item())
+    expected = (
+        control_losses["total"]
+        + 0.5 * candidate_losses["localization_relative_tail_margin"]
+    )
+    assert candidate_losses["total"].item() == pytest.approx(expected.item())
+
+
 def test_localization_applicable_count_follows_the_frozen_target_mode():
     batch = {
         "hidden_states": torch.zeros(1, 4, 2),
@@ -299,6 +381,16 @@ def test_localization_applicable_count_follows_the_frozen_target_mode():
         losses,
         hallucination_target_mode="explicit",
     )["localization_token_bce"] == 2
+
+    relative_losses = {
+        **losses,
+        "localization_relative_tail_margin": torch.tensor(0.0),
+    }
+    assert _component_counts(
+        batch,
+        relative_losses,
+        hallucination_target_mode="explicit",
+    )["localization_relative_tail_margin"] == 2
 
 
 def test_sparse_hallucination_targets_collate_with_their_explicit_mask(tmp_path: Path):

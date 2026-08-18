@@ -11,6 +11,10 @@ from scripts.run_hallucination_localization_pilot_v2 import (
     weight_args,
 )
 from scripts.run_hallucination_tail_cv_matrix_v2c import matrix_jobs
+from scripts.summarize_hallucination_relative_tail_v2d import (
+    relative_tail_coverage,
+    relative_tail_diagnostics,
+)
 from scripts.summarize_hallucination_tail_cv_v2c import adoption_decision
 from scripts.summarize_hallucination_tail_comparison_v2b import (
     paired_bootstrap,
@@ -20,6 +24,7 @@ from scripts.summarize_hallucination_tail_comparison_v2b import (
 )
 from scripts.summarize_hallucination_span_pilot_v2 import select_span_cell
 from src.clir_real_data import load_protocol
+from src.clir_data import read_jsonl
 from src.clir_supervision import output_token_ids_sha256
 
 
@@ -136,6 +141,7 @@ def test_pilot_v2_cells_keep_downstream_shaping_off_and_change_only_declared_fac
     assert s3[s3.index("--mil_weight") + 1] == "0.25"
     for args in (s0, s3):
         assert args[args.index("--tail_weight") + 1] == "0.0"
+        assert args[args.index("--relative_tail_weight") + 1] == "0.0"
         assert args[args.index("--pseudo_tail_weight") + 1] == "0.0"
         assert args[args.index("--consistency_weight") + 1] == "0.0"
         assert args[args.index("--prior_weight") + 1] == "0.0"
@@ -152,6 +158,68 @@ def test_pilot_v2_launcher_allows_explicit_per_cell_tail_ablation():
     assert args[args.index("--tail_weight") + 1] == "0.1"
     assert args[args.index("--hallucination_weight") + 1] == "1.0"
     assert args[args.index("--mil_weight") + 1] == "0.0"
+
+
+def test_pilot_v2_launcher_allows_relative_tail_without_absolute_tail():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/training_protocol_v2.json"
+    )
+    protocol["cells"]["s1_span_bce"]["relative_tail_weight"] = 0.5
+
+    args = weight_args(protocol, "s1_span_bce")
+
+    assert args[args.index("--tail_weight") + 1] == "0.0"
+    assert args[args.index("--relative_tail_weight") + 1] == "0.5"
+    assert args[args.index("--pseudo_tail_weight") + 1] == "0.0"
+
+
+def test_relative_tail_v2d_protocol_freezes_anchor_coverage_and_only_r1_cell():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/relative_tail_protocol_v2d.json"
+    )
+    cell = protocol["cells"]["r1_span_relative_full_tail"]
+    args = weight_args(protocol, "r1_span_relative_full_tail")
+
+    assert set(protocol["cells"]) == {"r1_span_relative_full_tail"}
+    assert cell["tail_weight"] == 0.0
+    assert cell["relative_tail_weight"] == 0.5
+    assert args[args.index("--tail_weight") + 1] == "0.0"
+    assert args[args.index("--relative_tail_weight") + 1] == "0.5"
+    for split, input_name in (("train", "dense_train"), ("dev", "localization_dev")):
+        rows = read_jsonl(ROOT / protocol["inputs"][input_name]["path"])
+        assert relative_tail_coverage(rows) == protocol["relative_anchor_audit"][split]
+
+
+def test_relative_tail_diagnostic_excludes_onset_zero_and_uses_per_row_anchor():
+    rows = [
+        {
+            "id": "eligible",
+            "hallucination_onset": 2,
+            "output_token_ids": [1, 2, 3, 4],
+            "clir_token_values": [1.0, 1.0, 0.0, -1.0],
+        },
+        {
+            "id": "no-anchor",
+            "hallucination_onset": 0,
+            "output_token_ids": [1, 2],
+            "clir_token_values": [99.0, 99.0],
+        },
+        {
+            "id": "clean",
+            "hallucination_onset": -1,
+            "output_token_ids": [1, 2],
+            "clir_token_values": [99.0, 99.0],
+        },
+    ]
+
+    diagnostics = relative_tail_diagnostics(rows, margin=0.5)
+
+    assert diagnostics["eligible_rows_with_onset_greater_than_zero"] == 1
+    assert diagnostics["eligible_tail_tokens"] == 2
+    assert diagnostics["excluded_row_ids"] == ["no-anchor"]
+    assert diagnostics["eligible_tail_token_relative_margin_violation_rate"] == 0.0
+    assert diagnostics["row_mean_tail_minus_pre_onset_mean"] == -1.5
+    assert diagnostics["row_mean_relative_tail_hinge_squared"] == 0.0
 
 
 def test_tail_cv_partition_is_deterministic_stratified_and_exhaustive():

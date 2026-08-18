@@ -42,6 +42,7 @@ class RewardConfig:
     projection_dim: int = 256
     consistency_margin: float = 0.2
     negative_tail_margin: float = 0.5
+    relative_tail_margin: float = 0.5
     hallucination_target_mode: str = "auto"
     hallucination_positive_weight: float = 1.0
     pseudo_onset_threshold: float = 0.5
@@ -58,6 +59,7 @@ class RewardConfig:
     mil_weight: float = 0.25
     token_reward_weight: float = 0.5
     tail_weight: float = 0.5
+    relative_tail_weight: float = 0.0
     pseudo_tail_weight: float = 0.1
     progress_weight: float = 0.25
     prior_weight: float = 0.25
@@ -129,6 +131,10 @@ class RewardConfig:
             raise ValueError("encoder_dropout must be in [0, 1)")
         if self.negative_consistency_weight < 0.0:
             raise ValueError("negative_consistency_weight must be non-negative")
+        if not math.isfinite(self.relative_tail_margin) or self.relative_tail_margin <= 0.0:
+            raise ValueError("relative_tail_margin must be positive")
+        if not math.isfinite(self.relative_tail_weight) or self.relative_tail_weight < 0.0:
+            raise ValueError("relative_tail_weight must be non-negative")
         if self.hallucination_target_mode not in {"auto", "onset_tail", "explicit"}:
             raise ValueError(
                 "hallucination_target_mode must be one of: auto, onset_tail, explicit"
@@ -661,6 +667,16 @@ class ConsistencyLocalizedReward(nn.Module):
             total = total + self.config.hallucination_weight * loc_losses["token_bce"]
             total = total + self.config.token_reward_weight * loc_losses["token_reward"]
             total = total + self.config.tail_weight * loc_losses["tail_margin"]
+            if self.config.relative_tail_weight > 0.0:
+                relative_tail = relative_tail_margin_loss(
+                    outputs["token_values"],
+                    outputs["mask"],
+                    batch.get("hallucination_onset"),
+                    onset_label_mask=batch.get("onset_label_mask"),
+                    margin=self.config.relative_tail_margin,
+                )
+                losses["localization_relative_tail_margin"] = relative_tail
+                total = total + self.config.relative_tail_weight * relative_tail
 
         if "path_hallucinated" in batch:
             mil_loss = path_level_hallucination_mil(
@@ -1023,6 +1039,72 @@ def hallucination_localization_losses(
     return {"token_bce": token_bce, "token_reward": token_reward, "tail_margin": tail_margin}
 
 
+def relative_tail_margin_loss(
+    token_values: Tensor,
+    mask: Tensor,
+    onset: Optional[Tensor],
+    onset_label_mask: Optional[Tensor],
+    margin: float,
+) -> Tensor:
+    """Lower every post-onset value relative to its own pre-onset mean.
+
+    Each eligible row is averaged before rows are averaged, so long tails do
+    not dominate. The pre-onset mean remains in the autograd graph: a uniform
+    value shift cancels exactly instead of satisfying an absolute negative
+    margin. Rows with onset 0 have no within-row anchor and are excluded.
+    """
+
+    if token_values.ndim != 2 or mask.shape != token_values.shape:
+        raise ValueError("token_values and mask must share [batch, time] shape")
+    if not math.isfinite(margin) or margin <= 0.0:
+        raise ValueError("relative tail margin must be positive")
+    device = token_values.device
+    mask_bool = mask.to(device=device).bool()
+    batch_size, time = token_values.shape
+    if onset is None:
+        return token_values.sum() * 0.0
+    onset = onset.to(device=device).long()
+    if onset.shape != (batch_size,):
+        raise ValueError("hallucination_onset must have shape [batch]")
+    if onset_label_mask is None:
+        onset_label_mask = torch.ones(batch_size, dtype=torch.bool, device=device)
+    else:
+        onset_label_mask = onset_label_mask.to(device=device).bool()
+        if onset_label_mask.shape != (batch_size,):
+            raise ValueError("onset_label_mask must have shape [batch]")
+
+    lengths = mask_bool.long().sum(dim=1)
+    invalid_onset = onset_label_mask & (onset >= lengths) & (onset >= 0)
+    if invalid_onset.any():
+        bad = torch.nonzero(invalid_onset, as_tuple=False).flatten().detach().cpu().tolist()
+        raise ValueError(f"hallucination_onset is outside the valid token range for rows {bad}")
+
+    positions = torch.arange(time, device=device)[None, :]
+    has_real_onset = onset_label_mask & (onset >= 0)
+    pre = has_real_onset[:, None] & (positions < onset[:, None]) & mask_bool
+    tail = has_real_onset[:, None] & (positions >= onset[:, None]) & mask_bool
+    pre_count = pre.sum(dim=1)
+    tail_count = tail.sum(dim=1)
+    eligible_rows = (pre_count > 0) & (tail_count > 0)
+    if not eligible_rows.any():
+        return token_values.sum() * 0.0
+
+    pre_mean = (
+        (token_values * pre.to(dtype=token_values.dtype)).sum(dim=1)
+        / pre_count.clamp_min(1).to(dtype=token_values.dtype)
+    )
+    violations = F.relu(
+        token_values
+        - pre_mean[:, None]
+        + torch.as_tensor(margin, dtype=token_values.dtype, device=device)
+    ).pow(2)
+    per_row = (
+        (violations * tail.to(dtype=violations.dtype)).sum(dim=1)
+        / tail_count.clamp_min(1).to(dtype=violations.dtype)
+    )
+    return per_row[eligible_rows].mean()
+
+
 def path_level_hallucination_mil(
     hallucination_logits: Tensor,
     mask: Tensor,
@@ -1308,4 +1390,5 @@ __all__ = [
     "path_level_hallucination_mil",
     "prism_style_consistency_loss",
     "pseudo_onset_tail_loss",
+    "relative_tail_margin_loss",
 ]

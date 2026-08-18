@@ -145,6 +145,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mil_weight", type=float, default=0.25)
     parser.add_argument("--token_reward_weight", type=float, default=0.5)
     parser.add_argument("--tail_weight", type=float, default=0.5)
+    parser.add_argument("--relative_tail_weight", type=float, default=0.0)
     parser.add_argument("--pseudo_tail_weight", type=float, default=0.1)
     parser.add_argument("--progress_weight", type=float, default=0.25)
     parser.add_argument("--prior_weight", type=float, default=0.25)
@@ -154,6 +155,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--gate_prior_weight", type=float, default=0.25)
     parser.add_argument("--reconstruction_weight", type=float, default=0.1)
     parser.add_argument("--negative_tail_margin", type=float, default=0.5)
+    parser.add_argument("--relative_tail_margin", type=float, default=0.5)
     parser.add_argument(
         "--hallucination_target_mode",
         default="auto",
@@ -206,6 +208,7 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         mil_weight=args.mil_weight,
         token_reward_weight=args.token_reward_weight,
         tail_weight=args.tail_weight,
+        relative_tail_weight=args.relative_tail_weight,
         pseudo_tail_weight=args.pseudo_tail_weight,
         progress_weight=args.progress_weight,
         prior_weight=args.prior_weight,
@@ -215,6 +218,7 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         gate_prior_weight=args.gate_prior_weight,
         reconstruction_weight=args.reconstruction_weight,
         negative_tail_margin=args.negative_tail_margin,
+        relative_tail_margin=args.relative_tail_margin,
         hallucination_target_mode=args.hallucination_target_mode,
         hallucination_positive_weight=args.hallucination_positive_weight,
         pseudo_onset_threshold=args.pseudo_onset_threshold,
@@ -434,6 +438,8 @@ def _component_counts(
     onset = batch.get("hallucination_onset", torch.full((batch_size,), -1, device=mask.device)).long()
     positions = torch.arange(mask.shape[1], device=mask.device)[None, :]
     tail = onset_mask[:, None] & (onset[:, None] >= 0) & (positions >= onset[:, None]) & mask
+    pre = onset_mask[:, None] & (onset[:, None] >= 0) & (positions < onset[:, None]) & mask
+    relative_tail = tail & pre.any(dim=1)[:, None]
     if "token_advantage_mask" in batch:
         reward_mask = batch["token_advantage_mask"].bool() & mask
     elif "token_advantage" in batch:
@@ -445,6 +451,7 @@ def _component_counts(
         "localization_token_bce": int(supervised_tokens.sum().item()),
         "localization_token_reward": int(reward_mask.sum().item()),
         "localization_tail_margin": int(tail.sum().item()),
+        "localization_relative_tail_margin": int(relative_tail.sum().item()),
     }
     for key, value in localization_counts.items():
         if key in losses:

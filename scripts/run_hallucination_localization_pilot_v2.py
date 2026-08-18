@@ -58,6 +58,9 @@ def weight_args(protocol: dict[str, Any], cell_name: str) -> list[str]:
             "token_reward_weight", shared["token_reward"]
         ),
         "tail_weight": cell.get("tail_weight", shared["tail"]),
+        "relative_tail_weight": cell.get(
+            "relative_tail_weight", shared.get("relative_tail", 0.0)
+        ),
         "pseudo_tail_weight": cell.get(
             "pseudo_tail_weight", shared["pseudo_tail"]
         ),
@@ -250,6 +253,8 @@ def main() -> None:
         "--skip_feature_finite_check",
         "--negative_tail_margin",
         str(training["negative_tail_margin"]),
+        "--relative_tail_margin",
+        str(training.get("relative_tail_margin", training["negative_tail_margin"])),
         "--hallucination_target_mode",
         cell["hallucination_target_mode"],
         "--hallucination_positive_weight",
