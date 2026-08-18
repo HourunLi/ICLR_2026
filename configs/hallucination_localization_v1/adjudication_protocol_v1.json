@@ -1,0 +1,61 @@
+{
+  "schema_version": "clir-hallucination-adjudication-protocol-v1",
+  "evidence_tier": "pipeline_pilot",
+  "base_protocol": "configs/hallucination_localization_v1/protocol_v1.json",
+  "base_protocol_sha256": "f79ea5b2dd92ca72bfb8b4d0878f952bbad0e95d1891bdc4a8d040515a231252",
+  "comparison_protocol": "configs/hallucination_localization_v1/comparison_protocol_v1.json",
+  "comparison_protocol_sha256": "78add44a16d5aea493a4efa44dd4b4690fc4453b73df17713e644569d9ddea98",
+  "inputs": {
+    "adjudication_items": "configs/hallucination_localization_v1/adjudication_items_v1.jsonl",
+    "adjudication_items_sha256": "31f8da2c5802877e9fcc30c15d21844bab14a46e46f16f51ba6d5bf77c6dd127",
+    "adjudication_lineage": "configs/hallucination_localization_v1/adjudication_lineage_v1.jsonl",
+    "adjudication_lineage_sha256": "f689e15c2d6f8a43d6e6d5c395d207087d64ad22c3ed55bf9df458cbccb99729",
+    "adjudication_resolutions": "configs/hallucination_localization_v1/adjudication_resolutions_v1.jsonl",
+    "adjudication_resolutions_sha256": "c24c33fbd74bdeea1a7214a88ef6a132b89a9e0a16b6c0ae87fc1c29250dcafc",
+    "agreement_report": "configs/hallucination_localization_v1/agreement_report_v1.json",
+    "agreement_report_sha256": "16865e301095fb4a115362b84a4f0ed92905dc8042f6833248c069916ce70d9c",
+    "all_items": "configs/hallucination_localization_v1/secondary_items_v1.jsonl",
+    "all_items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+    "all_lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+    "all_lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+    "primary_labels": "configs/hallucination_localization_v1/labels_primary_v1.jsonl",
+    "primary_labels_sha256": "1b8129982c15b2b948e4e3ec19fb1ce7da979044014673337b4cfe46a08959f7",
+    "secondary_labels": "configs/hallucination_localization_v1/labels_secondary_v1.jsonl",
+    "secondary_labels_sha256": "65f2a6702db5d042178bf89bc6b95524c47b45809656acf1933c740874cbbdd0",
+    "source_manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "source_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+  },
+  "adjudicator_disclosure": {
+    "identity": "codex_internal_blinded_claim_review_v1",
+    "reviewer_type": "internal_model_review",
+    "independent_external_adjudicator": false,
+    "item_level_correctness_visible_during_decisions": false,
+    "source_and_query_identity_visible_during_decisions": false,
+    "aggregate_correctness_cross_tab_seen_before_review": true,
+    "role_lineage_used_during_decisions": false,
+    "post_decision_caveat": "After all 22 judgments had been drafted, two A/B role mappings were exposed during implementation inspection before the resolution artifact was written.",
+    "claim_level_gold_status": "not_gold_internal_blinded_pipeline_pilot"
+  },
+  "consensus_policy": {
+    "path_and_onset_consensus_uses_primary_claim_view": true,
+    "claim_span_or_problem_status_difference_without_path_or_onset_difference_is_non_blocking": true,
+    "uncertain_paths_remain_masked": true
+  },
+  "trainability_gate": {
+    "expected_rows": 64,
+    "require_every_blocking_disagreement_resolved": true,
+    "require_zero_uncertain_rows": false,
+    "minimum_clean_rows": 12,
+    "minimum_hallucinated_rows": 12,
+    "require_exact_frozen_token_identity": true,
+    "require_no_pilot_test_access": true
+  },
+  "outputs": {
+    "adjudications_raw": "configs/hallucination_localization_v1/adjudications_raw_v1.jsonl",
+    "adjudicated_labels": "configs/hallucination_localization_v1/labels_adjudicated_v1.jsonl",
+    "supervision_annotations": "configs/hallucination_localization_v1/supervision_annotations_v1.jsonl",
+    "adjudication_report": "configs/hallucination_localization_v1/adjudication_report_v1.json"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

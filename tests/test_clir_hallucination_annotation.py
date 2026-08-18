@@ -6,6 +6,7 @@ import pytest
 
 from scripts.run_hallucination_primary_v1 import parse_annotation, prompt_for
 from src.clir_hallucination_annotation import (
+    adjudication_decision_annotation,
     build_annotation_records,
     canonical_sha256,
     char_span_to_token_span,
@@ -380,3 +381,80 @@ def test_path_kappa_and_mapped_onset_comparison():
         "earliest_problem_claim_span",
         "earliest_problem_claim_status",
     ]
+
+
+def test_compact_adjudication_selects_visible_view_and_strips_mapping_fields():
+    item = {
+        "item_id": "HLA-test",
+        "trajectory": "Premise is two. Therefore result is four.",
+        "annotation_a": {
+            "path_status": "clean",
+            "earliest_problem_claim_index": None,
+            "hallucination_onset": -1,
+            "confidence": "high",
+            "summary": "The trajectory follows the supplied premise correctly.",
+            "claim_reviews": [
+                {
+                    "claim_text": "Premise is two.",
+                    "occurrence": 0,
+                    "status": "supported",
+                    "reason": "This value is explicitly supplied by the problem.",
+                    "char_start": 0,
+                    "char_end": 15,
+                    "token_start": 0,
+                    "token_end_exclusive": 4,
+                }
+            ],
+        },
+        "annotation_b": {},
+    }
+    decision = {
+        "schema_version": "clir-hallucination-adjudication-resolution-v1",
+        "item_id": "HLA-test",
+        "adjudicator": "internal-reviewer",
+        "resolution": "annotation_a",
+        "revised_annotation": None,
+        "rationale": "The premise and calculation are both supported.",
+    }
+    annotation = adjudication_decision_annotation(decision, item)
+    assert annotation["path_status"] == "clean"
+    assert set(annotation["claim_reviews"][0]) == {
+        "claim_text",
+        "occurrence",
+        "status",
+        "reason",
+    }
+
+
+def test_compact_adjudication_requires_uncertain_for_unresolved():
+    item = {
+        "item_id": "HLA-test",
+        "trajectory": "Result is four.",
+        "annotation_a": {},
+        "annotation_b": {},
+    }
+    revised = {
+        "item_id": "HLA-test",
+        "claim_reviews": [
+            {
+                "claim_text": "Result is four.",
+                "occurrence": 0,
+                "status": "contradicted",
+                "reason": "The supplied premise yields a different result.",
+            }
+        ],
+        "path_status": "hallucinated",
+        "earliest_problem_claim_index": 0,
+        "confidence": "high",
+        "summary": "The result conflicts with the supplied premise.",
+    }
+    decision = {
+        "schema_version": "clir-hallucination-adjudication-resolution-v1",
+        "item_id": "HLA-test",
+        "adjudicator": "internal-reviewer",
+        "resolution": "unresolved",
+        "revised_annotation": revised,
+        "rationale": "The two views cannot currently be reconciled safely.",
+    }
+    with pytest.raises(ValueError, match="uncertain path"):
+        adjudication_decision_annotation(decision, item)

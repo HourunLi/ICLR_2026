@@ -36,6 +36,20 @@ ANNOTATION_KEYS = {
     "summary",
 }
 CLAIM_KEYS = {"claim_text", "occurrence", "status", "reason"}
+ADJUDICATION_RESOLUTION_KEYS = {
+    "schema_version",
+    "item_id",
+    "adjudicator",
+    "resolution",
+    "revised_annotation",
+    "rationale",
+}
+ADJUDICATION_RESOLUTIONS = {
+    "annotation_a",
+    "annotation_b",
+    "revised",
+    "unresolved",
+}
 
 
 def canonical_json(value: Any) -> str:
@@ -529,6 +543,84 @@ def validate_annotation(
         if not uncertain_indices and not problem_indices:
             raise ValueError("uncertain path needs a problem or uncertain reviewed claim")
     return spans
+
+
+def raw_annotation_from_visible(
+    visible: Mapping[str, Any],
+    *,
+    item_id: str,
+) -> dict[str, Any]:
+    """Strip deterministic mapping fields from one blinded A/B annotation view."""
+
+    claims = visible.get("claim_reviews")
+    if not isinstance(claims, list):
+        raise ValueError("Visible adjudication annotation requires claim_reviews")
+    return {
+        "item_id": item_id,
+        "claim_reviews": [
+            {key: claim[key] for key in CLAIM_KEYS}
+            for claim in claims
+        ],
+        "path_status": visible.get("path_status"),
+        "earliest_problem_claim_index": visible.get(
+            "earliest_problem_claim_index"
+        ),
+        "confidence": visible.get("confidence"),
+        "summary": visible.get("summary"),
+    }
+
+
+def adjudication_decision_annotation(
+    decision: Mapping[str, Any],
+    item: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate a compact resolution and return its complete raw annotation."""
+
+    if set(decision) != ADJUDICATION_RESOLUTION_KEYS:
+        raise ValueError(
+            "Adjudication resolution keys differ from schema: "
+            f"{sorted(set(decision) ^ ADJUDICATION_RESOLUTION_KEYS)}"
+        )
+    if decision["schema_version"] != "clir-hallucination-adjudication-resolution-v1":
+        raise ValueError("Unknown adjudication resolution schema")
+    if decision["item_id"] != item["item_id"]:
+        raise ValueError("Adjudication resolution item_id drifted")
+    if (
+        not isinstance(decision["adjudicator"], str)
+        or not decision["adjudicator"].strip()
+    ):
+        raise ValueError("Adjudication resolution requires an adjudicator")
+    if (
+        not isinstance(decision["rationale"], str)
+        or len(decision["rationale"].strip()) < 12
+    ):
+        raise ValueError("Adjudication rationale must be evidence-specific")
+    resolution = decision["resolution"]
+    if resolution not in ADJUDICATION_RESOLUTIONS:
+        raise ValueError("Unknown adjudication resolution")
+
+    if resolution in {"annotation_a", "annotation_b"}:
+        if decision["revised_annotation"] is not None:
+            raise ValueError("A/B selection cannot also carry a revised annotation")
+        visible = item.get(resolution)
+        if not isinstance(visible, Mapping):
+            raise ValueError(f"Adjudication item is missing {resolution}")
+        annotation = raw_annotation_from_visible(
+            visible,
+            item_id=str(item["item_id"]),
+        )
+    else:
+        revised = decision["revised_annotation"]
+        if not isinstance(revised, Mapping):
+            raise ValueError(f"{resolution} requires a complete revised annotation")
+        annotation = deepcopy(dict(revised))
+
+    validate_annotation(annotation, item)
+    if resolution == "revised" and annotation["path_status"] == "uncertain":
+        raise ValueError("Use unresolved, not revised, for an uncertain final path")
+    if resolution == "unresolved" and annotation["path_status"] != "uncertain":
+        raise ValueError("Unresolved adjudication must retain an uncertain path")
+    return annotation
 
 
 def content_token_offsets(
