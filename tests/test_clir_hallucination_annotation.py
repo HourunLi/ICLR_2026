@@ -12,8 +12,10 @@ from src.clir_hallucination_annotation import (
     content_token_offsets,
     locate_occurrence,
     map_annotation,
+    repair_annotation_contract,
     select_stratified_rows,
     validate_annotation,
+    whitespace_equivalent_occurrence,
 )
 
 
@@ -282,3 +284,56 @@ def test_primary_prompt_projects_only_blind_item_fields():
     assert "A trajectory" in messages[1]["content"]
     assert "query_id" not in messages[1]["content"]
     assert "reference_answer" not in messages[1]["content"]
+
+
+def test_whitespace_equivalent_quote_repair_copies_exact_trajectory_span():
+    trajectory = "First equation:\n   x = 2\nThen continue."
+    resolved, occurrence, span = whitespace_equivalent_occurrence(
+        trajectory,
+        "First equation: x = 2",
+        0,
+    )
+    assert resolved == "First equation:\n   x = 2"
+    assert occurrence == 0
+    assert trajectory[slice(*span)] == resolved
+    with pytest.raises(ValueError, match="whitespace-equivalent"):
+        whitespace_equivalent_occurrence(trajectory, "First equation: x = 3", 0)
+
+
+def test_contract_repair_changes_only_quote_location_and_derived_index():
+    item = {
+        "item_id": "HLA-test",
+        "trajectory": "Premise:\n  A = 2\nConclusion B = 5.",
+    }
+    annotation = {
+        "item_id": "HLA-test",
+        "claim_reviews": [
+            {
+                "claim_text": "Premise: A = 2",
+                "occurrence": 0,
+                "status": "supported",
+                "reason": "The trajectory establishes this premise.",
+            },
+            {
+                "claim_text": "Conclusion B = 5.",
+                "occurrence": 0,
+                "status": "unsupported",
+                "reason": "No relationship derives B from the premise.",
+            },
+        ],
+        "path_status": "hallucinated",
+        "earliest_problem_claim_index": 2,
+        "confidence": "high",
+        "summary": "The second claim is not derived from the supplied premise.",
+    }
+    repaired, operations = repair_annotation_contract(annotation, item)
+    assert repaired["claim_reviews"][0]["claim_text"] == "Premise:\n  A = 2"
+    assert repaired["earliest_problem_claim_index"] == 1
+    assert [operation["operation"] for operation in operations] == [
+        "whitespace_equivalent_quote_alignment",
+        "derive_first_problem_claim_index",
+    ]
+    assert repaired["path_status"] == annotation["path_status"]
+    assert [claim["status"] for claim in repaired["claim_reviews"]] == [
+        claim["status"] for claim in annotation["claim_reviews"]
+    ]

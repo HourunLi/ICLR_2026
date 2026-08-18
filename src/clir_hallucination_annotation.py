@@ -9,9 +9,11 @@ to the frozen output-token sequence.
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Any, Mapping, Sequence
 
 
@@ -298,6 +300,156 @@ def locate_occurrence(text: str, quote: str, occurrence: int) -> tuple[int, int]
     return start, start + len(quote)
 
 
+def _exact_occurrence_at(text: str, quote: str, start: int) -> int:
+    """Return the exact-quote occurrence index whose start offset is ``start``."""
+
+    positions: list[int] = []
+    cursor = 0
+    while True:
+        position = text.find(quote, cursor)
+        if position < 0:
+            break
+        positions.append(position)
+        cursor = position + 1
+    try:
+        return positions.index(start)
+    except ValueError as exc:
+        raise ValueError("Resolved quote start is not an exact occurrence") from exc
+
+
+def whitespace_equivalent_occurrence(
+    text: str,
+    quote: str,
+    occurrence: int,
+) -> tuple[str, int, tuple[int, int]]:
+    """Resolve a quote when its only drift is a run of whitespace.
+
+    No punctuation, casing, wording, or non-whitespace character may change.
+    The returned quote is copied verbatim from ``text`` and is therefore safe
+    for the exact-span tokenizer mapper.
+    """
+
+    if not isinstance(quote, str) or not quote.strip():
+        raise ValueError("Whitespace repair requires a non-empty quote")
+    if isinstance(occurrence, bool) or not isinstance(occurrence, int) or occurrence < 0:
+        raise ValueError("Whitespace repair occurrence must be non-negative")
+    chunks = re.findall(r"\S+", quote)
+    if not chunks:
+        raise ValueError("Whitespace repair quote contains no visible character")
+    pattern = r"\s+".join(re.escape(chunk) for chunk in chunks)
+    matches = list(re.finditer(pattern, text))
+    if occurrence >= len(matches):
+        raise ValueError(
+            "Quote is not whitespace-equivalent to the trajectory at the requested "
+            f"occurrence; found {len(matches)} candidate(s)"
+        )
+    match = matches[occurrence]
+    resolved = text[match.start() : match.end()]
+    exact_occurrence = _exact_occurrence_at(text, resolved, match.start())
+    return resolved, exact_occurrence, (match.start(), match.end())
+
+
+def annotation_decision_signature(annotation: Mapping[str, Any]) -> dict[str, Any]:
+    """Project semantic judgments while excluding quote/onset location syntax."""
+
+    return {
+        "item_id": annotation.get("item_id"),
+        "path_status": annotation.get("path_status"),
+        "confidence": annotation.get("confidence"),
+        "summary": annotation.get("summary"),
+        "claim_judgments": [
+            {
+                "status": claim.get("status"),
+                "reason": claim.get("reason"),
+            }
+            for claim in annotation.get("claim_reviews", [])
+            if isinstance(claim, Mapping)
+        ],
+    }
+
+
+def repair_annotation_contract(
+    annotation: Mapping[str, Any],
+    item: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Repair only exact-quote whitespace drift and derived onset indexing.
+
+    This function deliberately cannot revise semantic judgments.  It first
+    preserves a decision signature, makes only location-level edits, validates
+    the complete annotation contract, and then proves the decision signature
+    unchanged.
+    """
+
+    repaired = deepcopy(dict(annotation))
+    before_signature = annotation_decision_signature(repaired)
+    operations: list[dict[str, Any]] = []
+    trajectory = str(item["trajectory"])
+    claims = repaired.get("claim_reviews")
+    if not isinstance(claims, list):
+        raise ValueError("Contract repair requires a claim_reviews list")
+    for claim_index, claim in enumerate(claims):
+        if not isinstance(claim, dict):
+            raise ValueError("Contract repair requires object claim reviews")
+        quote = claim.get("claim_text")
+        occurrence = claim.get("occurrence")
+        try:
+            locate_occurrence(trajectory, quote, occurrence)
+            continue
+        except ValueError:
+            pass
+        resolved, resolved_occurrence, char_span = whitespace_equivalent_occurrence(
+            trajectory,
+            quote,
+            occurrence,
+        )
+        claim["claim_text"] = resolved
+        claim["occurrence"] = resolved_occurrence
+        operations.append(
+            {
+                "operation": "whitespace_equivalent_quote_alignment",
+                "claim_index": claim_index,
+                "original_claim_text_sha256": hashlib.sha256(
+                    str(quote).encode("utf-8")
+                ).hexdigest(),
+                "resolved_claim_text_sha256": hashlib.sha256(
+                    resolved.encode("utf-8")
+                ).hexdigest(),
+                "resolved_char_start": char_span[0],
+                "resolved_char_end": char_span[1],
+                "original_occurrence": occurrence,
+                "resolved_occurrence": resolved_occurrence,
+            }
+        )
+
+    if repaired.get("path_status") == "hallucinated":
+        problem_indices = [
+            index
+            for index, claim in enumerate(claims)
+            if claim.get("status") in PROBLEM_STATUSES
+        ]
+        if not problem_indices:
+            raise ValueError("Cannot repair hallucinated onset without a problem claim")
+        expected = problem_indices[0]
+        observed = repaired.get("earliest_problem_claim_index")
+        if observed != expected:
+            repaired["earliest_problem_claim_index"] = expected
+            operations.append(
+                {
+                    "operation": "derive_first_problem_claim_index",
+                    "original_index": observed,
+                    "resolved_index": expected,
+                }
+            )
+
+    validate_annotation(repaired, item)
+    after_signature = annotation_decision_signature(repaired)
+    if before_signature != after_signature:
+        raise AssertionError("Contract repair changed semantic annotation judgments")
+    if not operations:
+        raise ValueError("Annotation is already valid; no contract repair was applied")
+    return repaired, operations
+
+
 def validate_annotation(
     annotation: Mapping[str, Any],
     item: Mapping[str, Any],
@@ -503,6 +655,7 @@ __all__ = [
     "PATH_STATUSES",
     "atomic_write_json",
     "atomic_write_jsonl",
+    "annotation_decision_signature",
     "build_annotation_records",
     "canonical_json",
     "canonical_sha256",
@@ -513,6 +666,8 @@ __all__ = [
     "make_item_id",
     "map_annotation",
     "read_jsonl",
+    "repair_annotation_contract",
     "select_stratified_rows",
     "validate_annotation",
+    "whitespace_equivalent_occurrence",
 ]
