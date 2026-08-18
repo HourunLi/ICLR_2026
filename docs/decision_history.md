@@ -1,6 +1,6 @@
 # CLIR 决策与实验历史
 
-最后更新：2026-08-18
+最后更新：2026-08-19
 
 本文件保存已经完成、被替换或不再作为当前入口的决策。它不是 runbook；当前方案看 `README.md`，当前
 执行状态看 `docs/handoff.md`。冻结 config、artifact 和原审查文档仍是细节事实来源，不因本摘要而覆盖。
@@ -311,6 +311,19 @@ shared path 干扰了更稀疏的 key 分支。direct priors 与原 mutual 方�
 协议：用 detached token features 计算 auxiliary gate alignment，只更新 gate-head 参数，并以梯度回归证明
 shared encoder/key/complete heads 不接收该 auxiliary 梯度。通过后再进入 query-grouped Best-of-N。
 
+### 7.10 方法身份复核与用户裁决：不转 head-only，先把项目原方法训起来
+
+后续复核 core code、proposal 与 git 历史确认：v1 G1 使用的正是项目最初设计的 shared-gradient gate，而
+head-only 只是结果后的 repair 建议，从未实现或运行。G1 已经把 gate→fused-prior MSE 降低 `79.6%`，因此
+不能笼统写成“原方法无效”；v1 准确的失败对象只是预注册 key-AP protection，并且它使用每题一条、48/16 的
+小数据，无法评价最终 reward ranking。
+
+用户据此裁决：保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient gate，不先改变
+架构。v1 的 `diagnostic_only` 结果和失败门不回写；另发 original-scale v2，把 16 个 prior-dev query 从
+checker-v5 的 4096-row outcome train 整体排除，将 48 条 prior Gold 嵌入剩余 3968 rows，并在独立 500×16
+query-grouped validation 上直接比较 G0/G1 Best-of-N。head-only 降为未执行的未来 diagnostic ablation，
+不是当前主线。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。
@@ -324,8 +337,8 @@ shared encoder/key/complete heads 不接收该 auxiliary 梯度。通过后再�
   不永久否证；重开必须显式控制 matched clean positional baseline，并发布新协议。
 - consistency、localization、dual prior 首轮分开训练，避免无法归因。
 - dual-prior/reconstruction 不用全零或 same-candidate pooling 伪造缺失 external targets。
-- 不采用首个 shared-gradient reward-gate alignment，也不以事后放宽 key-AP 门或扫描同一路径权重覆盖失败；
-  可能的 head-only repair 必须另发协议。
+- 不追溯改判首个 shared-gradient v1 pilot，也不以事后放宽 key-AP 门或扫描同一路径权重覆盖失败；项目原始
+  shared-gradient 方法改由独立 v2 训练/ranking 协议继续，head-only 暂不执行。
 - `pilot_test/final_test` 在 validation/calibration 冻结前不用于选择。
 
 ## 9. 详细历史入口

@@ -1,0 +1,122 @@
+{
+  "allowed_conclusion": "The mixed train manifest preserves complete query groups, keeps the localization-dev and ranking-validation queries out of training, and adds external key/complete targets to exactly the 48 adjudicated rows. It does not establish reward-ranking efficacy.",
+  "evidence_tier": "small-scale real",
+  "inputs": {
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25"
+    },
+    "outcome_train": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+    },
+    "prior_dev_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+      "sha256": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7"
+    },
+    "prior_train_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+      "sha256": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98"
+    },
+    "ranking_validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36"
+    }
+  },
+  "prior_membership": {
+    "dev_queries": 16,
+    "excluded_dev_query_rows": 128,
+    "prior_ranking_validation_overlap": 0,
+    "train_dev_overlap": 0,
+    "train_queries": 48
+  },
+  "protected_identity_fields": [
+    "id",
+    "query_id",
+    "output_token_ids",
+    "feature_sha256",
+    "condition_sha256",
+    "correctness"
+  ],
+  "protocol": "configs/dual_prior_original_scale_v2/data_protocol_v2.json",
+  "protocol_sha256": "8470270e6300d74710a9a95a6bcaa4de9c4cbb809af3b4c8cb9d7b36f526a9b0",
+  "ranking_validation": {
+    "all_correct_queries": 342,
+    "all_wrong_queries": 12,
+    "candidates_per_query": 16,
+    "correct": 7155,
+    "incorrect": 845,
+    "mixed_queries": 146,
+    "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+    "queries": 500,
+    "rows": 8000,
+    "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36"
+  },
+  "schema_version": "clir-dual-prior-original-scale-data-report-v2",
+  "status": "mixed_supervision_data_ready",
+  "train": {
+    "all_correct_queries": 378,
+    "all_wrong_queries": 13,
+    "candidates_per_query": 8,
+    "correct": 3590,
+    "incorrect": 378,
+    "mixed_queries": 105,
+    "path": "run_artifacts/dual_prior_original_scale_v2/data_v2/train3968_mixed.jsonl",
+    "queries": 496,
+    "rows": 3968,
+    "sha256": "3c1ac6068343328ef23d85e380985be641c564ce29d4492e6e95b1526d97f310",
+    "supervision": {
+      "consistency_pairs": {
+        "negative_different_semantic_same_style": 0,
+        "positive_same_semantic_different_style": 0
+      },
+      "eligible_component_count": 1,
+      "eligible_components": {
+        "consistency": false,
+        "dual_prior": true,
+        "onset_localization": false,
+        "path_hallucination": false,
+        "progress": false,
+        "reconstruction": false,
+        "token_advantage": false
+      },
+      "explicit_hallucination_tokens": {
+        "negative": 0,
+        "positive": 0,
+        "supervised": 0
+      },
+      "field_rows": {
+        "complete_prior_target": 48,
+        "complete_reconstruction_target": 0,
+        "domain_id": 0,
+        "hallucination_onset": 0,
+        "key_prior_target": 48,
+        "path_hallucinated": 0,
+        "progress_targets": 0,
+        "semantic_id": 0,
+        "style_id": 0,
+        "token_advantage": 0,
+        "token_hallucination_mask": 0,
+        "token_hallucination_target": 0
+      },
+      "field_tokens": {
+        "complete_prior_target": 14307,
+        "key_prior_target": 14307,
+        "progress_targets": 0,
+        "token_advantage": 0,
+        "token_hallucination_mask": 0,
+        "token_hallucination_target": 0
+      },
+      "joint_prior_rows": 48,
+      "joint_prior_tokens": 14307,
+      "path_label_values": {},
+      "positive_onset_rows": 0,
+      "provenanced_supervised_rows": 48,
+      "reconstruction_dimensions": {},
+      "rows": 3968,
+      "schema_version": "clir-supervision-coverage-v1",
+      "supervised_rows": 48,
+      "unprovenanced_supervised_rows": 0
+    }
+  }
+}

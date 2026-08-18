@@ -36,6 +36,10 @@ from src.clir_hallucination_annotation import (  # noqa: E402
 DEFAULT_PROTOCOL = (
     ROOT / "configs/dual_prior_reward_gate_v1/training_protocol_v1.json"
 )
+SUPPORTED_PROTOCOL_SCHEMAS = {
+    "clir-dual-prior-reward-gate-integration-training-protocol-v1",
+    "clir-dual-prior-original-scale-training-protocol-v2",
+}
 
 
 def resolve(value: str | Path) -> Path:
@@ -202,10 +206,7 @@ def main() -> None:
 
     protocol_path = args.protocol.resolve()
     protocol = json.loads(protocol_path.read_text(encoding="utf-8"))
-    if (
-        protocol.get("schema_version")
-        != "clir-dual-prior-reward-gate-integration-training-protocol-v1"
-    ):
+    if protocol.get("schema_version") not in SUPPORTED_PROTOCOL_SCHEMAS:
         raise ValueError("Unexpected reward-gate protocol schema")
     if args.cell not in protocol["cells"]:
         raise ValueError(f"Unknown reward-gate cell: {args.cell}")
@@ -226,11 +227,22 @@ def main() -> None:
     train_rows = read_jsonl(train_scored_path)
     dev_rows = read_jsonl(dev_scored_path)
     cell = protocol["cells"][args.cell]
+    localization_train = cell.get(
+        "localization_train",
+        cell.get("train", protocol.get("manifests", {}).get("localization_train")),
+    )
+    localization_dev = cell.get(
+        "dev", protocol.get("manifests", {}).get("localization_dev")
+    )
+    if not isinstance(localization_train, Mapping) or not isinstance(
+        localization_dev, Mapping
+    ):
+        raise ValueError("Protocol does not define localization train/dev manifests")
     expected_train_ids = [
-        row["id"] for row in read_jsonl(resolve(cell["train"]["path"]))
+        row["id"] for row in read_jsonl(resolve(localization_train["path"]))
     ]
     expected_dev_ids = [
-        row["id"] for row in read_jsonl(resolve(cell["dev"]["path"]))
+        row["id"] for row in read_jsonl(resolve(localization_dev["path"]))
     ]
     if [row["id"] for row in train_rows] != expected_train_ids:
         raise ValueError("Train scored row identities/order differ from the frozen cell")

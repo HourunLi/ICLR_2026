@@ -1,0 +1,61 @@
+{
+  "schema_version": "clir-dual-prior-original-scale-data-protocol-v2",
+  "status": "frozen_before_materialization",
+  "evidence_tier": "small-scale real",
+  "purpose": "Embed the adjudicated dual-prior supervision into the latest checker-v5 outcome-training pool while preserving complete candidate groups and holding every localization-dev query out of training.",
+  "inputs": {
+    "outcome_train": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+      "rows": 4096,
+      "queries": 512,
+      "candidates_per_query": 8
+    },
+    "ranking_validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16
+    },
+    "prior_train_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+      "sha256": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98",
+      "rows": 48
+    },
+    "prior_dev_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+      "sha256": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7",
+      "rows": 16
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "split_policy": {
+    "unit": "query_id",
+    "exclude_every_prior_dev_query_from_outcome_train": true,
+    "expected_excluded_queries": 16,
+    "expected_train_queries": 496,
+    "expected_train_rows": 3968,
+    "expected_prior_supervised_rows": 48,
+    "preserve_complete_candidate_groups": true,
+    "ranking_validation_must_be_query_disjoint": true
+  },
+  "supervision_policy": {
+    "fields": [
+      "key_prior_target",
+      "complete_prior_target"
+    ],
+    "missing_rows_remain_missing": true,
+    "forbid_correctness_derived_prior_targets": true,
+    "exact_output_token_identity_required": true,
+    "copy_or_retokenize_targets": false
+  },
+  "outputs": {
+    "train": "run_artifacts/dual_prior_original_scale_v2/data_v2/train3968_mixed.jsonl",
+    "report": "configs/dual_prior_original_scale_v2/data_report_v2.json"
+  }
+}

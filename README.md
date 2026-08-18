@@ -18,7 +18,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
-| dual-prior localization | direct-target 与原始 mutual 均通过；首个 shared-gradient reward-gate pilot 为 diagnostic-only | 保留双向 stop-gradient mutual MSE；当前不采用会损伤 key AP 的 gate 接法 |
+| dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | v1 小样本保护门失败仍原样记录；当前不用 head-only 改结构，先在 mixed outcome 数据和 500×16 pool 上训练/评价原方法 |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -78,18 +78,23 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 - Reward-gate G0/G1 完成 2 cells × 3 seeds。G1 把 held-out gate→fused-prior MSE 平均降低 `79.6%`，gate
   effective-token fraction 从 `.929` 降到 `.370`，与 fused prior 的 `.379` 接近；但 key unit AP 平均下降
   `.0766`，只有 1/3 seeds 通过冻结保护线。状态为 `completed_reward_gate_integration_diagnostic_only`：保留
-  direct priors 与原 mutual，当前不采用 shared-gradient gate alignment，也不在结果后放宽门槛。
+  这一冻结结论且不事后放宽门槛。随后经方法身份复核与用户裁决，shared-gradient gate 仍作为项目原方法
+  进入独立 v2 放大训练；head-only 只保留为未执行的历史 repair 设想。
+- Original-scale v2 数据已冻结：从最新 checker-v5 的 4096-row outcome train 中整体排除 16 个
+  localization-dev queries，得到 496 queries / 3968 rows；48 条 adjudicated key+complete Gold 只覆盖对应
+  48 rows，其余机制监督保持缺失。ranking validation 与训练 query-disjoint，规模为 500×16、146 个 mixed
+  queries。G0/G1 × seeds 42/43/44 协议已冻结，尚未形成训练结果。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-首个 reward-gate integration 已完成但未获采用：gate 学会了 detached fused prior，却通过共享表示损伤稀疏
-key localization。下一道门若继续 dual prior，应另发 head-only gate-alignment 协议：auxiliary gate loss 使用
-detached token features，只更新 gate head；final correctness BCE、direct priors 与原 mutual `.25` 保持不变，
-且不扫描本轮 shared-gradient 权重。该修复通过后才能进入 query-grouped ranking/Best-of-N。reconstruction
-继续等待独立 768-d target，不得使用 same-candidate pooling。完整 direct-target 结果见
+下一道门是直接训练项目原始 dual-prior 方法，而不是先换 head-only：在 3968-row mixed train 上从头比较
+G0（correctness + direct priors + mutual `.25`）与 G1（G0 + 原始 shared-gradient gate alignment `10`），
+随后在同一 500×16 query-grouped validation 上做 paired Best-of-N。权重 `10` 继承结果前完成的梯度量级审计，
+本轮不扫描；v1 的失败保护门也不回写。reconstruction 继续等待独立 768-d target，不得使用 same-candidate
+pooling。v2 设计见 [Dual-Prior Original Scale v2](docs/dual_prior_original_scale_v2.md)。完整 direct-target 结果见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md) 与
 `configs/dual_prior_evidence_v1/training_result_v1.json`；mutual 结果见
 [Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)，机器结果为
@@ -139,6 +144,9 @@ detached token features，只更新 gate head；final correctness BCE、direct p
 | `scripts/summarize_dual_prior_mutual_distillation_v1.py` | 原始 mutual-distillation 协同目标与保护门 |
 | `scripts/evaluate_dual_prior_gate_predictions_v1.py` | gate/fused-prior 对齐、熵、score 分解与保护诊断 |
 | `scripts/summarize_dual_prior_reward_gate_v1.py` | G0/G1 三种子 reward-gate 采用门 |
+| `scripts/materialize_dual_prior_original_scale_v2.py` | 排除 prior-dev queries，并把 48 条 Gold 嵌回 3968-row outcome train |
+| `scripts/run_dual_prior_original_scale_v2.py` | 原始 G0/G1 单 cell 训练、localization 评分与 500×16 ranking |
+| `scripts/summarize_dual_prior_original_scale_v2.py` | 原方法三种子 paired Best-of-N 与 localization 汇总 |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
@@ -175,6 +183,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   stop-gradient mutual-distillation 的冻结协议、三种子结果与下一道 gate-integration 门
 - [docs/dual_prior_reward_gate_pilot_v1.md](docs/dual_prior_reward_gate_pilot_v1.md)：首个 shared-gradient
   reward-gate integration 的量级审计、三种子失败与 head-only repair 方向
+- [docs/dual_prior_original_scale_v2.md](docs/dual_prior_original_scale_v2.md)：保留原始 shared-gradient 方法后的
+  mixed-supervision 放大训练与 500×16 paired ranking 协议
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

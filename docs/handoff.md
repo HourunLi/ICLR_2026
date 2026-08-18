@@ -11,9 +11,9 @@
 
 ## 1. 当前停止点
 
-Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate integration 均已完成。direct/mutual
-继续保留；最新 gate 状态为 `completed_reward_gate_integration_diagnostic_only`，证据等级为
-`pipeline pilot`：
+Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate integration 均已完成；项目方法已明确
+保留 direct targets + 原始 mutual distillation + 原始 shared-gradient reward gate。v1 gate 的冻结状态仍为
+`completed_reward_gate_integration_diagnostic_only`，但不再以 head-only 作为当前下一路线：
 
 - secondary 64/64 完成，key/complete macro unit F1 为 `.5469/.8456`；16 条 exact agreement，48 条
   disagreement 全部 role-blind adjudicated；
@@ -33,7 +33,13 @@ Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate inte
 - G1 的 held-out gate MSE 三 seed 都下降，均值 `79.6%`；gate effective-token fraction `.929→.370`，与
   fused prior `.379` 接近，证明 gate objective 可优化；
 - G1 的 complete unit AP 平均 `+.0102`、correctness AUROC `-.0370`，但 key unit AP 平均 `-.0766`，只有
-  1/3 seeds 满足 `delta>=-.05`；因此 shared-gradient gate alignment 不获采用；
+  1/3 seeds 满足 `delta>=-.05`；因此 v1 不追溯改判为“通过”或正式效果证据；
+- 方法身份复核确认 G1 正是 proposal 与核心代码原有的 shared-gradient gate，并非后来提出的 head-only；
+  用户裁决优先把项目原方法训起来，head-only 降为未执行的历史 diagnostic ablation；
+- original-scale v2 已物化 496 queries / 3968 rows mixed train：48 条 prior Gold 保留，16 个 prior-dev query
+  连同其 128 个 candidates 全部排除；独立 ranking validation 为 500 queries × 16 candidates，query overlap=0；
+- `training_protocol_v2.json` 冻结 G0/G1 × seeds 42/43/44、5 epochs、全 33 层；尚未启动，因此当前仍没有
+  original-scale ranking 结果；
 - direct priors 与原 mutual `.25` 不受该裁决影响。reconstruction 仍关闭，pilot/final test 未读。
 
 此前 Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
@@ -96,13 +102,14 @@ clean-matched positional control 的新协议。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
 4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
    通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
-5. Dual-prior v1 的 labels、gold、direct-target D0–D3 与原始 mutual-distillation M0/M1 均已通过。原始
-   symmetric stop-gradient mutual MSE 是保留方法，containment 不作为替代。首个 shared-gradient gate
-   alignment 虽学会 fused prior，但因 key AP 损失不采用；若修复，优先让 auxiliary gate loss 只更新 gate
-   head、不进入共享 encoder。reconstruction 继续关闭且仍只接受独立 768-d target。
+5. Dual-prior 保留项目原方法：direct key/complete targets、symmetric stop-gradient mutual MSE，以及
+   gate-to-detached-fused-prior 的 shared-gradient alignment。v1 的 key-AP 保护门失败按历史原样保留，但当前
+   不换 head-only；先用 v2 mixed outcome data 和 query-grouped ranking 判断原方法的任务效果。containment
+   不替代 mutual，reconstruction 继续关闭且仍只接受独立 768-d target。
 
-外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
-训练入口。
+外部 Qwen/Falcon rewrite 与旧 Route A v1 manifest 不是当前机制训练入口。Stage 1B v4 的旧训练结论仍只作
+optimization diagnostic，但其最新 checker-v5 outcome manifests 由 original-scale v2 作为 correctness 数据
+carrier 复用；新的 query 排除、prior 合并和实验结论全部受 v2 协议约束。
 
 ## 3. 当前版本化 artifact
 
@@ -204,25 +211,42 @@ clean-matched positional control 的新协议。
 - 裁决：`completed_reward_gate_integration_diagnostic_only`。gate alignment 3/3 有效，但 key-localization
   protection 只有 1/3 通过；完整说明见 `docs/dual_prior_reward_gate_pilot_v1.md`。
 
+### Dual-prior original shared-gradient scale v2
+
+- 数据协议：`configs/dual_prior_original_scale_v2/data_protocol_v2.json`；物化报告
+  `data_report_v2.json`；mixed train SHA256
+  `3c1ac6068343328ef23d85e380985be641c564ce29d4492e6e95b1526d97f310`；
+- 训练数据为 496 queries / 3968 candidates，其中 48 rows 有 adjudicated key+complete Gold；其余 prior
+  fields 缺失而非伪造全零；16 个 localization-dev query 的 128 rows 全部从 outcome train 排除；
+- ranking validation 复用最新 checker-v5 的 500×16 pool，含 146 mixed queries，与 train/prior-dev
+  query-disjoint；
+- 训练协议：`configs/dual_prior_original_scale_v2/training_protocol_v2.json`；G0 为 correctness + direct +
+  mutual `.25`，G1 只增加原始 shared-gradient gate weight `10`；head-only/containment/reconstruction 均关闭；
+- 执行入口：`scripts/run_dual_prior_matrix_v1.py --protocol
+  configs/dual_prior_original_scale_v2/training_protocol_v2.json --gpus 0,1,2,3,4,5 --execute`；
+- 当前状态：`frozen_before_training`；6 cells 尚未启动，结果路径预留为
+  `configs/dual_prior_original_scale_v2/training_result_v2.json`；完整设计见
+  `docs/dual_prior_original_scale_v2.md`。
+
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽已失败 G1 的 key-AP 门槛。下一步若继续 dual prior，
-应发布新的 head-only reward-gate repair，而不是扫描当前 shared-gradient 权重：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽已失败 v1 G1 的 key-AP 门槛。下一步执行已经冻结的
+original-scale v2：
 
-1. H0：复用当前 G0（direct BCE + 原始 mutual `.25`，gate alignment 关闭）；
-2. H1：生产分数仍使用同一个 gate head，但 auxiliary gate-alignment forward 使用 detached token features，
-   使该 auxiliary loss 只更新 gate-head 参数，不进入 shared encoder；
-3. 在冻结训练前增加梯度路径回归：只 backward gate auxiliary 时，gate-head 梯度非零，shared encoder、key head、
-   complete head 梯度严格为零；final BCE 路径保持原样；
-4. 保留 G0/G1 的数据、三 seeds、预算、mutual 公式/权重与全部 protection guards，不扫描本轮权重；
-5. H1 通过后再进入同一 query 下多 candidate 的 ranking/Best-of-N；当前 64 rows 每题一条，不能评价选择收益。
+1. 先跑 G0/G1 × seeds 42/43/44；两格唯一 loss 差异是原始 shared-gradient gate alignment `0→10`；
+2. 每格在 48-row prior-train 与 16-row prior-dev 发布 localization/gate diagnostics；
+3. 每格在同一 checker-v5 500×16 validation 发布 k=`1/2/4/8/16` 的 Best-of-N、random、oracle 与
+   within-query pairwise accuracy；
+4. primary comparison 是 query-paired 的 G1−G0 BoN@16，先在 seed 内配对，再在 query 内平均三 seed 后
+   bootstrap；
+5. 无论结果正负都不回写 v1；负结果也不自动授权 head-only，只能在新协议下诊断 supervision scale 或优化。
 
-当前 G1 的 gate alignment 大幅改善但 key AP 受损，机制解释是 gate auxiliary 梯度经共享表示产生 interference；
-这是下一门要隔离验证的假设，不是已经证明的因果结论。containment 不替代相互蒸馏，reconstruction 仍等待
-独立 768-d target。
+当前 G1 的 key-AP 损失仍是 shared-representation interference 的机制假设，不是已证明因果。用户已选择先
+保证项目原方法得到直接训练与 ranking 检验。containment 不替代相互蒸馏，reconstruction 仍等待独立
+768-d target。
 
 reconstruction 仍要求独立 768-d target，禁止 same-candidate pooling。exact onset 与下一代 clean-matched tail
 repair 留在 backlog，不阻塞当前 collaboration comparison。
@@ -251,8 +275,8 @@ repair 留在 backlog，不阻塞当前 collaboration comparison。
   不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
 - 不能宣称 consistency、hallucination localization 或 tail shaping 已改善 Best-of-N，也不能说 tail 已被
   永久证伪或已获 mixed-training 授权。Dual-prior 当前只能宣称 direct targets 可学、原始 mutual objective
-  在 held-out 上有效降低 branch discrepancy，以及首个 gate objective 可被优化；由于 key AP protection 失败且
-  没有 query-grouped pool，不能宣称当前 gate 接法获采用或最终排序增益。
+  在 held-out 上有效降低 branch discrepancy，以及首个 gate objective 可被优化；项目已选择原始 gate 接法
+  进入 v2，但在 6-cell ranking 结果完成前仍不能宣称最终排序增益。
 
 ## 7. 验证与入口
 
