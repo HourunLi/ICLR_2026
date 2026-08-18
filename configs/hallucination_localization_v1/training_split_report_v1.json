@@ -1,0 +1,110 @@
+{
+  "code": {
+    "commit": "dc07535780ebd8d1f194b9b1ee04398d6aa9f158",
+    "dirty": false
+  },
+  "dense_train": {
+    "correctness_path_cross_tab": {
+      "correctness_0__clean": 7,
+      "correctness_0__hallucinated": 16,
+      "correctness_1__clean": 24,
+      "correctness_1__hallucinated": 1
+    },
+    "path": "run_artifacts/hallucination_localization_v1/data_v1/train_dense48_v1.jsonl",
+    "path_status_counts": {
+      "clean": 31,
+      "hallucinated": 17
+    },
+    "queries": 48,
+    "rows": 48,
+    "sha256": "6b69bde130fdb20cd775c0ea17da4ce15873907cba105448b46f1e5ff63b3459"
+  },
+  "dev_quotas": {
+    "correctness_0__clean": 3,
+    "correctness_0__hallucinated": 6,
+    "correctness_1__clean": 7,
+    "correctness_1__hallucinated": 0
+  },
+  "evidence_tier": "pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "localization_dev": {
+    "correctness_path_cross_tab": {
+      "correctness_0__clean": 3,
+      "correctness_0__hallucinated": 6,
+      "correctness_1__clean": 7
+    },
+    "path": "run_artifacts/hallucination_localization_v1/data_v1/localization_dev16_v1.jsonl",
+    "path_status_counts": {
+      "clean": 10,
+      "hallucinated": 6
+    },
+    "queries": 16,
+    "rows": 16,
+    "sha256": "93beb33086e4789f0fda451a7b0399d74fe878562c6d80a355215bc0ca4bfa1a"
+  },
+  "mixed_train": {
+    "coverage": {
+      "consistency_pairs": {
+        "negative_different_semantic_same_style": 0,
+        "positive_same_semantic_different_style": 0
+      },
+      "eligible_component_count": 2,
+      "eligible_components": {
+        "consistency": false,
+        "dual_prior": false,
+        "onset_localization": true,
+        "path_hallucination": true,
+        "progress": false,
+        "reconstruction": false,
+        "token_advantage": false
+      },
+      "field_rows": {
+        "complete_prior_target": 0,
+        "complete_reconstruction_target": 0,
+        "domain_id": 0,
+        "hallucination_onset": 48,
+        "key_prior_target": 0,
+        "path_hallucinated": 48,
+        "progress_targets": 0,
+        "semantic_id": 0,
+        "style_id": 0,
+        "token_advantage": 0
+      },
+      "field_tokens": {
+        "complete_prior_target": 0,
+        "key_prior_target": 0,
+        "progress_targets": 0,
+        "token_advantage": 0
+      },
+      "joint_prior_rows": 0,
+      "joint_prior_tokens": 0,
+      "path_label_values": {
+        "0": 31,
+        "1": 17
+      },
+      "positive_onset_rows": 17,
+      "provenanced_supervised_rows": 48,
+      "reconstruction_dimensions": {},
+      "rows": 3968,
+      "schema_version": "clir-supervision-coverage-v1",
+      "supervised_rows": 48,
+      "unprovenanced_supervised_rows": 0
+    },
+    "excluded_dev_queries": 16,
+    "path": "run_artifacts/hallucination_localization_v1/data_v1/train_mixed_query_disjoint_v1.jsonl",
+    "queries": 496,
+    "rows": 3968,
+    "sha256": "277f9fda0bf1805b1fd8047734c41f5540534e431272453cc3af2902ec4ab5ac"
+  },
+  "pilot_test_accessed": false,
+  "protocol": "configs/hallucination_localization_v1/training_split_protocol_v1.json",
+  "protocol_sha256": "f70bc95154d4a69b546da64bf3d151e2f44247f5bd733d30439c4fb8e3ef381f",
+  "query_overlap": {
+    "dense_train_vs_localization_dev": 0,
+    "mixed_train_vs_localization_dev": 0
+  },
+  "schema_version": "clir-hallucination-training-split-report-v1",
+  "selection_priority_salt": "clir-hallucination-localization-dev-v1",
+  "split_manifest": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+  "split_manifest_sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e"
+}
