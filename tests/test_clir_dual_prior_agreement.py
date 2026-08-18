@@ -1,3 +1,4 @@
+import ast
 import json
 from pathlib import Path
 
@@ -16,6 +17,7 @@ PROTOCOL = (
     ROOT
     / "configs/dual_prior_evidence_v1/agreement_adjudication_protocol_v1.json"
 )
+SUMMARIZER = ROOT / "scripts/summarize_dual_prior_agreement_v1.py"
 
 
 def _item(item_id: str) -> dict:
@@ -56,6 +58,16 @@ def test_set_metrics_are_symmetric_and_define_empty_agreement():
     assert unit_set_f1([1], [1, 2]) == 2 / 3
     assert unit_set_f1([1, 2], [1]) == 2 / 3
     assert unit_set_jaccard([1], [1, 2]) == 1 / 2
+
+
+def test_summarizer_uses_python_literals_in_executable_code():
+    tree = ast.parse(SUMMARIZER.read_text(encoding="utf-8"))
+    forbidden_names = {
+        node.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name) and node.id in {"false", "true", "null"}
+    }
+    assert forbidden_names == set()
 
 
 def test_summary_applies_macro_gate_and_blinds_every_disagreement():

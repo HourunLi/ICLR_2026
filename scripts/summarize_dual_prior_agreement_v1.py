@@ -431,8 +431,8 @@ def main() -> None:
             else "The preregistered annotator-agreement gate failed; repair the guide or "
             "unitization under a new version and do not use adjudication to rescue v1."
         ),
-        "pilot_or_final_test_accessed": false,
-        "formal_claim_allowed": false,
+        "pilot_or_final_test_accessed": False,
+        "formal_claim_allowed": False,
     }
     report_path = resolve(outputs["agreement_report"])
     atomic_write_json(report_path, report)
