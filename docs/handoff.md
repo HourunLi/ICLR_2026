@@ -5,12 +5,13 @@
 本文件只保留当前可执行状态。研究设计见 `docs/proposal.md`，历史路线与弃用原因见
 `docs/decision_history.md`；Localization v1 的 contaminated-tail 实验见
 `docs/hallucination_localization_pilot_v1.md`，当前 tail 撤销审计与直接比较见
-`docs/hallucination_tail_comparison_v2b.md`。
+`docs/hallucination_tail_comparison_v2b.md`，最终 4-fold × 3-seed 复核见
+`docs/hallucination_tail_cross_validation_v2c.md`。
 
 ## 1. 当前停止点
 
-Hallucination Localization Pilot v2 与 full-tail comparison v2b 已完成。当前冻结状态为
-`completed_retain_tail_for_larger_validation`，证据等级仍是 `pipeline pilot`：
+Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
+`completed_keep_t0_defer_tail`，证据等级仍是 `pipeline pilot`：
 
 - 64 条裁决 trajectory 形成 41 clean / 23 hallucinated；标签来自双 AI 标注与内部盲审，不是人工 Gold；
 - claim reviews 被物化为 9,132 个 conflict-free sparse token labels；train/dev 为 query-disjoint
@@ -23,17 +24,23 @@ Hallucination Localization Pilot v2 与 full-tail comparison v2b 已完成。当
   `tail_weight=0/.1/.5`，轻权重 `.1` 失败，`.5` 通过全部预设 point-estimate guards；
 - `.5` 相对 control 的 tail−pre gap bootstrap difference 为 `-.642`，95% interval
   `[-1.434,-.087]`；explicit-token value-risk AP difference 为 `+.056`，区间 `[+.008,+.108]`；
-- 因此 T2 `.5` 只获扩大 validation 和多 seed matched comparison 资格。pseudo-tail、mixed 3968-row
-  mechanism run 仍未获授权，pilot/final test 未读。
+- v2c 用 4 folds × 3 seeds 完成 24-cell 复核；fold 0 是 selection-exposed continuity，采用门只看 folds
+  1–3 拼接的 48 条 out-of-fold predictions；
+- T2 在三个 seed 的 value-risk AP 都提高，跨 seed mean 的 value-risk/span/correctness delta 为
+  `+.0357/+.0170/+.0093`，所以它有 regularization/ranking signal；
+- 但三个 seed 的 `tail−clean` gap 全部恶化，mean delta `+.2517`。T2 的 clean mean value 分别下移
+  `-3.728/-3.552/-4.620`，均比对应 tail 下移更大，0/3 seed 通过 tail-specific locality；
+- 当前 localization 默认选择 T0（S1 sparse BCE、无 full tail）。当前 absolute-margin T2 暂缓而非永久
+  否证；pseudo-tail、mixed 3968-row mechanism run 仍未获授权，pilot/final test 未读。
 
 当前三种监督和一种 reward shaping 不要混称：
 
 | 层级 | canonical 字段 | 含义 | 当前裁决 |
 |---|---|---|---|
 | 整条序列 | `path_hallucinated` | trajectory 是否包含 unsupported/contradicted material claim | 有 ranking 信号，仅作小样本诊断 |
-| token/span | `token_hallucination_target` + `token_hallucination_mask` | 只监督已审 claim span；mask 外不是负例 | S1 point-estimate gate 通过，待扩量和多 seed |
+| token/span | `token_hallucination_target` + `token_hallucination_mask` | 只监督已审 claim span；mask 外不是负例 | T0/S1 为当前 standalone 默认 |
 | 首错边界 | `hallucination_onset` | 第一个 unsupported/contradicted claim 的首 token | 独立 gate 未通过 |
-| onset 后 value shaping | full-tail margin loss | 从 onset 起降低全部 token value，包括 supported/unreviewed token | T2 仅保留作扩大、多 seed 对照；不是 token 标签 |
+| onset 后 value shaping | full-tail margin loss | 从 onset 起降低全部 token value，包括 supported/unreviewed token | 当前 absolute-margin T2 因全局 shift 暂缓；不是 token 标签 |
 
 ## 2. 当前采用的研究路线
 
@@ -41,9 +48,10 @@ Hallucination Localization Pilot v2 与 full-tail comparison v2b 已完成。当
 2. Consistency 主路线是 Route A：同一原始 prompt 下从 Phi on-policy candidates 挖掘
    reasoning-equivalent pairs；Route B 的 Phi self-rewrite 只作后续对照。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
-4. Localization 当前保留 S1 sparse span branch，并保留 T2 `.5` full-tail shaping 作 matched 扩大验证；
-   exact onset 作为独立 boundary 问题继续，三者不得混称。
-5. Dual-prior targets 必须由外部流程生成，并在 consistency/localization 分别验证后再接入。
+4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓。exact onset 和有锚定的 tail
+   repair 都是独立后续问题。
+5. 当前进入 dual-prior。key/complete targets 必须由外部流程生成并先单独验证；reconstruction 只有在存在
+   独立 768-d external target 时才启用。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
 训练入口。
@@ -75,23 +83,32 @@ Hallucination Localization Pilot v2 与 full-tail comparison v2b 已完成。当
 - 三个 matched cell：`run_artifacts/hallucination_localization_v2/pilot_tail_v2b/`；
 - 完整解释与禁止越界的结论：`docs/hallucination_tail_comparison_v2b.md`。
 
+### Full-tail cross-validation v2c
+
+- 数据划分协议：`configs/hallucination_localization_v2/tail_cv_data_protocol_v2c.json`；
+- 训练/采用协议：`configs/hallucination_localization_v2/tail_cv_protocol_v2c.json`；
+- 机器结论：`configs/hallucination_localization_v2/tail_cv_result_v2c.json`，SHA256
+  `d8264599b61c221958598d8a087ded7617a9cfdf5b8cdee46716ad4ea2d2a5d9`；
+- fold 审计：`run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_audit_v2c.json`；
+- 22 个新 cell：`run_artifacts/hallucination_localization_v2/pilot_tail_cv_v2c/`；
+- 完整解释：`docs/hallucination_tail_cross_validation_v2c.md`。
+
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要原样重跑 seed 42，也不要继续调 class weight 或给 S1 添加 path MIL：S2/S3 已显示这些改动会降低
-threshold-free span/claim ranking。下一轮发布新版本并执行两条彼此隔离的验证：
+不要再重跑 v2c 或继续扫 absolute tail weight。下一步进入 dual-prior，并保持模块隔离：
 
-1. 扩大独立 localization validation，并用多个训练 seed matched 比较 T0（S1 only）与 T2（S1 + `.5`
-   full-tail margin）；不再保留本轮失败的 T1 `.1`；
-2. 沿用 v2b 预设的 relative locality、explicit-token semantic value、sparse span 和 correctness 四门，
-   同时逐 seed 报告，不能只看 pooled mean；
-3. full tail 中 supported/unreviewed 的覆盖和 value 必须继续单列，禁止将其改名为 token hallucination target；
-4. 另行冻结 causal boundary/segment objective 或 transition-constrained decoder，并保留 raw first-crossing
-   对照；禁止使用 gold claim boundary 做部署时 pooling或从 dev post-hoc 选阈值；
-5. T0/T2 多 seed 与 onset 两条验证都稳定前，不进入 pseudo-tail、mixed training、测试集或 Best-of-N
-   机制结论。
+1. 先审计当前 key/complete/reconstruction 代码路径与 target 契约，确认 loss 在缺失 target 时确实为 mask；
+2. 冻结一个领域通用的 key/complete claim/span 标注协议：key 是最直接支持答案的最小证据，complete 是使
+   答案充分成立的全部证据；二者必须映射到 exact output token IDs；
+3. 先做小规模双标 selection set、agreement 与 non-degeneracy 审计，再物化 train/dev targets；
+4. 首个 standalone pilot 比较 correctness-only、key-only、complete-only、joint key+complete；不接
+   consistency、hallucination、tail、progress 或 reconstruction；
+5. reconstruction 首轮保持关闭，除非另行冻结由外部 supported answer/evidence 生成的 768-d target；禁止
+   same-candidate pooling；
+6. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，但也不进入 mixed run。
 
 ## 5. 不可破坏的约束
 
@@ -109,10 +126,10 @@ threshold-free span/claim ranking。下一轮发布新版本并执行两条彼�
 ## 6. 当前证据边界
 
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
-- Route A v1a、Localization v1/v2/v2b 都是 `pipeline pilot`。
+- Route A v1a、Localization v1/v2/v2b/v2c 都是 `pipeline pilot`。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权，不能自动迁移为 hallucination Gold。
-- S1 与 T2 的 point estimates 有希望；T2 的两项 bootstrap diagnostic 区间不跨 0，但仍只有一个训练 seed、
-  16-row dev 和 Silver labels，不能称为稳定机制证据。exact onset 明确未通过。
+- T2 的 AP/ranking signal 在 v2c 仍存在，但 absolute-margin implementation 的 tail locality 0/3 seed 通过；
+  只能选择 T0 并暂缓该实现，不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
 - 不能宣称 consistency、hallucination localization 或 tail shaping 已改善 Best-of-N，也不能说 tail 已被
   永久证伪或已获 mixed-training 授权。
 
@@ -134,6 +151,7 @@ README.md                                         当前方案与项目入口
 docs/handoff.md                                   当前执行交接
 docs/hallucination_localization_pilot_v2.md       当前 localization 结果
 docs/hallucination_tail_comparison_v2b.md         tail 撤销审计与 matched 直接比较
+docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
 docs/clir_supervision_protocol.md                  外部监督与 sparse-mask 契约
 docs/decision_history.md                          历史路线与转向理由
 
@@ -144,5 +162,6 @@ scripts/materialize_hallucination_span_targets_v2.py  sparse target 物化
 scripts/run_hallucination_localization_pilot_v2.py    S0-S3 launcher
 scripts/summarize_hallucination_span_pilot_v2.py      冻结结论与 bootstrap
 scripts/summarize_hallucination_tail_comparison_v2b.py  T0-T2 护栏与 bootstrap
+scripts/summarize_hallucination_tail_cv_v2c.py        out-of-fold 多 seed 采用门
 train_clir.py / score_clir.py / evaluate_clir.py     训练、打分、Best-of-N
 ```

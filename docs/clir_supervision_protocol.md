@@ -118,5 +118,11 @@ Stage 1B v4 的 train 4096 行与 validation 8000 行仍保持 outcome-only。�
 `tail_weight=.5` 通过预设 point-estimate guards，现只允许进入扩大 validation 与多 seed 的 matched T0/T2
 比较；`.1` cell 不保留。full tail 有意覆盖 supported/unreviewed post-onset token，是独立
 error-contamination reward hypothesis，不是 `token_hallucination_target`。boundary/onset 仍须单独验证；
-pseudo-tail 与 mixed-data mechanism run 继续禁止。完整结果见
+pseudo-tail 与 mixed-data mechanism run 继续禁止。
+
+v2c 随后在 folds 1–3 的 48 条 out-of-fold predictions 上做三 seed 复核。T2 的 value-risk/span/correctness
+mean delta 为 `+.0357/+.0170/+.0093`，但三个 seed 的 `tail−clean` gap 全部恶化，clean mean value 的绝对
+下移均大于 tail 下移；因此 0/3 seed 通过预设 locality，当前默认选择 T0/S1，暂缓 absolute-margin T2。
+这不是永久否证 tail，而是要求未来 objective 必须有 clean/pre-onset relative anchor。当前下一步进入
+dual-prior 外部 target pipeline；完整结果见 `docs/hallucination_tail_cross_validation_v2c.md`、
 `docs/hallucination_tail_comparison_v2b.md` 与 `docs/hallucination_localization_pilot_v2.md`。

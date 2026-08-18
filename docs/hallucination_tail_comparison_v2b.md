@@ -6,6 +6,11 @@
 
 证据等级：`pipeline pilot`；不是人工 Gold、formal mechanism evidence 或 Best-of-N 结果
 
+> 后续状态（2026-08-18）：v2b 只授权 T2 进入扩大验证。v2c 的 4-fold × 3-seed 复核发现 T2 的
+> value-risk/span 平均指标仍改善，但 0/3 confirmatory seed 通过 tail-specific locality：clean value 的
+> 全局下移始终大于 tail 下移。当前默认因此回到 T0，暂缓 absolute-margin T2，但不永久否证有相对锚点的
+> tail hypothesis。见 `docs/hallucination_tail_cross_validation_v2c.md`。
+
 ## 1. 为什么必须重新审计
 
 此前文档把两件不同的事都简称为 tail，并据 v1/v2 的小样本结果写成“不启用 negative-tail”：

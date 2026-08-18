@@ -9,7 +9,9 @@
 > 后续状态说明（2026-08-18）：本文件冻结的是 v2 span-target 选择。第 6 节的“不启用 negative-tail”是
 > **v2 当时未授权**，不是永久否证。用户要求撤销审计后，v2b 已在当前 S1 target 上完成 matched
 > `tail_weight=0/.1/.5` 比较；`.5` 通过 point-estimate pilot guards，现仅保留作扩大 validation 与多
-> seed 比较。见 `docs/hallucination_tail_comparison_v2b.md`。
+> seed 比较。后续 v2c 扩大复核因 0/3 seed 通过 tail-specific locality，最终选择 T0 并暂缓当前
+> absolute-margin T2。见 `docs/hallucination_tail_comparison_v2b.md` 与
+> `docs/hallucination_tail_cross_validation_v2c.md`。
 
 ## 1. 本轮修复什么
 

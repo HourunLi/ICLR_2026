@@ -17,8 +17,8 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | correctness baseline | `strict_swift / encoded_swift / clir` 共用候选、split 和预算 | correctness 只监督 outcome，不伪造机制标签 |
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
-| hallucination localization | S1 sparse token BCE；另保留 T2 `.5` full-tail value shaping 做扩大验证 | full tail 是 error-contamination reward 假设，不是 token 真值；exact onset 未通过 |
-| dual-prior localization | 等 consistency 与 hallucination 模块分别验证后再做 | key/complete/reconstruction 必须来自外部 target |
+| hallucination localization | T0：S1 sparse token BCE，不加当前 absolute-margin full tail | T2 有 ranking signal 但发生全局 value shift；exact onset 未通过 |
+| dual-prior localization | 当前下一模块：先单独验证 external key/complete targets | reconstruction 必须是外部 768-d target，缺失监督保持 mask |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -50,6 +50,11 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   预设 point-estimate guards；其相对 T0 的 tail−pre gap bootstrap difference 为 `-.642`
   `[-1.434,-.087]`，value-risk AP difference 为 `+.056` `[+.008,+.108]`。因此 T2 仅获扩大 validation 与
   多 seed 比较资格；轻权重 T1 失败，mixed-data run 未获授权。
+- v2c 随后完成 4-fold × 3-seed、24-cell 复核，主要采用门只看 48 条 selection-unexposed out-of-fold
+  predictions。T2 的 mean value-risk AP、span AP、correctness AUROC 分别比 T0 高 `+.0357/+.0170/+.0093`，
+  但三个 seed 的 `tail−clean` gap 全部恶化，mean `+.2517`；clean value 的绝对下移也在三个 seed 都大于
+  tail 下移。因此 0/3 seed 通过 tail-specific locality，当前选择 T0，暂缓当前 absolute-margin T2。
+  这不是永久否证 tail；未来只考虑有 clean/pre-onset anchor 的相对或 centered objective。
 - exact onset 仍未通过：T0/T2 的 fixed MAE 为 `82.5/71.7`，六个 positive 的 `±5` 均为 `0/6`。
   pseudo-tail 继续禁止；full tail 不得称为 token hallucination ground truth。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
@@ -58,13 +63,13 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 
 ## 下一道门
 
-Hallucination Localization v2b 已冻结为 `completed_retain_tail_for_larger_validation`。下一轮并行但分开做：
-一条在扩大 validation 上用多个训练 seed matched 比较 T0（S1 only）与 T2（S1 + `.5` full tail），继续检查
-relative locality、semantic value、span 和 correctness 四门；另一条单独验证 causal boundary/segment
-objective 或 transition-constrained onset decoder。两条都稳定前，不进入 pseudo-tail 或 mixed-data
-mechanism run。
+Hallucination tail v2c 已冻结为 `completed_keep_t0_defer_tail`，当前 localization 模块选择 T0。下一道门
+进入 dual-prior：先审计/生成外部 key 与 complete token targets，做 target non-degeneracy 和 standalone
+localization pilot；首轮不开 reconstruction，除非能定义独立的 768-d external target。exact onset 和有锚定
+的 tail repair 保留为后续独立工作，不与 dual-prior 首轮混训。
 
 完整停止条件和标签定义见
+[Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
 [Hallucination Full-Tail v2b](docs/hallucination_tail_comparison_v2b.md) 与
 [Hallucination Localization Pilot v2](docs/hallucination_localization_pilot_v2.md)。
 
@@ -124,6 +129,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 - [docs/hallucination_localization_pilot_v2.md](docs/hallucination_localization_pilot_v2.md)：当前模块结果
 - [docs/hallucination_tail_comparison_v2b.md](docs/hallucination_tail_comparison_v2b.md)：tail 撤销审计、
   matched 比较与保留边界
+- [docs/hallucination_tail_cross_validation_v2c.md](docs/hallucination_tail_cross_validation_v2c.md)：
+  4-fold × 3-seed tail 复核、全局 shift 诊断与当前裁决
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

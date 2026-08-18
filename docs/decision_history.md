@@ -165,6 +165,30 @@ configs/hallucination_localization_v2/tail_comparison_result_v2b.json
 docs/hallucination_tail_comparison_v2b.md
 ```
 
+### 7.3 v2c 扩大复核与当前暂缓理由
+
+用户确认 v2b 的 T2 指标确实更好，同时要求任何抛弃 tail 的理由必须有直接证据。项目因此没有沿用单
+seed 结论，而是在打开新指标前冻结 4-fold × 3-seed T0/T2 protocol。fold 0 复用已暴露 dev，只作
+continuity；主要采用门拼接 folds 1–3 的 48 条不重复 out-of-fold predictions。总计 24 cells，其中 22 个
+在 clean commit `743c351` 新跑，全部完成 epoch 5、loss finite、manifest/checkpoint/scored provenance 通过。
+
+T2 不是“无效”：三个 seed 的 explicit-token value-risk AP 都提高，跨 seed mean 的 value-risk、span、
+correctness AUROC delta 为 `+.0357/+.0170/+.0093`。但预注册 tail-specific locality 在 0/3 seed 通过：
+`tail−clean` gap delta 分别为 `+.1517/+.4297/+.1737`，mean `+.2517`，方向全部错误。clean mean value
+分别下移 `-3.728/-3.552/-4.620`，均比对应 tail 下移 `-3.576/-3.122/-4.446` 更大。
+
+代码审计解释了这个稳定模式：当前 tail loss 是只约束 post-onset value 低于绝对 margin 的单边 hinge，
+共享 token-value head 没有 clean/pre-onset anchor；最终 correctness score 又有独立 residual 可以补偿。
+因此全局负 bias 是低成本解。AP 的改善可以称为 regularization/ranking signal，但不能归因为 tail-local
+reward shaping。
+
+所以当前裁决不是“tail 永久失败”，而是：T0/S1 成为 standalone localization 默认；暂缓当前
+absolute-margin T2，不进入 mixed training；未来若重开，只测试 relative/row-centered/contrastive anchored
+tail objective，并发布新协议。机器结论和完整解释见
+`configs/hallucination_localization_v2/tail_cv_result_v2c.json` 与
+`docs/hallucination_tail_cross_validation_v2c.md`。hallucination 模块的 pipeline-selection gate 至此关闭，
+项目进入 dual-prior。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。
@@ -173,7 +197,8 @@ docs/hallucination_tail_comparison_v2b.md
 - NLL/off-policy score 先作为 diagnostic，不在首轮设硬 gate。
 - consistency loss 暂不修改；旧 tiny sweep 的权重不冻结为新默认。
 - localization 首轮 `pseudo_tail_weight=0`，避免未校准 head 循环自训练。
-- 不采用本轮失败的 light tail `.1`；full-tail `.5` 只保留作扩大验证，不等于 mixed-training 授权。
+- 不采用 light tail `.1`；absolute-margin full-tail `.5` 经 v2c 发现全局 value shift 后暂缓。tail 假设本身
+  不永久否证，重开必须换成有 clean/pre-onset anchor 的新 objective。
 - consistency、localization、dual prior 首轮分开训练，避免无法归因。
 - dual-prior/reconstruction 不用全零或 same-candidate pooling 伪造缺失 external targets。
 - `pilot_test/final_test` 在 validation/calibration 冻结前不用于选择。
@@ -191,3 +216,4 @@ docs/hallucination_tail_comparison_v2b.md
 - `configs/on_policy_pilot0_v1a/`：v1a labels、manifest、protocol 和结果
 - `configs/hallucination_localization_v1/`：localization selection、labels 和报告
 - `docs/hallucination_tail_comparison_v2b.md`：tail 撤销审计、direct comparison 与严格结论边界
+- `docs/hallucination_tail_cross_validation_v2c.md`：4-fold × 3-seed 复核与全局 shift 暂缓理由
