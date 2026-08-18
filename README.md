@@ -71,6 +71,9 @@ agreement/裁决后再跑 correctness-only、key-only、complete-only、joint di
 distillation、gate alignment 与 reconstruction 首轮全关。完整定义见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md)。
 
+secondary 当前使用 `secondary_prompt_resumable_v1a.md`：标签语义仍继承冻结 v1，但每判断一条就由
+`checkpoint_dual_prior_secondary_v1.py` 校验、原子落盘并报告下一 item，超时后可从合法前缀继续。
+
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
 [Hallucination Full-Tail v2b](docs/hallucination_tail_comparison_v2b.md) 与
@@ -107,6 +110,7 @@ distillation、gate alignment 与 reconstruction 首轮全关。完整定义见
 | `train_clir.py` | 训练、恢复、健康证据与 checkpoint |
 | `score_clir.py` | 逐候选 reward scoring |
 | `evaluate_hallucination_localization.py` | localization held-out evaluation |
+| `scripts/checkpoint_dual_prior_secondary_v1.py` | secondary 逐条 durable checkpoint、顺序校验与续跑状态 |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 

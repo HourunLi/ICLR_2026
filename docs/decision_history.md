@@ -207,6 +207,15 @@ hallucinated private audit 中只有 1 条 key 覆盖 exact onset、12 条重叠
 不作为 prior gold，这里只诊断 guide alignment：primary 常选末端 calculation 而不是决定性 flaw。因此禁止
 单独采用 primary，必须等待 frozen secondary 并裁决错误路径的 key 语义，同时在训练评价中加入位置基线。
 
+### 7.5 secondary v1a：逐条持久化，不改变冻结语义
+
+独立 secondary 多次在整批完成前超时，暴露的是执行可靠性问题，不是标注定义问题。原
+`protocol_v1.json`、guide、64 条 blind items 与历史 `secondary_prompt_v1.md` 保持只读；新增
+`secondary_execution_addendum_v1a.json` 和 `secondary_prompt_resumable_v1a.md`。新流程每次只判断下一条，
+用 helper 校验 item/order/schema 后原子发布精确合法 JSONL 前缀，并对文件和目录执行 `fsync`；重启先跑
+`status`，不能把多条已完成判断只留在上下文或内存中。最终输出路径和双标独立性规则不变，因此 v1a 是
+operational addendum，不是新一轮语义标注协议。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

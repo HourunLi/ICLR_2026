@@ -1,0 +1,29 @@
+{
+  "schema_version": "clir-dual-prior-secondary-execution-addendum-v1a",
+  "status": "active_operational_addendum",
+  "created_utc": "2026-08-18",
+  "reason": "The independent secondary annotator repeatedly timed out before publishing its batch output; make every completed judgment durable without changing label semantics.",
+  "semantics_changed": false,
+  "frozen_semantic_parent": {
+    "protocol": "configs/dual_prior_evidence_v1/protocol_v1.json",
+    "protocol_sha256": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27",
+    "annotation_guide": "configs/dual_prior_evidence_v1/annotation_guide_v1.md",
+    "annotation_guide_sha256": "51655ff2cffd861f08b890eea28f68c6b12b4cdb8806819b2b3021f66570e576",
+    "annotation_items": "configs/dual_prior_evidence_v1/annotation_items_v1.jsonl",
+    "annotation_items_sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+    "historical_prompt": "configs/dual_prior_evidence_v1/secondary_prompt_v1.md",
+    "historical_prompt_sha256": "d5bf5f4e9e93cff2b2e57cebfa1f24ec6c843e4b1757a3c317ed9ef6eea90612"
+  },
+  "active_execution": {
+    "prompt": "configs/dual_prior_evidence_v1/secondary_prompt_resumable_v1a.md",
+    "prompt_sha256": "5b1bfab8f035a4079d0c07b867c849444b0b1ebae5b38a0e4d4ae042852f37b8",
+    "checkpoint_helper": "scripts/checkpoint_dual_prior_secondary_v1.py",
+    "checkpoint_helper_sha256": "899812dfcc61d33cc28e3d31c78cc2399564cfa6caf553f9d143e2de4107967c",
+    "output": "configs/dual_prior_evidence_v1/labels_secondary_raw_v1.jsonl",
+    "scratch": "run_artifacts/dual_prior_evidence_v1/secondary_checkpoint/current_row.json",
+    "unit_of_durable_progress": "one validated annotation row",
+    "resume_contract": "The output must always be an exact valid prefix of the 64 frozen items; status identifies the sole next item.",
+    "publication_contract": "Validate the next row, atomically replace the tiny JSONL prefix, fsync the file and containing directory, then reread and validate the published prefix.",
+    "batch_only_write_forbidden": true
+  }
+}

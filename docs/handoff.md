@@ -102,7 +102,10 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
   `06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526`；结构合格但有 late-position 与
   wrong-path guide-alignment 警告，禁止单独采用；
 - primary 审计：`primary_report_v1.json`、`primary_semantic_audit_v1.json`；
-- 第二标注 prompt：`configs/dual_prior_evidence_v1/secondary_prompt_v1.md`；
+- 第二标注的冻结语义 prompt：`configs/dual_prior_evidence_v1/secondary_prompt_v1.md`；当前实际发送的是
+  `secondary_prompt_resumable_v1a.md`，要求每判完一条立即用
+  `scripts/checkpoint_dual_prior_secondary_v1.py` 原子落盘并可按合法前缀续跑；操作附录为
+  `secondary_execution_addendum_v1a.json`，标签语义与 64 条输入均未改变；
 - 设计与代码审计：`docs/dual_prior_evidence_pilot_v1.md`。
 
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
@@ -112,7 +115,8 @@ protocol/audit 中，不在本 handoff 重复展开。
 
 不要再重跑 v2c 或继续扫 absolute tail weight。dual-prior 接下来严格按已冻结 v1 做：
 
-1. 收取独立 secondary 的 64 条 raw JSONL，用 `validate_dual_prior_secondary_v1.py` 校验；
+1. 用 `secondary_prompt_resumable_v1a.md` 收取独立 secondary；每条判断都立即 checkpoint，先用 helper
+   `status` 查看合法前缀与下一 item，64/64 后用 `finalize` 和 `validate_dual_prior_secondary_v1.py` 校验；
 2. 计算 eligibility 与 key/complete unit-set agreement，特别检查错误路径的 flaw-vs-terminal 语义，逐项裁决
    set disagreement；
 3. 物化 exact Phi token gold，审计正例比例、位置 shortcut、`key ⊆ complete` 与 head 可分性；

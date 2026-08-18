@@ -16,6 +16,13 @@ localization Pilot 的是独立 claim review 物化出的显式 sparse token lab
 - annotation 文件及 annotation protocol 都必须有 SHA256 provenance；先版本化、再合并、
   再审计，不允许直接手改合并后的 manifest。
 
+多行外部标注还必须遵守可恢复执行约束：每判断完一条就立即校验并原子落盘，不得只在内存中积累到整批
+完成；重启时先验证已有文件是冻结输入顺序的精确合法前缀，再从唯一的下一条继续。落盘至少要 flush、
+`fsync` 文件、原子替换并 `fsync` 所在目录，随后重读校验。若原冻结 prompt 只规定了最终批量输出，应新增
+不改变标签定义的 operational addendum，而不是原地修改冻结协议。Dual-prior v1a 的具体实现见
+`configs/dual_prior_evidence_v1/secondary_execution_addendum_v1a.json` 与
+`scripts/checkpoint_dual_prior_secondary_v1.py`。
+
 ## 2. Annotation JSONL 契约
 
 每行至少包含一个可选监督字段，并使用 canonical 字段名：
