@@ -149,6 +149,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--progress_weight", type=float, default=0.25)
     parser.add_argument("--prior_weight", type=float, default=0.25)
     parser.add_argument("--negative_tail_margin", type=float, default=0.5)
+    parser.add_argument(
+        "--hallucination_target_mode",
+        default="auto",
+        choices=["auto", "onset_tail", "explicit"],
+    )
+    parser.add_argument("--hallucination_positive_weight", type=float, default=1.0)
     parser.add_argument("--pseudo_onset_threshold", type=float, default=0.5)
     parser.add_argument("--condition_attention_temperature", type=float, default=1.0)
     parser.add_argument("--progress_score_weight", type=float, default=0.5)
@@ -199,6 +205,8 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         progress_weight=args.progress_weight,
         prior_weight=args.prior_weight,
         negative_tail_margin=args.negative_tail_margin,
+        hallucination_target_mode=args.hallucination_target_mode,
+        hallucination_positive_weight=args.hallucination_positive_weight,
         pseudo_onset_threshold=args.pseudo_onset_threshold,
         condition_attention_temperature=args.condition_attention_temperature,
         progress_score_weight=args.progress_score_weight,
@@ -400,7 +408,10 @@ def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tenso
         "onset_label_mask",
         torch.zeros(batch_size, dtype=torch.bool, device=mask.device),
     ).bool()
-    supervised_tokens = onset_mask[:, None] & mask
+    if "token_hallucination_target" in batch:
+        supervised_tokens = batch["token_hallucination_mask"].bool() & mask
+    else:
+        supervised_tokens = onset_mask[:, None] & mask
     onset = batch.get("hallucination_onset", torch.full((batch_size,), -1, device=mask.device)).long()
     positions = torch.arange(mask.shape[1], device=mask.device)[None, :]
     tail = onset_mask[:, None] & (onset[:, None] >= 0) & (positions >= onset[:, None]) & mask

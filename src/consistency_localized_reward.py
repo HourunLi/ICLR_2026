@@ -18,6 +18,7 @@ then fused through token-level attention before reward and localization heads.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -41,6 +42,8 @@ class RewardConfig:
     projection_dim: int = 256
     consistency_margin: float = 0.2
     negative_tail_margin: float = 0.5
+    hallucination_target_mode: str = "auto"
+    hallucination_positive_weight: float = 1.0
     pseudo_onset_threshold: float = 0.5
     prior_fusion_alpha: float = 0.5
     condition_attention_temperature: float = 1.0
@@ -126,6 +129,15 @@ class RewardConfig:
             raise ValueError("encoder_dropout must be in [0, 1)")
         if self.negative_consistency_weight < 0.0:
             raise ValueError("negative_consistency_weight must be non-negative")
+        if self.hallucination_target_mode not in {"auto", "onset_tail", "explicit"}:
+            raise ValueError(
+                "hallucination_target_mode must be one of: auto, onset_tail, explicit"
+            )
+        if (
+            not math.isfinite(self.hallucination_positive_weight)
+            or self.hallucination_positive_weight <= 0.0
+        ):
+            raise ValueError("hallucination_positive_weight must be positive")
 
 
 class IdentityFeatureEncoder(nn.Module):
@@ -593,6 +605,8 @@ class ConsistencyLocalizedReward(nn.Module):
             consistency_mask: [batch] marks rows with valid consistency ids.
             hallucination_onset: [batch] first hallucinated token, -1 if none.
             onset_label_mask: [batch] marks rows with explicit onset/non-onset labels.
+            token_hallucination_target/token_hallucination_mask: explicit sparse
+                binary token labels. These override onset-tail BCE in auto mode.
             path_hallucinated/path_label_mask: weak path-level hallucination labels.
             token_advantage/token_advantage_mask: token progress/advantage targets.
             progress_targets/progress_mask: direct progress-head supervision.
@@ -628,13 +642,17 @@ class ConsistencyLocalizedReward(nn.Module):
             losses.update({f"consistency_{k}": v for k, v in consistency.items()})
             total = total + self.config.consistency_weight * consistency["total"]
 
-        if "hallucination_onset" in batch:
+        if "hallucination_onset" in batch or "token_hallucination_target" in batch:
             loc_losses = hallucination_localization_losses(
                 outputs["hallucination_logits"],
                 outputs["token_values"],
                 outputs["mask"],
-                batch["hallucination_onset"],
+                batch.get("hallucination_onset"),
                 onset_label_mask=batch.get("onset_label_mask"),
+                token_hallucination_target=batch.get("token_hallucination_target"),
+                token_hallucination_mask=batch.get("token_hallucination_mask"),
+                target_mode=self.config.hallucination_target_mode,
+                positive_weight=self.config.hallucination_positive_weight,
                 token_advantage=batch.get("token_advantage"),
                 token_advantage_mask=batch.get("token_advantage_mask"),
                 negative_tail_margin=self.config.negative_tail_margin,
@@ -884,24 +902,43 @@ def hallucination_localization_losses(
     hallucination_logits: Tensor,
     token_rewards: Tensor,
     mask: Tensor,
-    onset: Tensor,
+    onset: Optional[Tensor],
     onset_label_mask: Optional[Tensor],
+    token_hallucination_target: Optional[Tensor],
+    token_hallucination_mask: Optional[Tensor],
+    target_mode: str,
+    positive_weight: float,
     token_advantage: Optional[Tensor],
     token_advantage_mask: Optional[Tensor],
     negative_tail_margin: float,
 ) -> Dict[str, Tensor]:
-    """Token-level onset supervision and negative-tail reward shaping.
+    """Explicit sparse-token or onset-tail supervision plus tail shaping.
 
     onset is -1 for known non-hallucinated trajectories. onset_label_mask marks
     rows with explicit onset/non-onset labels; unlabeled rows are ignored.
+    Explicit targets supervise only token_hallucination_mask positions and are
+    preferred in auto mode. Tail value shaping remains tied to a real onset.
     """
     device = hallucination_logits.device
     mask_bool = mask.to(device=device).bool()
-    onset = onset.to(device=device).long()
-    if onset_label_mask is None:
-        onset_label_mask = torch.ones(onset.shape, dtype=torch.bool, device=device)
+    if target_mode not in {"auto", "onset_tail", "explicit"}:
+        raise ValueError("Unknown hallucination target mode")
+    if not math.isfinite(positive_weight) or positive_weight <= 0.0:
+        raise ValueError("positive_weight must be positive")
+    if onset is None:
+        onset = torch.full(
+            (hallucination_logits.shape[0],),
+            -1,
+            dtype=torch.long,
+            device=device,
+        )
+        onset_label_mask = torch.zeros_like(onset, dtype=torch.bool)
     else:
-        onset_label_mask = onset_label_mask.to(device=device).bool()
+        onset = onset.to(device=device).long()
+        if onset_label_mask is None:
+            onset_label_mask = torch.ones(onset.shape, dtype=torch.bool, device=device)
+        else:
+            onset_label_mask = onset_label_mask.to(device=device).bool()
 
     positions = torch.arange(hallucination_logits.shape[1], device=device)[None, :]
     lengths = mask_bool.long().sum(dim=1)
@@ -912,8 +949,34 @@ def hallucination_localization_losses(
 
     has_onset = onset_label_mask[:, None] & (onset[:, None] >= 0)
     tail = has_onset & (positions >= onset[:, None]) & mask_bool
-    supervised_tokens = onset_label_mask[:, None] & mask_bool
-    hallucination_target = tail.to(dtype=hallucination_logits.dtype)
+    explicit_available = token_hallucination_target is not None
+    if explicit_available != (token_hallucination_mask is not None):
+        raise ValueError(
+            "token_hallucination_target and token_hallucination_mask must be provided together"
+        )
+    if target_mode == "explicit" and not explicit_available:
+        raise ValueError("Explicit hallucination target mode requires sparse token labels")
+    use_explicit = explicit_available and target_mode != "onset_tail"
+    if use_explicit:
+        hallucination_target = token_hallucination_target.to(
+            device=device,
+            dtype=hallucination_logits.dtype,
+        )
+        explicit_mask = token_hallucination_mask.to(device=device).bool()
+        if hallucination_target.shape != hallucination_logits.shape:
+            raise ValueError("token_hallucination_target shape must match token logits")
+        if explicit_mask.shape != hallucination_logits.shape:
+            raise ValueError("token_hallucination_mask shape must match token logits")
+        if torch.any((hallucination_target != 0) & (hallucination_target != 1)):
+            raise ValueError("token_hallucination_target must be binary")
+        if torch.any(hallucination_target.bool() & ~explicit_mask):
+            raise ValueError(
+                "token_hallucination_target must be zero outside token_hallucination_mask"
+            )
+        supervised_tokens = explicit_mask & mask_bool
+    else:
+        supervised_tokens = onset_label_mask[:, None] & mask_bool
+        hallucination_target = tail.to(dtype=hallucination_logits.dtype)
     zero = hallucination_logits.new_zeros(())
 
     if supervised_tokens.any():
@@ -921,6 +984,15 @@ def hallucination_localization_losses(
             hallucination_logits,
             hallucination_target,
             reduction="none",
+        )
+        token_bce_raw = token_bce_raw * torch.where(
+            hallucination_target.bool(),
+            torch.as_tensor(
+                positive_weight,
+                dtype=token_bce_raw.dtype,
+                device=device,
+            ),
+            torch.ones((), dtype=token_bce_raw.dtype, device=device),
         )
         token_bce = token_bce_raw[supervised_tokens].mean()
     else:

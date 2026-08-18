@@ -1,0 +1,67 @@
+{
+  "schema_version": "clir-hallucination-span-target-protocol-v2",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Derive sparse claim-span token hallucination targets without treating every post-onset token as hallucinated.",
+  "sources": {
+    "adjudicated_labels": {
+      "path": "configs/hallucination_localization_v1/labels_adjudicated_v1.jsonl",
+      "sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+      "rows": 64,
+      "claim_level_gold": false
+    },
+    "dense_train": {
+      "path": "run_artifacts/hallucination_localization_v1/data_v1/train_dense48_v1.jsonl",
+      "sha256": "6b69bde130fdb20cd775c0ea17da4ce15873907cba105448b46f1e5ff63b3459",
+      "rows": 48
+    },
+    "localization_dev": {
+      "path": "run_artifacts/hallucination_localization_v1/data_v1/localization_dev16_v1.jsonl",
+      "sha256": "93beb33086e4789f0fda451a7b0399d74fe878562c6d80a355215bc0ca4bfa1a",
+      "rows": 16
+    },
+    "split_manifest": {
+      "path": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+      "sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e"
+    }
+  },
+  "mapping": {
+    "negative_statuses": ["supported"],
+    "positive_statuses": ["unsupported", "contradicted"],
+    "masked_statuses": ["non_claim"],
+    "unreviewed_tokens": "masked",
+    "masked_target_fill": 0,
+    "span_end_convention": "token_end_exclusive",
+    "overlap_policy": "same_target_allowed_conflicting_target_rejected",
+    "require_first_positive_token_equals_hallucination_onset": true,
+    "require_any_positive_token_iff_path_hallucinated": true
+  },
+  "expected": {
+    "dense_train": {
+      "rows": 48,
+      "trajectory_tokens": 14307,
+      "supervised_tokens": 6681,
+      "positive_tokens": 922,
+      "negative_tokens": 5759,
+      "positive_weight_negative_over_positive": 6.246203904555315
+    },
+    "localization_dev": {
+      "rows": 16,
+      "trajectory_tokens": 5008,
+      "supervised_tokens": 2451,
+      "positive_tokens": 528,
+      "negative_tokens": 1923,
+      "absolute_position_roc_auc": 0.5859132471359461,
+      "absolute_position_average_precision": 0.39328067905143455,
+      "normalized_position_roc_auc": 0.518936931719693,
+      "normalized_position_average_precision": 0.2406033976299641,
+      "claim_absolute_position_average_precision": 0.42198767865054354
+    }
+  },
+  "outputs": {
+    "annotations": "configs/hallucination_localization_v2/span_supervision_annotations_v2.jsonl",
+    "dense_train": "run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+    "localization_dev": "run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+    "audit_report": "configs/hallucination_localization_v2/span_target_audit_v2.json"
+  },
+  "formal_mechanism_claim_allowed": false
+}

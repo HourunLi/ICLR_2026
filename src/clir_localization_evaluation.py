@@ -319,6 +319,16 @@ def evaluate_localization_rows(
     token_scores: list[float] = []
     token_absolute_positions: list[float] = []
     token_normalized_positions: list[float] = []
+    explicit_token_labels: list[int] = []
+    explicit_token_scores: list[float] = []
+    explicit_token_absolute_positions: list[float] = []
+    explicit_token_normalized_positions: list[float] = []
+    explicit_token_rows = 0
+    claim_labels: list[int] = []
+    claim_mean_scores: list[float] = []
+    claim_max_scores: list[float] = []
+    claim_mean_absolute_positions: list[float] = []
+    claim_mean_normalized_positions: list[float] = []
     within_positive_aucs: list[float] = []
     within_positive_average_precisions: list[float] = []
     onset_errors: list[int] = []
@@ -371,6 +381,72 @@ def evaluate_localization_rows(
         token_normalized_positions.extend(
             position / max(length - 1, 1) for position in range(length)
         )
+        explicit_target = row.get("token_hallucination_target")
+        explicit_mask = row.get("token_hallucination_mask")
+        if (explicit_target is None) != (explicit_mask is None):
+            raise ValueError(
+                "Explicit token hallucination target and mask must be provided together"
+            )
+        if explicit_target is not None:
+            if not isinstance(explicit_target, list) or not isinstance(explicit_mask, list):
+                raise ValueError("Explicit token hallucination labels must be lists")
+            if len(explicit_target) != length or len(explicit_mask) != length:
+                raise ValueError("Explicit token hallucination labels must align to scored tokens")
+            if any(value not in (0, 1, 0.0, 1.0) for value in explicit_target):
+                raise ValueError("Explicit token hallucination targets must be binary")
+            if any(value not in (0, 1, 0.0, 1.0) for value in explicit_mask):
+                raise ValueError("Explicit token hallucination masks must be binary")
+            explicit_token_rows += 1
+            for position, (explicit_label, known) in enumerate(
+                zip(explicit_target, explicit_mask)
+            ):
+                if not known:
+                    if explicit_label:
+                        raise ValueError("Explicit positive token lies outside its label mask")
+                    continue
+                explicit_token_labels.append(int(explicit_label))
+                explicit_token_scores.append(probs[position])
+                explicit_token_absolute_positions.append(float(position))
+                explicit_token_normalized_positions.append(
+                    position / max(length - 1, 1)
+                )
+
+            spans = row.get("hallucination_claim_spans")
+            if spans is not None:
+                if not isinstance(spans, list):
+                    raise ValueError("hallucination_claim_spans must be a list")
+                for span in spans:
+                    if not isinstance(span, Mapping):
+                        raise ValueError("Every hallucination claim span must be an object")
+                    start = span.get("token_start")
+                    end = span.get("token_end_exclusive")
+                    claim_label = span.get("target")
+                    if (
+                        isinstance(start, bool)
+                        or not isinstance(start, int)
+                        or isinstance(end, bool)
+                        or not isinstance(end, int)
+                        or not 0 <= start < end <= length
+                    ):
+                        raise ValueError("Hallucination claim span is outside scored tokens")
+                    if claim_label not in (0, 1, 0.0, 1.0):
+                        raise ValueError("Hallucination claim span target must be binary")
+                    if not all(explicit_mask[position] for position in range(start, end)):
+                        raise ValueError("Hallucination claim span contains masked-out tokens")
+                    if any(
+                        int(explicit_target[position]) != int(claim_label)
+                        for position in range(start, end)
+                    ):
+                        raise ValueError("Hallucination claim span disagrees with token targets")
+                    span_scores = probs[start:end]
+                    claim_labels.append(int(claim_label))
+                    claim_mean_scores.append(sum(span_scores) / len(span_scores))
+                    claim_max_scores.append(max(span_scores))
+                    mean_position = (start + end - 1) / 2.0
+                    claim_mean_absolute_positions.append(mean_position)
+                    claim_mean_normalized_positions.append(
+                        mean_position / max(length - 1, 1)
+                    )
         if onset >= 0:
             if onset > 0:
                 row_auc = binary_roc_auc(target, probs)
@@ -468,6 +544,89 @@ def evaluate_localization_rows(
     position_absolute = _ranking_metrics(token_labels, token_absolute_positions)
     position_normalized = _ranking_metrics(token_labels, token_normalized_positions)
     model_token_ranking = _ranking_metrics(token_labels, token_scores)
+    explicit_metrics = None
+    explicit_shortcuts = None
+    if explicit_token_labels:
+        explicit_model_ranking = _ranking_metrics(
+            explicit_token_labels,
+            explicit_token_scores,
+        )
+        explicit_absolute = _ranking_metrics(
+            explicit_token_labels,
+            explicit_token_absolute_positions,
+        )
+        explicit_normalized = _ranking_metrics(
+            explicit_token_labels,
+            explicit_token_normalized_positions,
+        )
+        explicit_metrics = {
+            **binary_metrics(
+                explicit_token_labels,
+                explicit_token_scores,
+                threshold=token_threshold,
+            ),
+            "annotated_rows": explicit_token_rows,
+        }
+        explicit_shortcuts = {
+            "absolute_position_ranking": explicit_absolute,
+            "normalized_position_ranking": explicit_normalized,
+            "model_minus_absolute_position": {
+                "roc_auc": (
+                    explicit_model_ranking["roc_auc"] - explicit_absolute["roc_auc"]
+                    if explicit_model_ranking["roc_auc"] is not None
+                    and explicit_absolute["roc_auc"] is not None
+                    else None
+                ),
+                "average_precision": (
+                    explicit_model_ranking["average_precision"]
+                    - explicit_absolute["average_precision"]
+                    if explicit_model_ranking["average_precision"] is not None
+                    and explicit_absolute["average_precision"] is not None
+                    else None
+                ),
+            },
+        }
+        if claim_labels:
+            claim_mean_ranking = _ranking_metrics(claim_labels, claim_mean_scores)
+            claim_absolute = _ranking_metrics(
+                claim_labels,
+                claim_mean_absolute_positions,
+            )
+            claim_normalized = _ranking_metrics(
+                claim_labels,
+                claim_mean_normalized_positions,
+            )
+            explicit_shortcuts["claim_level"] = {
+                "claims": len(claim_labels),
+                "positive": sum(claim_labels),
+                "mean_probability_ranking": claim_mean_ranking,
+                "max_probability_ranking": _ranking_metrics(
+                    claim_labels,
+                    claim_max_scores,
+                ),
+                "absolute_position_ranking": claim_absolute,
+                "normalized_position_ranking": claim_normalized,
+                "mean_model_minus_strongest_position_average_precision": (
+                    claim_mean_ranking["average_precision"]
+                    - max(
+                        value
+                        for value in (
+                            claim_absolute["average_precision"],
+                            claim_normalized["average_precision"],
+                        )
+                        if value is not None
+                    )
+                    if claim_mean_ranking["average_precision"] is not None
+                    and any(
+                        value is not None
+                        for value in (
+                            claim_absolute["average_precision"],
+                            claim_normalized["average_precision"],
+                        )
+                    )
+                    else None
+                ),
+            }
     return {
         "rows": len(rows),
         "fixed_default_threshold": threshold,
@@ -488,6 +647,8 @@ def evaluate_localization_rows(
             token_scores,
             threshold=token_threshold,
         ),
+        "explicit_claim_span_tokens": explicit_metrics,
+        "explicit_claim_span_shortcuts": explicit_shortcuts,
         "shortcut_baselines": {
             "path_length_ranking": _ranking_metrics(path_labels, lengths),
             "path_incorrectness_ranking": _ranking_metrics(

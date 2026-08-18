@@ -54,6 +54,48 @@ def test_localization_metrics_cover_path_tokens_onset_and_tail_values():
     assert metrics["shortcut_baselines"]["path_incorrectness_ranking"]["roc_auc"] == 1.0
 
 
+def test_explicit_claim_span_metrics_ignore_unreviewed_tokens_and_report_claim_units():
+    rows = [
+        {
+            "path_hallucinated": 0,
+            "hallucination_onset": -1,
+            "correctness": 1,
+            "token_hallucination_target": [0, 0, 0, 0],
+            "token_hallucination_mask": [1, 1, 0, 0],
+            "hallucination_claim_spans": [
+                {"token_start": 0, "token_end_exclusive": 2, "target": 0}
+            ],
+            "clir_path_hallucination_prob": 0.1,
+            "clir_path_no_hallucination_log_prob": -0.1,
+            "clir_token_hallucination_probs": [0.1, 0.2, 0.99, 0.99],
+            "clir_token_values": [0.0, 0.0, 0.0, 0.0],
+        },
+        {
+            "path_hallucinated": 1,
+            "hallucination_onset": 2,
+            "correctness": 0,
+            "token_hallucination_target": [0, 0, 1, 1],
+            "token_hallucination_mask": [0, 0, 1, 1],
+            "hallucination_claim_spans": [
+                {"token_start": 2, "token_end_exclusive": 4, "target": 1}
+            ],
+            "clir_path_hallucination_prob": 0.9,
+            "clir_path_no_hallucination_log_prob": -2.0,
+            "clir_token_hallucination_probs": [0.99, 0.99, 0.8, 0.9],
+            "clir_token_values": [0.0, 0.0, 0.0, 0.0],
+        },
+    ]
+
+    metrics = evaluate_localization_rows(rows)
+
+    assert metrics["explicit_claim_span_tokens"]["rows"] == 4
+    assert metrics["explicit_claim_span_tokens"]["roc_auc"] == 1.0
+    assert metrics["explicit_claim_span_shortcuts"]["claim_level"]["claims"] == 2
+    assert metrics["explicit_claim_span_shortcuts"]["claim_level"][
+        "mean_probability_ranking"
+    ]["roc_auc"] == 1.0
+
+
 def test_localization_missed_onset_is_penalized_by_row_length():
     row = {
         "path_hallucinated": 1,

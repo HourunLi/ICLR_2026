@@ -244,11 +244,25 @@ def validate_supervision_contract(
         expected_reconstruction_dim=int(contract["expected_reconstruction_dim"]),
         require_provenance=True,
     )
+    expected_field_rows = contract["expected_field_rows"]
     _assert_equal(
-        coverage["field_rows"],
-        contract["expected_field_rows"],
+        {
+            field: coverage["field_rows"].get(field, 0)
+            for field in expected_field_rows
+        },
+        expected_field_rows,
         f"{split_name} CLIR supervision field coverage",
     )
+    unexpected_nonzero_fields = {
+        field: count
+        for field, count in coverage["field_rows"].items()
+        if field not in expected_field_rows and count != 0
+    }
+    if unexpected_nonzero_fields:
+        raise ValueError(
+            f"{split_name} contains auxiliary supervision fields absent from the frozen "
+            f"Stage 1B contract: {unexpected_nonzero_fields}"
+        )
     _assert_equal(
         coverage["eligible_components"],
         contract["expected_eligible_components"],

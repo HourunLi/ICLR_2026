@@ -14,6 +14,7 @@ from src.consistency_localized_reward import (
     RewardConfig,
     build_reward_model,
     dual_prior_losses,
+    hallucination_localization_losses,
     prism_style_consistency_loss,
     path_hallucination_probability,
     path_level_hallucination_mil,
@@ -245,6 +246,66 @@ def test_invalid_hallucination_onset_raises():
         assert "hallucination_onset" in str(exc)
     else:
         raise AssertionError("Expected invalid hallucination onset to raise ValueError")
+
+
+def test_explicit_sparse_hallucination_target_overrides_onset_tail_and_weights_positives():
+    common = {
+        "hallucination_logits": torch.zeros(1, 4),
+        "token_rewards": torch.zeros(1, 4),
+        "mask": torch.ones(1, 4),
+        "onset": torch.tensor([2]),
+        "onset_label_mask": torch.tensor([True]),
+        "token_advantage": None,
+        "token_advantage_mask": None,
+        "negative_tail_margin": 0.5,
+    }
+    explicit = hallucination_localization_losses(
+        **common,
+        token_hallucination_target=torch.tensor([[0.0, 1.0, 0.0, 0.0]]),
+        token_hallucination_mask=torch.tensor([[False, True, False, False]]),
+        target_mode="explicit",
+        positive_weight=2.0,
+    )
+    tail = hallucination_localization_losses(
+        **common,
+        token_hallucination_target=torch.tensor([[0.0, 1.0, 0.0, 0.0]]),
+        token_hallucination_mask=torch.tensor([[False, True, False, False]]),
+        target_mode="onset_tail",
+        positive_weight=1.0,
+    )
+
+    assert explicit["token_bce"].item() == pytest.approx(2.0 * torch.log(torch.tensor(2.0)).item())
+    assert tail["token_bce"].item() == pytest.approx(torch.log(torch.tensor(2.0)).item())
+
+
+def test_sparse_hallucination_targets_collate_with_their_explicit_mask(tmp_path: Path):
+    hidden = tmp_path / "hidden.pt"
+    torch.save(torch.zeros(4, 8), hidden)
+    manifest = tmp_path / "span.jsonl"
+    write_jsonl(
+        manifest,
+        [
+            {
+                "id": "sample",
+                "query_id": "query",
+                "hidden_states_path": str(hidden),
+                "token_hallucination_target": [0, 1, 0, 0],
+                "token_hallucination_mask": [1, 1, 0, 0],
+            }
+        ],
+    )
+    batch = next(
+        iter(
+            DataLoader(
+                CLIRTrajectoryDataset(manifest),
+                batch_size=1,
+                collate_fn=clir_collate,
+            )
+        )
+    )
+
+    assert batch["token_hallucination_target"].tolist() == [[0.0, 1.0, 0.0, 0.0]]
+    assert batch["token_hallucination_mask"].tolist() == [[True, True, False, False]]
 
 
 def test_jsonl_dataset_collate(tmp_path: Path):

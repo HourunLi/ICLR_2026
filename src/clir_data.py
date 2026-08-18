@@ -345,6 +345,13 @@ def clir_collate(batch: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
 
     add_optional_onset(output, batch)
     add_optional_float(output, batch, "path_hallucinated", mask_key="path_label_mask")
+    add_optional_masked_sequence(
+        output,
+        batch,
+        "token_hallucination_target",
+        "token_hallucination_mask",
+        max_time,
+    )
     add_optional_sequence(output, batch, "token_advantage", max_time, mask_key="token_advantage_mask")
     add_optional_sequence(output, batch, "progress_targets", max_time, mask_key="progress_mask")
     add_optional_sequence(output, batch, "key_prior_target", max_time, mask_key="key_prior_mask")
@@ -453,6 +460,50 @@ def add_optional_sequence(
     if has_any:
         output[key] = values
         output[mask_key] = mask
+
+
+def add_optional_masked_sequence(
+    output: Dict[str, Any],
+    batch: Sequence[Dict[str, Any]],
+    target_key: str,
+    source_mask_key: str,
+    max_time: int,
+) -> None:
+    """Collate an explicit sparse token target without zero-filling missing labels."""
+
+    values = torch.zeros(len(batch), max_time, dtype=torch.float32)
+    mask = torch.zeros(len(batch), max_time, dtype=torch.bool)
+    has_any = False
+    for row, item in enumerate(batch):
+        has_target = target_key in item
+        has_mask = source_mask_key in item
+        if has_target != has_mask:
+            raise ValueError(f"{target_key} and {source_mask_key} must be provided together")
+        if not has_target:
+            continue
+        target = item[target_key].float().flatten()
+        source_mask = item[source_mask_key].float().flatten()
+        trajectory_length = int(output["mask"][row].sum().item())
+        if target.numel() != trajectory_length or source_mask.numel() != trajectory_length:
+            raise ValueError(
+                f"Sparse token labels for `{target_key}` must match trajectory length "
+                f"{trajectory_length}"
+            )
+        if not torch.all((target == 0) | (target == 1)):
+            raise ValueError(f"{target_key} must be binary")
+        if not torch.all((source_mask == 0) | (source_mask == 1)):
+            raise ValueError(f"{source_mask_key} must be binary")
+        source_mask_bool = source_mask.bool()
+        if not source_mask_bool.any():
+            raise ValueError(f"{source_mask_key} must supervise at least one token")
+        if torch.any(target.bool() & ~source_mask_bool):
+            raise ValueError(f"{target_key} must be zero outside {source_mask_key}")
+        values[row, :trajectory_length] = target
+        mask[row, :trajectory_length] = source_mask_bool
+        has_any = True
+    if has_any:
+        output[target_key] = values
+        output[source_mask_key] = mask
 
 
 def add_optional_vector(

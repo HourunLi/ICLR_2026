@@ -13,6 +13,8 @@ ANNOTATION_SCHEMA = "clir-supervision-annotation-v1"
 PROVENANCE_SCHEMA = "clir-supervision-provenance-v1"
 ROW_PROVENANCE_SCHEMA = "clir-supervision-row-provenance-v1"
 TOKEN_FIELDS = (
+    "token_hallucination_target",
+    "token_hallucination_mask",
     "token_advantage",
     "progress_targets",
     "key_prior_target",
@@ -87,10 +89,19 @@ def _numeric_sequence(value: Any, *, field: str, length: int) -> list[float]:
         if not math.isfinite(numeric):
             raise ValueError(f"{field} contains a non-finite value")
         normalized.append(numeric)
-    if field in {"key_prior_target", "complete_prior_target"} and any(
+    if field in {
+        "token_hallucination_target",
+        "token_hallucination_mask",
+        "key_prior_target",
+        "complete_prior_target",
+    } and any(
         not 0.0 <= element <= 1.0 for element in normalized
     ):
         raise ValueError(f"{field} values must be in [0, 1]")
+    if field in {"token_hallucination_target", "token_hallucination_mask"} and any(
+        element not in {0.0, 1.0} for element in normalized
+    ):
+        raise ValueError(f"{field} values must be binary")
     return normalized
 
 
@@ -144,6 +155,20 @@ def validate_supervision_annotation(
         if field in annotation:
             labels[field] = _numeric_sequence(
                 annotation[field], field=field, length=token_count
+            )
+
+    explicit_target = labels.get("token_hallucination_target")
+    explicit_mask = labels.get("token_hallucination_mask")
+    if (explicit_target is None) != (explicit_mask is None):
+        raise ValueError(
+            "token_hallucination_target and token_hallucination_mask must be provided together"
+        )
+    if explicit_target is not None:
+        if not any(explicit_mask):
+            raise ValueError("token_hallucination_mask must supervise at least one token")
+        if any(target and not mask for target, mask in zip(explicit_target, explicit_mask)):
+            raise ValueError(
+                "token_hallucination_target must be zero outside token_hallucination_mask"
             )
 
     if "path_hallucinated" in annotation:
@@ -377,6 +402,7 @@ def audit_supervision_coverage(
     style_semantics: Dict[str, Counter[str]] = defaultdict(Counter)
     joint_prior_rows = 0
     joint_prior_tokens = 0
+    explicit_hallucination_tokens = Counter()
     seen_ids: set[str] = set()
     for row_index, row in enumerate(rows):
         row_id = str(row.get("id", ""))
@@ -492,6 +518,44 @@ def audit_supervision_coverage(
 
         path_aliases = _existing_aliases(row, "path_hallucinated")
         onset_aliases = _existing_aliases(row, "hallucination_onset")
+        explicit_target_aliases = _existing_aliases(row, "token_hallucination_target")
+        explicit_mask_aliases = _existing_aliases(row, "token_hallucination_mask")
+        if bool(explicit_target_aliases) != bool(explicit_mask_aliases):
+            raise ValueError(
+                f"{row_id}/token_hallucination_target and mask must be provided together"
+            )
+        if explicit_target_aliases:
+            targets = _numeric_sequence(
+                row[explicit_target_aliases[0]],
+                field="token_hallucination_target",
+                length=token_count,
+            )
+            explicit_mask = _numeric_sequence(
+                row[explicit_mask_aliases[0]],
+                field="token_hallucination_mask",
+                length=token_count,
+            )
+            supervised = sum(int(value) for value in explicit_mask)
+            positives = sum(
+                int(target)
+                for target, known in zip(targets, explicit_mask)
+                if known
+            )
+            if supervised == 0:
+                raise ValueError(
+                    f"{row_id}/token_hallucination_mask must supervise at least one token"
+                )
+            if any(target and not known for target, known in zip(targets, explicit_mask)):
+                raise ValueError(
+                    f"{row_id}/token_hallucination_target must be zero outside its mask"
+                )
+            if path_aliases and bool(positives) != bool(int(row[path_aliases[0]])):
+                raise ValueError(
+                    f"{row_id}/explicit token positives disagree with path_hallucinated"
+                )
+            explicit_hallucination_tokens["supervised"] += supervised
+            explicit_hallucination_tokens["positive"] += positives
+            explicit_hallucination_tokens["negative"] += supervised - positives
         if onset_aliases and not path_aliases:
             raise ValueError(f"{row_id}/hallucination_onset requires path_hallucinated")
         if onset_aliases:
@@ -539,6 +603,10 @@ def audit_supervision_coverage(
         "joint_prior_rows": joint_prior_rows,
         "joint_prior_tokens": joint_prior_tokens,
         "positive_onset_rows": positive_onset_rows,
+        "explicit_hallucination_tokens": {
+            key: int(explicit_hallucination_tokens[key])
+            for key in ("supervised", "positive", "negative")
+        },
         "reconstruction_dimensions": {
             str(dimension): int(count)
             for dimension, count in sorted(reconstruction_dims.items())

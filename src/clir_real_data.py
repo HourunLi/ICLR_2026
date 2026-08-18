@@ -29,6 +29,14 @@ GSM8K_PROMPT_TEMPLATE = (
 )
 
 TOKEN_LABEL_ALIASES = {
+    "token_hallucination_target": (
+        "token_hallucination_target",
+        "token_hallucination_targets",
+    ),
+    "token_hallucination_mask": (
+        "token_hallucination_mask",
+        "token_hallucination_masks",
+    ),
     "token_advantage": ("token_advantage", "token_advantages", "advantages"),
     "progress_targets": ("progress_targets", "progress", "progress_target"),
     "key_prior_target": ("key_prior_target", "key_prior"),

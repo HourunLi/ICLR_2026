@@ -112,6 +112,40 @@ def test_annotation_rejects_token_hash_length_and_onset_drift():
         validate_supervision_annotation(typo, row)
 
 
+def test_sparse_token_hallucination_labels_require_a_binary_explicit_mask():
+    row = _row("r0", "q0")
+    annotation = _annotation(
+        row,
+        path_hallucinated=1,
+        hallucination_onset=1,
+        token_hallucination_target=[0, 1, 0],
+        token_hallucination_mask=[1, 1, 0],
+    )
+    merged = merge_supervision_annotations(
+        [row],
+        [annotation],
+        annotation_artifact={"annotations_sha256": "b" * 64},
+    )
+    coverage = audit_supervision_coverage(merged, require_provenance=True)
+
+    assert coverage["explicit_hallucination_tokens"] == {
+        "supervised": 2,
+        "positive": 1,
+        "negative": 1,
+    }
+
+    missing_mask = _annotation(row, token_hallucination_target=[0, 1, 0])
+    with pytest.raises(ValueError, match="must be provided together"):
+        validate_supervision_annotation(missing_mask, row)
+    outside_mask = _annotation(
+        row,
+        token_hallucination_target=[0, 1, 0],
+        token_hallucination_mask=[1, 0, 0],
+    )
+    with pytest.raises(ValueError, match="zero outside"):
+        validate_supervision_annotation(outside_mask, row)
+
+
 def test_merge_refuses_to_replace_existing_supervision():
     row = _row("r0", "q0")
     row["progress"] = [0.0, 0.0, 1.0]
