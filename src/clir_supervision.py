@@ -157,6 +157,18 @@ def validate_supervision_annotation(
                 annotation[field], field=field, length=token_count
             )
 
+    for field in ("key_prior_target", "complete_prior_target"):
+        if field in labels and not any(value > 0.0 for value in labels[field]):
+            raise ValueError(f"{field} must contain at least one positive token")
+    if "key_prior_target" in labels and "complete_prior_target" in labels:
+        if any(
+            key_value > complete_value
+            for key_value, complete_value in zip(
+                labels["key_prior_target"], labels["complete_prior_target"]
+            )
+        ):
+            raise ValueError("key_prior_target must be a pointwise subset of complete_prior_target")
+
     explicit_target = labels.get("token_hallucination_target")
     explicit_mask = labels.get("token_hallucination_mask")
     if (explicit_target is None) != (explicit_mask is None):
@@ -440,9 +452,30 @@ def audit_supervision_coverage(
                 _numeric_sequence(value, field=field, length=token_count)
                 field_rows[field] += 1
                 field_tokens[field] += len(value)
-        key_present = bool(_existing_aliases(row, "key_prior_target"))
-        complete_present = bool(_existing_aliases(row, "complete_prior_target"))
+        key_aliases = _existing_aliases(row, "key_prior_target")
+        complete_aliases = _existing_aliases(row, "complete_prior_target")
+        key_present = bool(key_aliases)
+        complete_present = bool(complete_aliases)
+        if key_present:
+            key_target = _numeric_sequence(
+                row[key_aliases[0]], field="key_prior_target", length=token_count
+            )
+            if not any(value > 0.0 for value in key_target):
+                raise ValueError(f"{row_id}/key_prior_target must contain a positive token")
+        if complete_present:
+            complete_target = _numeric_sequence(
+                row[complete_aliases[0]], field="complete_prior_target", length=token_count
+            )
+            if not any(value > 0.0 for value in complete_target):
+                raise ValueError(f"{row_id}/complete_prior_target must contain a positive token")
         if key_present and complete_present:
+            if any(
+                key_value > complete_value
+                for key_value, complete_value in zip(key_target, complete_target)
+            ):
+                raise ValueError(
+                    f"{row_id}/key_prior_target must be a pointwise subset of complete_prior_target"
+                )
             joint_prior_rows += 1
             joint_prior_tokens += token_count
         for field in (*SCALAR_FIELDS, *GROUP_FIELDS, *VECTOR_FIELDS):

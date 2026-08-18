@@ -189,6 +189,18 @@ tail objective，并发布新协议。机器结论和完整解释见
 `docs/hallucination_tail_cross_validation_v2c.md`。hallucination 模块的 pipeline-selection gate 至此关闭，
 项目进入 dual-prior。
 
+### 7.4 dual-prior v1：先验证 nested direct targets
+
+进入下一模块后的代码审计发现，现有 direct head 用 token BCE 学 membership，但默认 mutual MSE 又会把
+key/complete 两个 softmax prior 拉成同一分布；这与 `key ⊆ complete` 的窄/宽语义不一致。训练 CLI 此前也
+不能独立关闭 key、complete、distill、gate 与 reconstruction 子项。
+
+因此新增五个独立权重开关，并冻结 `configs/dual_prior_evidence_v1/`：复用 64 条已绑定 exact token identity
+的 trajectory 和原 48/16 membership，重新做不含 correctness/path 信息的 fixed-unit 双标，共 1210 units。
+首轮只比较 direct key/complete BCE，distill、gate alignment、reconstruction 全部为 0。错误轨迹仍可标：
+decisive flaw 为 key，material attempted chain 为 complete。完整设计见
+`docs/dual_prior_evidence_pilot_v1.md`。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

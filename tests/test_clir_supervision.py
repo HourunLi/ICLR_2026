@@ -112,6 +112,42 @@ def test_annotation_rejects_token_hash_length_and_onset_drift():
         validate_supervision_annotation(typo, row)
 
 
+def test_dual_prior_targets_require_nonempty_nested_evidence():
+    row = _row("r0", "q0")
+
+    empty_key = _annotation(
+        row,
+        key_prior_target=[0.0, 0.0, 0.0],
+        complete_prior_target=[1.0, 0.0, 0.0],
+    )
+    with pytest.raises(ValueError, match="key_prior_target must contain"):
+        validate_supervision_annotation(empty_key, row)
+
+    non_nested = _annotation(
+        row,
+        key_prior_target=[1.0, 0.0, 0.0],
+        complete_prior_target=[0.0, 1.0, 0.0],
+    )
+    with pytest.raises(ValueError, match="pointwise subset"):
+        validate_supervision_annotation(non_nested, row)
+
+    merged = deepcopy(row)
+    merged.update(non_nested)
+    merged["clir_supervision_provenance"] = {
+        "schema_version": ROW_PROVENANCE_SCHEMA,
+        "output_token_ids_sha256": output_token_ids_sha256(row["output_token_ids"]),
+        "sources": [
+            {
+                "schema_version": PROVENANCE_SCHEMA,
+                "protocol_sha256": "a" * 64,
+                "annotation_source": "unit-test-explicit-annotation",
+            }
+        ],
+    }
+    with pytest.raises(ValueError, match="pointwise subset"):
+        audit_supervision_coverage([merged])
+
+
 def test_sparse_token_hallucination_labels_require_a_binary_explicit_mask():
     row = _row("r0", "q0")
     annotation = _annotation(

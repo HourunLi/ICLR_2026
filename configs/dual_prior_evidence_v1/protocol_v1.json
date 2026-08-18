@@ -1,0 +1,104 @@
+{
+  "schema_version": "clir-dual-prior-evidence-protocol-v1",
+  "status": "frozen_before_annotation",
+  "purpose": "Test whether externally annotated nested key/complete evidence sets are reproducible and learnable before enabling any collaborative prior, gate, or reconstruction loss.",
+  "source": {
+    "reuse_scope": "the 64 already-vetted trajectory identities and their frozen dense_train/localization_dev memberships; no prior key/complete decision exists or is reused",
+    "trajectory_manifest": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+    "trajectory_manifest_sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+    "hallucination_items": "configs/hallucination_localization_v1/annotation_items_v1.jsonl",
+    "hallucination_items_sha256": "ec7ebe67794810300a8d9ca984ea7f29c5e1017f2e1da0b81118dc2789a38591",
+    "hallucination_lineage": "configs/hallucination_localization_v1/annotation_lineage_v1.jsonl",
+    "hallucination_lineage_sha256": "ad786d30c08a2d4112018893fecfcee7a32e13fc22d925bae12334ba3d95faef",
+    "hallucination_adjudicated_labels": "configs/hallucination_localization_v1/labels_adjudicated_v1.jsonl",
+    "hallucination_adjudicated_labels_sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+    "training_split_manifest": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+    "training_split_manifest_sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e",
+    "rows": 64,
+    "queries": 64,
+    "dense_train_rows": 48,
+    "localization_dev_rows": 16,
+    "hallucination_or_correctness_fields_visible_to_annotator": false
+  },
+  "unitization": {
+    "implementation": "src.clir_dual_prior_annotation.segment_reasoning_units",
+    "boundaries": "non-empty lines and sentence-final punctuation; common Step N:/Answer: prefixes are separated",
+    "coverage": "every non-whitespace trajectory character belongs to exactly one fixed unit",
+    "annotation_granularity": "whole units only",
+    "fallback": "mark insufficient_unitization instead of inventing or editing a span"
+  },
+  "target_semantics": {
+    "complete": "the non-redundant candidate-side reasoning units needed to reconstruct and audit how the trajectory reaches its conclusion from the supplied prompt",
+    "key": "the smallest subset of complete units whose verification most directly determines whether the conclusion is warranted",
+    "nesting": "key_unit_indices must be a subset of complete_unit_indices",
+    "incorrect_trajectory_rule": "label the decisive erroneous or unsupported inference as key and retain the material attempted chain as complete; do not convert this task into a correctness label",
+    "correct_trajectory_rule": "label the decisive answer-producing inference as key and the minimal sufficient derivation chain as complete",
+    "final_answer_rule": "a pure duplicate final-answer wrapper is neither; include it only when it is the sole unit that states the conclusion, and never treat an answer-only trajectory as auditable reasoning",
+    "prompt_restatement_rule": "a unit that merely copies the prompt is neither unless it also performs a material transformation or inference",
+    "redundancy_rule": "select one sufficient derivation, not every paraphrase or duplicated calculation"
+  },
+  "annotation": {
+    "guide": "configs/dual_prior_evidence_v1/annotation_guide_v1.md",
+    "schema": "clir-dual-prior-evidence-annotation-v1",
+    "independent_secondary": "required_on_all_64_rows",
+    "secondary_output": "configs/dual_prior_evidence_v1/labels_secondary_raw_v1.jsonl"
+  },
+  "primary_annotator": {
+    "role": "candidate_primary_requires_independent_secondary_and_disagreement_adjudication",
+    "model_id": "mistralai/Mistral-Small-24B-Instruct-2501",
+    "model_revision": "9527884be6e5616bdd54de542f9ae13384489724",
+    "decoding": {
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 768
+    }
+  },
+  "selection_gate": {
+    "scope": "module-development gate, not a paper-quality reliability claim",
+    "structural_validity_per_annotator": 1.0,
+    "minimum_usable_rows_per_annotator": 48,
+    "minimum_usable_overlap_rows": 40,
+    "minimum_eligibility_agreement": 0.75,
+    "minimum_macro_unit_f1_on_usable_overlap": {
+      "key": 0.45,
+      "complete": 0.6
+    },
+    "required_nested_fraction": 1.0,
+    "disagreements": "adjudicate before materializing training targets; a failed agreement gate triggers guide/unitization repair and does not silently average labels"
+  },
+  "first_training_pilot": {
+    "standalone_cells": [
+      "D0_correctness_only",
+      "D1_correctness_plus_key",
+      "D2_correctness_plus_complete",
+      "D3_correctness_plus_key_and_complete"
+    ],
+    "disabled_in_all_cells": [
+      "consistency",
+      "hallucination",
+      "tail",
+      "progress",
+      "mutual_prior_distillation",
+      "gate_prior_alignment",
+      "complete_reconstruction"
+    ],
+    "reason": "direct external target learnability must be established before adding collaboration losses whose shortcut is key/complete collapse"
+  },
+  "token_mapping": {
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "trust_remote_code": true,
+    "contract": "retokenize the exact visible response and require prefix equality with frozen output_token_ids; map selected unit character spans to overlapping frozen tokens"
+  },
+  "outputs": {
+    "selection_manifest": "configs/dual_prior_evidence_v1/selection_manifest_v1.jsonl",
+    "annotation_items": "configs/dual_prior_evidence_v1/annotation_items_v1.jsonl",
+    "annotation_lineage": "configs/dual_prior_evidence_v1/annotation_lineage_v1.jsonl",
+    "package_report": "configs/dual_prior_evidence_v1/package_report_v1.json",
+    "primary_run_root": "run_artifacts/dual_prior_evidence_v1/primary_mistral24_v1",
+    "primary_labels": "configs/dual_prior_evidence_v1/labels_primary_v1.jsonl",
+    "primary_report": "configs/dual_prior_evidence_v1/primary_report_v1.json",
+    "secondary_prompt": "configs/dual_prior_evidence_v1/secondary_prompt_v1.md"
+  }
+}

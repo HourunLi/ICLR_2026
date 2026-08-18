@@ -51,7 +51,7 @@ localization Pilot 的是独立 claim review 物化出的显式 sparse token lab
 | `token_hallucination_target` + `token_hallucination_mask` | 两者必须同时提供、长度严格等于 `T`、值为 binary；mask 至少覆盖一个 token，mask 外 target 必须为 0 | sparse token/span localization |
 | `token_advantage` | 长度严格等于 `T=len(output_token_ids)`，全部 finite | token reward target |
 | `progress_targets` | 长度严格等于 `T`，全部 finite | progress-head target |
-| `key_prior_target` / `complete_prior_target` | 长度严格等于 `T`，值域 `[0,1]` | dual-prior BCE；两者共同覆盖才启用 distill/gate 对齐 |
+| `key_prior_target` / `complete_prior_target` | 长度严格等于 `T`，值域 `[0,1]`，各自至少一个 positive；共同出现时逐 token `key <= complete` | direct dual-prior BCE；distill/gate 是独立实验开关，不因标签存在自动获得方法授权 |
 | `semantic_id` + `style_id` 或 `domain_id` | semantic 必须有一个非空 spurious-attribute ID；`style_id` 优先，`domain_id` 可作兼容 fallback | consistency positive/negative pairs |
 | `domain_id` | 提供时非空；同时给 `style_id` 时作为独立诊断元数据 | domain 诊断 |
 | `complete_reconstruction_target` | 独立生成的 finite 定长向量；正式 CLIR 配置预期宽度为 `model_dim` | complete-prior reconstruction |
@@ -60,6 +60,10 @@ localization Pilot 的是独立 claim review 物化出的显式 sparse token lab
 缺失监督，绝不是负例。target vector 虽在 mask 外以 0 占位，collate、loss 与 evaluation 都必须保留 mask，
 不得把占位 0 纳入 BCE。具体任务协议还可以增加更强约束；Localization v2 例如要求最早 positive token
 等于冻结 onset，且 positive token 的存在性与 path label 一致。
+
+Dual-prior v1 把 key/complete 解释为 nested evidence membership，不是两张各自归一化的 gold attention
+distribution。因此 direct BCE 可以使用这两个 target；softmax prior 间的 mutual MSE 与 gate alignment 必须
+单独冻结权重。当前 v1 首轮将二者都设为 0，避免把 narrow key 和 broad complete 训练成同一张图。
 
 annotation 可以是稀疏的：例如只有 path label 时，不要写 onset 或任何全零 token vector。为了让
 consistency loss 真正有适用样本，数据集必须同时形成“同 semantic、不同 style”的正 pairs 与

@@ -18,7 +18,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE，不加当前 absolute-margin full tail | T2 有 ranking signal 但发生全局 value shift；exact onset 未通过 |
-| dual-prior localization | 当前下一模块：先单独验证 external key/complete targets | reconstruction 必须是外部 768-d target，缺失监督保持 mask |
+| dual-prior localization | v1 已冻结 64 条 fixed-unit 双标包，先单独验证 direct external key/complete targets | `key ⊆ complete`；首轮 distill/gate/reconstruction 全关 |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -63,15 +63,17 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 
 ## 下一道门
 
-Hallucination tail v2c 已冻结为 `completed_keep_t0_defer_tail`，当前 localization 模块选择 T0。下一道门
-进入 dual-prior：先审计/生成外部 key 与 complete token targets，做 target non-degeneracy 和 standalone
-localization pilot；首轮不开 reconstruction，除非能定义独立的 768-d external target。exact onset 和有锚定
-的 tail repair 保留为后续独立工作，不与 dual-prior 首轮混训。
+Hallucination tail v2c 已冻结为 `completed_keep_t0_defer_tail`，当前 localization 模块选择 T0。dual-prior v1
+代码审计与 64 条盲包已经冻结：共 1210 个 domain-agnostic fixed units，沿用 query-disjoint 48/16 split，
+两位 annotator 都标全部 64 条。先通过 agreement/non-degeneracy gate，再跑 correctness-only、key-only、
+complete-only、joint direct-target 四格；mutual distillation、gate alignment 与 reconstruction 首轮全关。
+完整定义见 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md)。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
 [Hallucination Full-Tail v2b](docs/hallucination_tail_comparison_v2b.md) 与
-[Hallucination Localization Pilot v2](docs/hallucination_localization_pilot_v2.md)。
+[Hallucination Localization Pilot v2](docs/hallucination_localization_pilot_v2.md)。dual-prior 当前 artifact 与
+第二标注说明位于 `configs/dual_prior_evidence_v1/`。
 
 ## 受保护的数据契约
 

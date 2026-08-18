@@ -148,6 +148,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pseudo_tail_weight", type=float, default=0.1)
     parser.add_argument("--progress_weight", type=float, default=0.25)
     parser.add_argument("--prior_weight", type=float, default=0.25)
+    parser.add_argument("--key_prior_weight", type=float, default=1.0)
+    parser.add_argument("--complete_prior_weight", type=float, default=1.0)
+    parser.add_argument("--prior_distill_weight", type=float, default=0.25)
+    parser.add_argument("--gate_prior_weight", type=float, default=0.25)
+    parser.add_argument("--reconstruction_weight", type=float, default=0.1)
     parser.add_argument("--negative_tail_margin", type=float, default=0.5)
     parser.add_argument(
         "--hallucination_target_mode",
@@ -204,6 +209,11 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         pseudo_tail_weight=args.pseudo_tail_weight,
         progress_weight=args.progress_weight,
         prior_weight=args.prior_weight,
+        key_prior_weight=args.key_prior_weight,
+        complete_prior_weight=args.complete_prior_weight,
+        prior_distill_weight=args.prior_distill_weight,
+        gate_prior_weight=args.gate_prior_weight,
+        reconstruction_weight=args.reconstruction_weight,
         negative_tail_margin=args.negative_tail_margin,
         hallucination_target_mode=args.hallucination_target_mode,
         hallucination_positive_weight=args.hallucination_positive_weight,

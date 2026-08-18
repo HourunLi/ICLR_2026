@@ -1,0 +1,34 @@
+{
+  "annotation_guide_sha256": "51655ff2cffd861f08b890eea28f68c6b12b4cdb8806819b2b3021f66570e576",
+  "annotation_items_sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+  "annotation_lineage_sha256": "91f25b7217aabf9452b67a917fd6e31a3f1b74bed2de2a328eb1f45b66217724",
+  "blind_item_fields": [
+    "item_id",
+    "problem",
+    "schema_version",
+    "trajectory",
+    "units"
+  ],
+  "forbidden_fields_absent_from_blind_items": true,
+  "membership_counts": {
+    "dense_train": 48,
+    "localization_dev": 16
+  },
+  "non_whitespace_coverage_verified": true,
+  "prior_path_status_counts_for_private_audit_only": {
+    "clean": 41,
+    "hallucinated": 23
+  },
+  "protocol": "configs/dual_prior_evidence_v1/protocol_v1.json",
+  "protocol_sha256": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27",
+  "queries": 64,
+  "rows": 64,
+  "schema_version": "clir-dual-prior-evidence-package-report-v1",
+  "selection_manifest_sha256": "ae395297abdcd6e5348ba51bcc40eaaed55d0c45c7eeb38a3ec2ba9d28be42b2",
+  "unit_count": {
+    "max": 38,
+    "median": 18.0,
+    "min": 9,
+    "total": 1210
+  }
+}

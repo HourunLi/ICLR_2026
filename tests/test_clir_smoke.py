@@ -594,6 +594,16 @@ def test_train_cli_exposes_new_reward_config_fields():
         "0.7",
         "--progress_score_weight",
         "0.25",
+        "--key_prior_weight",
+        "0.8",
+        "--complete_prior_weight",
+        "0.7",
+        "--prior_distill_weight",
+        "0.0",
+        "--gate_prior_weight",
+        "0.0",
+        "--reconstruction_weight",
+        "0.0",
     ]
     with patch("sys.argv", argv):
         args = parse_args()
@@ -601,6 +611,11 @@ def test_train_cli_exposes_new_reward_config_fields():
 
     assert config.condition_attention_temperature == 0.7
     assert config.progress_score_weight == 0.25
+    assert config.key_prior_weight == 0.8
+    assert config.complete_prior_weight == 0.7
+    assert config.prior_distill_weight == 0.0
+    assert config.gate_prior_weight == 0.0
+    assert config.reconstruction_weight == 0.0
     assert config.model_variant == "encoded_swift"
     assert config.encoder_type == "layer_transformer"
     assert config.model_dim == 12

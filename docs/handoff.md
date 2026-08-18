@@ -50,8 +50,8 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
 4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓。exact onset 和有锚定的 tail
    repair 都是独立后续问题。
-5. 当前进入 dual-prior。key/complete targets 必须由外部流程生成并先单独验证；reconstruction 只有在存在
-   独立 768-d external target 时才启用。
+5. 当前进入 dual-prior。v1 已冻结 64 条 fixed-unit 双标包；key/complete 由外部双标生成，首轮只验证 direct
+   targets。mutual distill、gate alignment 和 reconstruction 全关；后者仍只接受独立 768-d target。
 
 外部 Qwen/Falcon rewrite、旧 Route A v1 manifest 与 Stage 1B v4 的 outcome-only 数据都不是当前机制
 训练入口。
@@ -93,22 +93,30 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 - 22 个新 cell：`run_artifacts/hallucination_localization_v2/pilot_tail_cv_v2c/`；
 - 完整解释：`docs/hallucination_tail_cross_validation_v2c.md`。
 
+### Dual-prior evidence v1
+
+- 冻结协议/定义：`configs/dual_prior_evidence_v1/protocol_v1.json`、`annotation_guide_v1.md`；
+- 盲包/lineage：`annotation_items_v1.jsonl`、`annotation_lineage_v1.jsonl`、`package_report_v1.json`；
+- 规模：64 rows / 64 queries / 1210 fixed units，原 query-disjoint 48/16 membership；
+- 第二标注 prompt：`configs/dual_prior_evidence_v1/secondary_prompt_v1.md`；
+- 设计与代码审计：`docs/dual_prior_evidence_pilot_v1.md`。
+
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c 或继续扫 absolute tail weight。下一步进入 dual-prior，并保持模块隔离：
+不要再重跑 v2c 或继续扫 absolute tail weight。dual-prior 接下来严格按已冻结 v1 做：
 
-1. 先审计当前 key/complete/reconstruction 代码路径与 target 契约，确认 loss 在缺失 target 时确实为 mask；
-2. 冻结一个领域通用的 key/complete claim/span 标注协议：key 是最直接支持答案的最小证据，complete 是使
-   答案充分成立的全部证据；二者必须映射到 exact output token IDs；
-3. 先做小规模双标 selection set、agreement 与 non-degeneracy 审计，再物化 train/dev targets；
-4. 首个 standalone pilot 比较 correctness-only、key-only、complete-only、joint key+complete；不接
-   consistency、hallucination、tail、progress 或 reconstruction；
-5. reconstruction 首轮保持关闭，除非另行冻结由外部 supported answer/evidence 生成的 768-d target；禁止
-   same-candidate pooling；
-6. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，但也不进入 mixed run。
+1. 运行/物化 Mistral-24B primary；
+2. 收取独立 secondary 的 64 条 raw JSONL，用 `validate_dual_prior_secondary_v1.py` 校验；
+3. 计算 eligibility 与 key/complete unit-set agreement，逐项裁决 set disagreement；
+4. 物化 exact Phi token targets，审计正例比例、位置 shortcut、`key ⊆ complete` 与 head 可分性；
+5. 跑 D0 correctness-only、D1 key-only、D2 complete-only、D3 joint direct-target；四格都关闭 consistency、
+   hallucination、tail、progress、distill、gate alignment 和 reconstruction；
+6. direct target 可学后，才另发协议比较 containment collaboration 与旧 mutual MSE。reconstruction 仍要求
+   独立 768-d target，禁止 same-candidate pooling；
+7. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run。
 
 ## 5. 不可破坏的约束
 
