@@ -6,6 +6,7 @@ from scripts.calibrate_hallucination_span_thresholds_v2 import explicit_token_ta
 from scripts.materialize_hallucination_span_targets_v2 import ROOT, derive_annotation
 from scripts.run_hallucination_localization_pilot_v2 import weight_args
 from scripts.summarize_hallucination_tail_comparison_v2b import (
+    paired_bootstrap,
     tail_gate,
     tail_label_composition,
     value_diagnostics,
@@ -227,6 +228,49 @@ def test_tail_gate_requires_locality_semantic_span_and_correctness_guards():
     assert passed["all_pilot_guards_passed"] is True
     assert failed["semantic_value_guard_passed"] is False
     assert failed["all_pilot_guards_passed"] is False
+
+
+def test_tail_bootstrap_skips_single_class_resamples_without_failing():
+    control = [
+        {
+            "id": "negative",
+            "correctness": 1,
+            "reward_score": 1.0,
+            "hallucination_onset": -1,
+            "clir_token_values": [1.0],
+            "clir_token_hallucination_probs": [0.1],
+            "token_hallucination_target": [0],
+            "token_hallucination_mask": [1],
+        },
+        {
+            "id": "positive",
+            "correctness": 0,
+            "reward_score": -1.0,
+            "hallucination_onset": 1,
+            "clir_token_values": [0.0, -0.5],
+            "clir_token_hallucination_probs": [0.1, 0.7],
+            "token_hallucination_target": [0, 1],
+            "token_hallucination_mask": [0, 1],
+        },
+    ]
+    candidate = [
+        dict(control[0]),
+        {
+            **control[1],
+            "clir_token_values": [0.0, -1.0],
+            "clir_token_hallucination_probs": [0.1, 0.8],
+        },
+    ]
+
+    report = paired_bootstrap(control, candidate, samples=100, seed=42)
+
+    metrics = report["candidate_minus_control"]
+    assert metrics["span_hallucination_probability_average_precision"][
+        "valid_resamples"
+    ] < 100
+    assert metrics["span_hallucination_probability_average_precision"][
+        "valid_resamples"
+    ] > 0
 
 
 def test_span_cell_selection_prefers_simpler_cell_on_ties_and_requires_both_shortcuts():

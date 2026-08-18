@@ -211,7 +211,7 @@ def tail_label_composition(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def span_probability_ap(rows: Sequence[Mapping[str, Any]]) -> float:
+def span_probability_ap(rows: Sequence[Mapping[str, Any]]) -> float | None:
     labels: list[int] = []
     scores: list[float] = []
     for row in rows:
@@ -330,10 +330,10 @@ def paired_bootstrap(
             value_ap.append(right_value_ap - left_value_ap)
         if left_auc is not None and right_auc is not None:
             correctness_auc.append(right_auc - left_auc)
-        try:
-            span_ap.append(span_probability_ap(right_rows) - span_probability_ap(left_rows))
-        except ValueError:
-            pass
+        left_span_ap = span_probability_ap(left_rows)
+        right_span_ap = span_probability_ap(right_rows)
+        if left_span_ap is not None and right_span_ap is not None:
+            span_ap.append(right_span_ap - left_span_ap)
     if not all((tail_pre, value_ap, span_ap, correctness_auc)):
         raise ValueError("Tail bootstrap produced an empty metric distribution")
     return {
