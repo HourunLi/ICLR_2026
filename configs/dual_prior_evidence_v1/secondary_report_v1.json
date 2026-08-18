@@ -1,0 +1,20 @@
+{
+  "confidence_counts": {
+    "high": 51,
+    "medium": 13
+  },
+  "eligibility_counts": {
+    "usable": 64
+  },
+  "input": "/prodcpfs/user/panzhixin/ICLR_2027/configs/dual_prior_evidence_v1/labels_secondary_raw_v1.jsonl",
+  "input_sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a",
+  "minimum_usable_rows": 48,
+  "output": "/prodcpfs/user/panzhixin/ICLR_2027/configs/dual_prior_evidence_v1/labels_secondary_v1.jsonl",
+  "output_sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a",
+  "protocol": "configs/dual_prior_evidence_v1/protocol_v1.json",
+  "protocol_sha256": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27",
+  "rows": 64,
+  "schema_version": "clir-dual-prior-evidence-secondary-report-v1",
+  "structural_validation": "passed",
+  "usable_yield_gate_passed": true
+}

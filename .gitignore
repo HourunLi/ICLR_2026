@@ -8,5 +8,8 @@ __pycache__/
 *.pth
 *.safetensors
 
+# Durable annotation helpers keep advisory lock files after completion.
+/configs/dual_prior_evidence_v1/.labels_secondary_raw_v1.jsonl.lock
+
 # Local source material kept outside the versioned documentation set.
 /*.pdf

@@ -1,0 +1,61 @@
+{
+  "schema_version": "clir-dual-prior-secondary-provenance-v1",
+  "status": "received_finalized_and_independently_revalidated",
+  "received_date": "2026-08-18",
+  "evidence_tier": "pipeline_pilot",
+  "annotation_source": {
+    "role": "independent_secondary",
+    "user_attestation": "The user reported that a second AI completed all 64 rows under the frozen resumable secondary prompt.",
+    "model_id": "not_recorded_by_frozen_annotation_schema",
+    "model_revision": "not_recorded_by_frozen_annotation_schema",
+    "limitation": "The label JSONL proves schema, item order, and content integrity but cannot by itself prove the annotator model identity. Independence therefore rests on the blind package and prompt contract plus the user's external-process attestation."
+  },
+  "blindness_contract": {
+    "prompt": "configs/dual_prior_evidence_v1/secondary_prompt_resumable_v1a.md",
+    "prompt_sha256": "5b1bfab8f035a4079d0c07b867c849444b0b1ebae5b38a0e4d4ae042852f37b8",
+    "guide": "configs/dual_prior_evidence_v1/annotation_guide_v1.md",
+    "guide_sha256": "51655ff2cffd861f08b890eea28f68c6b12b4cdb8806819b2b3021f66570e576",
+    "annotation_items": "configs/dual_prior_evidence_v1/annotation_items_v1.jsonl",
+    "annotation_items_sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+    "forbidden_inputs": [
+      "primary labels or reports",
+      "hallucination labels",
+      "correctness labels or reference answers",
+      "private source lineage",
+      "repository training results"
+    ]
+  },
+  "validated_outputs": {
+    "raw_checkpointed": {
+      "path": "configs/dual_prior_evidence_v1/labels_secondary_raw_v1.jsonl",
+      "rows": 64,
+      "sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a"
+    },
+    "normalized": {
+      "path": "configs/dual_prior_evidence_v1/labels_secondary_v1.jsonl",
+      "rows": 64,
+      "sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a"
+    },
+    "raw_and_normalized_byte_identical": true,
+    "report": {
+      "path": "configs/dual_prior_evidence_v1/secondary_report_v1.json",
+      "sha256": "eab69ebbdfb7d2b9b97ce1b0386fe26f272df16b65673331e6f79fb8cf8fa853"
+    }
+  },
+  "validation": {
+    "checkpoint_finalize_complete": true,
+    "completed_rows": 64,
+    "remaining_rows": 0,
+    "structural_validation": "passed",
+    "eligibility_counts": {
+      "usable": 64
+    },
+    "confidence_counts": {
+      "high": 51,
+      "medium": 13
+    },
+    "usable_yield_gate_passed": true,
+    "revalidated_by_repository_command": "scripts/validate_dual_prior_secondary_v1.py --input configs/dual_prior_evidence_v1/labels_secondary_raw_v1.jsonl"
+  },
+  "allowed_conclusion": "The complete frozen secondary label set is structurally valid and ready for the preregistered primary-secondary agreement gate; no training gold is adopted yet."
+}
