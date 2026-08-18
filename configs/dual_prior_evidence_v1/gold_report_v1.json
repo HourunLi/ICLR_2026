@@ -1,0 +1,88 @@
+{
+  "adjudication_resolution_counts": {
+    "adopt_a": 13,
+    "adopt_b": 24,
+    "synthesize": 11
+  },
+  "allowed_conclusion": "The 64-row adjudicated dual-prior unit targets are exactly mapped to frozen Phi tokens and may enter the preregistered standalone D0-D3 learnability pilot; no mechanism or downstream reward improvement has yet been shown.",
+  "confidence_counts": {
+    "high": 61,
+    "medium": 3
+  },
+  "decision_source_counts": {
+    "exact_independent_agreement": 16,
+    "role_blind_adjudication": 48
+  },
+  "evidence_tier": "pipeline_pilot",
+  "formal_claim_allowed": false,
+  "input_hashes": {
+    "adjudication_items": "202fa25bdfd964925233bba235631f8ef3f56420c5ea9253a9e305c76a1100fd",
+    "adjudication_report": "286dc57a5775d1e3c54f9aa20cecbd99549add699f1a03adc0c179292d3fb3ea",
+    "adjudications": "86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96",
+    "agreement_report": "d43544a1c6ef952ba9b9d5c0a87e97773b38d4565776581ee1321e6f7af62e79",
+    "annotation_items": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873",
+    "annotation_lineage": "91f25b7217aabf9452b67a917fd6e31a3f1b74bed2de2a328eb1f45b66217724",
+    "parent_protocol": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27",
+    "primary_mapped_labels": "06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526",
+    "secondary_labels": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a",
+    "training_split_manifest": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e",
+    "trajectory_manifest": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+  },
+  "mapping_audit": {
+    "axis": "frozen Phi output_token_ids",
+    "rows_reproducing_frozen_primary_mapping_carrier": 64,
+    "unilateral_primary_semantic_targets_used": false
+  },
+  "membership_counts": {
+    "dense_train": 48,
+    "localization_dev": 16
+  },
+  "outputs": {
+    "mapped_gold_labels": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+    "mapped_gold_labels_sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc",
+    "supervision_all": "configs/dual_prior_evidence_v1/supervision_gold_v1.jsonl",
+    "supervision_all_sha256": "662e01500d975c0c67c3ee1c76fd01e9953e68de6c293e9c04b008e9c30bf758",
+    "supervision_dense_train": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+    "supervision_dense_train_sha256": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98",
+    "supervision_localization_dev": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+    "supervision_localization_dev_sha256": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7"
+  },
+  "position_diagnostic": {
+    "position_only_baseline_required": true,
+    "rows_with_every_key_unit_in_first_quarter": 5,
+    "rows_with_every_key_unit_in_last_quarter": 44,
+    "selected_key_unit_relative_position_mean": 0.7649878457429327,
+    "selected_key_unit_relative_position_median": 0.8480769230769231
+  },
+  "protocol": "configs/dual_prior_evidence_v1/gold_materialization_protocol_v1.json",
+  "protocol_sha256": "10df8b53df7dc58762cd7eb9d0adf135c5bc336619f4d909a0b5b1a2fc837a49",
+  "query_counts": {
+    "dense_train": 48,
+    "localization_dev": 16
+  },
+  "readiness_gates": {
+    "all_rows_usable": true,
+    "key_positive_fraction_below_complete": true,
+    "membership_counts": true,
+    "minimum_strict_key_subset_complete_rows": true,
+    "nested_fraction": 1.0,
+    "query_disjoint": true
+  },
+  "ready_for_standalone_D0_D3_protocol": true,
+  "rows": 64,
+  "schema_version": "clir-dual-prior-evidence-gold-report-v1",
+  "status": "ready_for_standalone_D0_D3_protocol",
+  "target_audit": {
+    "complete_positive_token_fraction_micro": 0.34092674087496766,
+    "complete_positive_tokens_median": 93.5,
+    "complete_units_median": 4.0,
+    "key_equals_complete_token_rows": 1,
+    "key_equals_complete_unit_rows": 1,
+    "key_positive_token_fraction_micro": 0.08428682371214083,
+    "key_positive_tokens_median": 23.0,
+    "key_units_median": 1.0,
+    "nested_rows": 64,
+    "strict_key_subset_complete_token_rows": 63,
+    "strict_key_subset_complete_unit_rows": 63
+  }
+}

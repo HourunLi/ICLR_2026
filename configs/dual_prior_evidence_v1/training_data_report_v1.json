@@ -1,0 +1,524 @@
+{
+  "allowed_conclusion": "The four data cells differ only in the frozen direct-target fields named by the protocol; training effectiveness has not yet been evaluated.",
+  "cells": {
+    "d0_correctness_only": {
+      "splits": {
+        "dense_train": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 0,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 0,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 0,
+              "key_prior_target": 0,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 0,
+            "reconstruction_dimensions": {},
+            "rows": 48,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 0,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d0_correctness_only/train48.jsonl",
+          "queries": 48,
+          "rows": 48,
+          "sha256": "3e8c32cb78aa45bc05b0dd45382290f629572bbf4ce93d613dc432e41b4d9bb8"
+        },
+        "localization_dev": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 0,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 0,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 0,
+              "key_prior_target": 0,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 0,
+            "reconstruction_dimensions": {},
+            "rows": 16,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 0,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d0_correctness_only/dev16.jsonl",
+          "queries": 16,
+          "rows": 16,
+          "sha256": "3c9833f8fb64dd1a284eba0e05f6985977756beafd46fa5085096155a0c715e8"
+        }
+      },
+      "supervision_fields": []
+    },
+    "d1_correctness_plus_key": {
+      "splits": {
+        "dense_train": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 0,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 48,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 0,
+              "key_prior_target": 14307,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 48,
+            "reconstruction_dimensions": {},
+            "rows": 48,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 48,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d1_correctness_plus_key/train48.jsonl",
+          "queries": 48,
+          "rows": 48,
+          "sha256": "2902ba5b7cc95feee9e6da1969efa18a254e9bc8766275f62665b8ae8deaeac3"
+        },
+        "localization_dev": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 0,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 16,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 0,
+              "key_prior_target": 5008,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 16,
+            "reconstruction_dimensions": {},
+            "rows": 16,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 16,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d1_correctness_plus_key/dev16.jsonl",
+          "queries": 16,
+          "rows": 16,
+          "sha256": "b2471dcd1b2b897d768ec12ad31c17026676cb70a61cee604c3b116ca301fc6f"
+        }
+      },
+      "supervision_fields": [
+        "key_prior_target"
+      ]
+    },
+    "d2_correctness_plus_complete": {
+      "splits": {
+        "dense_train": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 48,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 0,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 14307,
+              "key_prior_target": 0,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 48,
+            "reconstruction_dimensions": {},
+            "rows": 48,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 48,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d2_correctness_plus_complete/train48.jsonl",
+          "queries": 48,
+          "rows": 48,
+          "sha256": "d8ff1d5ed74ec4089f00556e1b11fad73923b12d1195d2258523a3f0eacf188a"
+        },
+        "localization_dev": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 0,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": false,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 16,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 0,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 5008,
+              "key_prior_target": 0,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 0,
+            "joint_prior_tokens": 0,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 16,
+            "reconstruction_dimensions": {},
+            "rows": 16,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 16,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d2_correctness_plus_complete/dev16.jsonl",
+          "queries": 16,
+          "rows": 16,
+          "sha256": "8693922867545b17e7fb8f35d00f45ad2b584b13086cdb6df56e9d372f1fd0fa"
+        }
+      },
+      "supervision_fields": [
+        "complete_prior_target"
+      ]
+    },
+    "d3_correctness_plus_key_and_complete": {
+      "splits": {
+        "dense_train": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 1,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": true,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 48,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 48,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 14307,
+              "key_prior_target": 14307,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 48,
+            "joint_prior_tokens": 14307,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 48,
+            "reconstruction_dimensions": {},
+            "rows": 48,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 48,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+          "queries": 48,
+          "rows": 48,
+          "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+        },
+        "localization_dev": {
+          "coverage": {
+            "consistency_pairs": {
+              "negative_different_semantic_same_style": 0,
+              "positive_same_semantic_different_style": 0
+            },
+            "eligible_component_count": 1,
+            "eligible_components": {
+              "consistency": false,
+              "dual_prior": true,
+              "onset_localization": false,
+              "path_hallucination": false,
+              "progress": false,
+              "reconstruction": false,
+              "token_advantage": false
+            },
+            "explicit_hallucination_tokens": {
+              "negative": 0,
+              "positive": 0,
+              "supervised": 0
+            },
+            "field_rows": {
+              "complete_prior_target": 16,
+              "complete_reconstruction_target": 0,
+              "domain_id": 0,
+              "hallucination_onset": 0,
+              "key_prior_target": 16,
+              "path_hallucinated": 0,
+              "progress_targets": 0,
+              "semantic_id": 0,
+              "style_id": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "field_tokens": {
+              "complete_prior_target": 5008,
+              "key_prior_target": 5008,
+              "progress_targets": 0,
+              "token_advantage": 0,
+              "token_hallucination_mask": 0,
+              "token_hallucination_target": 0
+            },
+            "joint_prior_rows": 16,
+            "joint_prior_tokens": 5008,
+            "path_label_values": {},
+            "positive_onset_rows": 0,
+            "provenanced_supervised_rows": 16,
+            "reconstruction_dimensions": {},
+            "rows": 16,
+            "schema_version": "clir-supervision-coverage-v1",
+            "supervised_rows": 16,
+            "unprovenanced_supervised_rows": 0
+          },
+          "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+          "queries": 16,
+          "rows": 16,
+          "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+        }
+      },
+      "supervision_fields": [
+        "key_prior_target",
+        "complete_prior_target"
+      ]
+    }
+  },
+  "evidence_tier": "pipeline_pilot",
+  "identical_id_order_across_cells": true,
+  "input_hashes": {
+    "feature_integrity_report": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "gold_protocol": "10df8b53df7dc58762cd7eb9d0adf135c5bc336619f4d909a0b5b1a2fc837a49",
+    "gold_report": "dbb63dffe6fed2911f9cfaaacfeb53f1fc32264cffcd0e05927f0b000d67af62",
+    "split_manifest": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e",
+    "supervision_dense_train": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98",
+    "supervision_localization_dev": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7",
+    "trajectory_manifest": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+  },
+  "membership_counts": {
+    "dense_train": 48,
+    "localization_dev": 16
+  },
+  "protocol": "configs/dual_prior_evidence_v1/training_data_protocol_v1.json",
+  "protocol_sha256": "1000dfa98fd43529e525c4fb58b7f363af1b20e0654e3f6a3459fcb3b28fe29e",
+  "query_disjoint": true,
+  "schema_version": "clir-dual-prior-training-data-report-v1",
+  "status": "matched_D0_D3_data_ready"
+}

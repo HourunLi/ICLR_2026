@@ -1,0 +1,30 @@
+{
+  "adjudication_packet_sha256": "202fa25bdfd964925233bba235631f8ef3f56420c5ea9253a9e305c76a1100fd",
+  "agreement_report": "configs/dual_prior_evidence_v1/agreement_report_v1.json",
+  "agreement_report_sha256": "d43544a1c6ef952ba9b9d5c0a87e97773b38d4565776581ee1321e6f7af62e79",
+  "all_disagreements_resolved": true,
+  "allowed_conclusion": "Every v1 target-set disagreement now has one valid role-blind semantic adjudication; deterministic gold materialization may begin, but no learnability result exists yet.",
+  "confidence_counts": {
+    "high": 46,
+    "medium": 2
+  },
+  "eligibility_counts": {
+    "usable": 48
+  },
+  "input": "configs/dual_prior_evidence_v1/adjudications_raw_v1.jsonl",
+  "input_sha256": "86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96",
+  "output": "configs/dual_prior_evidence_v1/adjudications_v1.jsonl",
+  "output_sha256": "86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96",
+  "protocol": "configs/dual_prior_evidence_v1/agreement_adjudication_protocol_v1.json",
+  "protocol_sha256": "e635c1fb3b915f5437b606d037e4e813be5645cf1d3c824e5c4f37a751efa6ce",
+  "ready_for_gold_materialization": true,
+  "resolution_counts": {
+    "adopt_a": 13,
+    "adopt_b": 24,
+    "synthesize": 11
+  },
+  "rows": 48,
+  "schema_version": "clir-dual-prior-evidence-adjudication-report-v1",
+  "status": "complete_and_structurally_valid",
+  "structural_validation": "passed"
+}

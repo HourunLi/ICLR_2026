@@ -1,0 +1,102 @@
+{
+  "schema_version": "clir-dual-prior-evidence-gold-materialization-protocol-v1",
+  "status": "frozen_after_role_blind_adjudication_before_gold_materialization",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Deterministically combine exact independent-annotator agreements with validated role-blind adjudications and map the resulting key/complete unit sets onto the frozen Phi output-token axis.",
+  "inputs": {
+    "parent_protocol": {
+      "path": "configs/dual_prior_evidence_v1/protocol_v1.json",
+      "sha256": "796ee31875a6b88976ad50ec3bc74c24c22b8a297dadc557fd1844dca8b9cc27"
+    },
+    "annotation_items": {
+      "path": "configs/dual_prior_evidence_v1/annotation_items_v1.jsonl",
+      "sha256": "d1ff36dc600dba06d8d5b5080cba6b86ae3ff06028be45432e8599c3cb2c4873"
+    },
+    "annotation_lineage": {
+      "path": "configs/dual_prior_evidence_v1/annotation_lineage_v1.jsonl",
+      "sha256": "91f25b7217aabf9452b67a917fd6e31a3f1b74bed2de2a328eb1f45b66217724"
+    },
+    "primary_mapped_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_primary_v1.jsonl",
+      "sha256": "06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526",
+      "allowed_use": "exact character-to-token alignment carrier only; primary semantic targets have no priority"
+    },
+    "secondary_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_secondary_v1.jsonl",
+      "sha256": "271ca58e5ffcfd99000c2ff035059f00ff16d5df5de6c9d2cd95dcbb3fa23d1a"
+    },
+    "agreement_report": {
+      "path": "configs/dual_prior_evidence_v1/agreement_report_v1.json",
+      "sha256": "d43544a1c6ef952ba9b9d5c0a87e97773b38d4565776581ee1321e6f7af62e79"
+    },
+    "adjudication_items": {
+      "path": "configs/dual_prior_evidence_v1/adjudication_items_v1.jsonl",
+      "sha256": "202fa25bdfd964925233bba235631f8ef3f56420c5ea9253a9e305c76a1100fd"
+    },
+    "adjudications": {
+      "path": "configs/dual_prior_evidence_v1/adjudications_v1.jsonl",
+      "sha256": "86fbbe0a5e75325b1d0bee23c39fc6e08383fc28bc079587770c6c68539d4e96"
+    },
+    "adjudication_report": {
+      "path": "configs/dual_prior_evidence_v1/adjudication_report_v1.json",
+      "sha256": "286dc57a5775d1e3c54f9aa20cecbd99549add699f1a03adc0c179292d3fb3ea"
+    },
+    "trajectory_manifest": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+    },
+    "training_split_manifest": {
+      "path": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+      "sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e"
+    }
+  },
+  "decision_rule": {
+    "expected_rows": 64,
+    "exact_agreement_rows": 16,
+    "adjudicated_disagreement_rows": 48,
+    "exact_agreement": "Require primary and secondary eligibility/key/complete targets to be identical and copy that shared target.",
+    "disagreement": "Require one structurally valid role-blind adjudication and copy its final eligibility/key/complete target.",
+    "forbidden": [
+      "averaging primary and secondary binary targets",
+      "giving primary or secondary annotator role priority",
+      "using correctness, hallucination labels, or training results to change the semantic target"
+    ]
+  },
+  "token_mapping_rule": {
+    "axis": "frozen output_token_ids from the trajectory manifest",
+    "method": "Regenerate binary token membership from final unit indices and the already validated mapped_units in primary_mapped_labels.",
+    "required_checks": [
+      "item, private lineage, source row, and mapping-carrier identities agree",
+      "source response exactly equals the blind trajectory",
+      "output_token_ids SHA256 agrees across lineage, source, and mapping carrier",
+      "mapped unit text/character spans exactly equal private lineage",
+      "mapped token spans are ordered, in range, and reproduce the frozen primary target when primary unit indices are remapped",
+      "final key and complete targets are non-empty and key is a pointwise subset of complete"
+    ]
+  },
+  "split_rule": {
+    "membership_source": "frozen private lineage and training_split_manifest_v1.jsonl",
+    "expected_counts": {
+      "dense_train": 48,
+      "localization_dev": 16
+    },
+    "query_disjoint": true,
+    "training_access": "Only dense_train supervision may enter optimization; localization_dev labels are evaluation-only."
+  },
+  "readiness_gates": {
+    "all_rows_usable": true,
+    "nested_fraction": 1.0,
+    "minimum_strict_key_subset_complete_rows": 32,
+    "require_key_positive_fraction_below_complete": true,
+    "position_only_baseline_required": true,
+    "no_learnability_or_reward_claim_before_D0_D3": true
+  },
+  "outputs": {
+    "mapped_gold_labels": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+    "supervision_all": "configs/dual_prior_evidence_v1/supervision_gold_v1.jsonl",
+    "supervision_dense_train": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+    "supervision_localization_dev": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+    "report": "configs/dual_prior_evidence_v1/gold_report_v1.json"
+  },
+  "allowed_conclusion_if_passed": "The 64-row adjudicated dual-prior unit targets are exactly mapped to frozen Phi tokens and may enter the preregistered standalone D0-D3 learnability pilot; no mechanism or downstream reward improvement has yet been shown."
+}

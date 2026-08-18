@@ -1,0 +1,74 @@
+{
+  "allowed_conclusion": "Adjudication changed the unilateral primary semantics and the final targets remain position-skewed; proceed only with a position baseline and held-out direct-target metrics.",
+  "inputs": {
+    "gold_labels_sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc",
+    "hallucination_adjudicated_labels_sha256": "00ec837086a76f042766f1b59821783a5aa9c83810634121a362715c5af9281d",
+    "hallucination_sparse_span_labels_sha256": "a5564385561276d340ba97cbaf0775229f8a2ea8a5e79b9bf6bec7bc4d958cb2",
+    "primary_labels_sha256": "06f24880e226adba33f818aeea9a62df19510f45c599286f3135c9380bd95526"
+  },
+  "path_strata": {
+    "previously_adjudicated_clean": 41,
+    "previously_adjudicated_hallucinated": 23
+  },
+  "position_diagnostic": {
+    "all": {
+      "key_unit_count_rows": {
+        "1": 52,
+        "2": 12
+      },
+      "rows": 64,
+      "rows_with_every_key_unit_in_first_quarter": 5,
+      "rows_with_every_key_unit_in_last_quarter": 44,
+      "selected_key_unit_relative_position_mean": 0.7649878457429327,
+      "selected_key_unit_relative_position_median": 0.8480769230769231
+    },
+    "interpretation": "Late position remains a strong dataset shortcut, especially on sound paths. Every learnability result must be compared with a token-position-only baseline.",
+    "previously_clean": {
+      "key_unit_count_rows": {
+        "1": 30,
+        "2": 11
+      },
+      "rows": 41,
+      "rows_with_every_key_unit_in_first_quarter": 0,
+      "rows_with_every_key_unit_in_last_quarter": 36,
+      "selected_key_unit_relative_position_mean": 0.8633882149998496,
+      "selected_key_unit_relative_position_median": 0.8823529411764706
+    },
+    "previously_hallucinated": {
+      "key_unit_count_rows": {
+        "1": 22,
+        "2": 1
+      },
+      "rows": 23,
+      "rows_with_every_key_unit_in_first_quarter": 5,
+      "rows_with_every_key_unit_in_last_quarter": 8,
+      "selected_key_unit_relative_position_mean": 0.5517870456862793,
+      "selected_key_unit_relative_position_median": 0.6145484949832776
+    }
+  },
+  "rows": 64,
+  "schema_version": "clir-dual-prior-evidence-gold-semantic-audit-v1",
+  "scope": "diagnostic only; prior hallucination onset/span labels are not substituted for dual-prior evidence gold",
+  "semantic_change_from_unilateral_primary": {
+    "complete_target_changed_rows": 42,
+    "hallucinated_rows_with_key_target_changed": 17,
+    "key_target_changed_rows": 34
+  },
+  "wrong_path_overlap_diagnostic": {
+    "adjudicated_gold": {
+      "complete_contains_exact_hallucination_onset": 15,
+      "complete_overlaps_any_reviewed_unsupported_or_contradicted_span": 20,
+      "key_contains_exact_hallucination_onset": 13,
+      "key_overlaps_any_reviewed_unsupported_or_contradicted_span": 17,
+      "previously_adjudicated_hallucinated_rows": 23
+    },
+    "interpretation": "Overlap is a guide-alignment diagnostic only: evidence key, exact onset, and unsupported-span supervision answer different questions.",
+    "primary": {
+      "complete_contains_exact_hallucination_onset": 11,
+      "complete_overlaps_any_reviewed_unsupported_or_contradicted_span": 18,
+      "key_contains_exact_hallucination_onset": 1,
+      "key_overlaps_any_reviewed_unsupported_or_contradicted_span": 12,
+      "previously_adjudicated_hallucinated_rows": 23
+    }
+  }
+}

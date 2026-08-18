@@ -1,0 +1,191 @@
+{
+  "schema_version": "clir-dual-prior-standalone-training-protocol-v1",
+  "experiment_id": "clir-dual-prior-direct-target-D0-D3-v1",
+  "status": "frozen_before_training",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Test whether the adjudicated key and complete token-membership targets are directly learnable before enabling any prior collaboration, gate alignment, or reconstruction objective.",
+  "inputs": {
+    "gold_protocol": {
+      "path": "configs/dual_prior_evidence_v1/gold_materialization_protocol_v1.json",
+      "sha256": "10df8b53df7dc58762cd7eb9d0adf135c5bc336619f4d909a0b5b1a2fc837a49"
+    },
+    "gold_report": {
+      "path": "configs/dual_prior_evidence_v1/gold_report_v1.json",
+      "sha256": "dbb63dffe6fed2911f9cfaaacfeb53f1fc32264cffcd0e05927f0b000d67af62"
+    },
+    "gold_semantic_audit": {
+      "path": "configs/dual_prior_evidence_v1/gold_semantic_audit_v1.json",
+      "sha256": "337b30ed1ce7c6424d8b19cd2fe8f7f5e5e64b50bca37c91e2429278d5aeb397"
+    },
+    "gold_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+      "sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc"
+    },
+    "training_data_protocol": {
+      "path": "configs/dual_prior_evidence_v1/training_data_protocol_v1.json",
+      "sha256": "1000dfa98fd43529e525c4fb58b7f363af1b20e0654e3f6a3459fcb3b28fe29e"
+    },
+    "training_data_report": {
+      "path": "configs/dual_prior_evidence_v1/training_data_report_v1.json",
+      "sha256": "cb308fb605e717ebc307d6c302edc2a4de92751eeb2a58c6cbbd22b94dee7ac5"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "fixed final epoch 5",
+    "early_stopping": false,
+    "prior_phase_mode": "joint",
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "negative_consistency": 0.0,
+      "score_consistency": 0.0,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "relative_tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior_distill": 0.0,
+      "gate_prior": 0.0,
+      "reconstruction": 0.0
+    }
+  },
+  "cells": {
+    "d0_correctness_only": {
+      "description": "Outcome BCE only; neither direct prior target is visible.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d0_correctness_only/train48.jsonl",
+        "sha256": "3e8c32cb78aa45bc05b0dd45382290f629572bbf4ce93d613dc432e41b4d9bb8"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d0_correctness_only/dev16.jsonl",
+        "sha256": "3c9833f8fb64dd1a284eba0e05f6985977756beafd46fa5085096155a0c715e8"
+      },
+      "prior_weight": 0.0,
+      "key_prior_weight": 0.0,
+      "complete_prior_weight": 0.0
+    },
+    "d1_correctness_plus_key": {
+      "description": "Outcome BCE plus direct key-membership BCE only.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d1_correctness_plus_key/train48.jsonl",
+        "sha256": "2902ba5b7cc95feee9e6da1969efa18a254e9bc8766275f62665b8ae8deaeac3"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d1_correctness_plus_key/dev16.jsonl",
+        "sha256": "b2471dcd1b2b897d768ec12ad31c17026676cb70a61cee604c3b116ca301fc6f"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 0.0
+    },
+    "d2_correctness_plus_complete": {
+      "description": "Outcome BCE plus direct complete-membership BCE only.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d2_correctness_plus_complete/train48.jsonl",
+        "sha256": "d8ff1d5ed74ec4089f00556e1b11fad73923b12d1195d2258523a3f0eacf188a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d2_correctness_plus_complete/dev16.jsonl",
+        "sha256": "8693922867545b17e7fb8f35d00f45ad2b584b13086cdb6df56e9d372f1fd0fa"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 0.0,
+      "complete_prior_weight": 1.0
+    },
+    "d3_correctness_plus_key_and_complete": {
+      "description": "Outcome BCE plus both direct membership BCEs, with every collaboration loss disabled.",
+      "train": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/train48.jsonl",
+        "sha256": "b880ae55255b02bf7d0b42485f81126020caa74daf8996f2989e03621586701a"
+      },
+      "dev": {
+        "path": "run_artifacts/dual_prior_evidence_v1/data_v1/d3_correctness_plus_key_and_complete/dev16.jsonl",
+        "sha256": "1c75e824dbed42fd999344aefb7720945950d20643da0885c404ea08563a4db2"
+      },
+      "prior_weight": 1.0,
+      "key_prior_weight": 1.0,
+      "complete_prior_weight": 1.0
+    }
+  },
+  "evaluation": {
+    "gold_join": "Join scored rows to labels_gold_v1.jsonl by exact source id and output_token_ids SHA256; never read target fields from a different cell manifest.",
+    "membership_prediction": "sigmoid(key_prior_logits) and sigmoid(complete_prior_logits), not trajectory-softmax attention",
+    "primary_unit": "fixed 16-query localization_dev split, reported separately for each training seed",
+    "metrics": [
+      "token micro and row-macro average precision",
+      "unit micro and row-macro average precision using mean token probability per fixed unit",
+      "train-calibrated token and unit F1 applied once to dev",
+      "correctness AUROC and accuracy",
+      "key/complete probability correlation, absolute separation, and calibrated containment violation"
+    ],
+    "threshold_selection": "For each cell, seed, head, and granularity, maximize micro F1 on dense_train predictions only and apply the frozen threshold once to localization_dev.",
+    "position_baseline": "Use normalized token/unit position as the only score; calibrate its F1 threshold on dense_train and report identical dev AP/F1 beside every neural head.",
+    "selection_guards": {
+      "minimum_passing_seeds": 2,
+      "total_seeds": 3,
+      "single_head_unit_ap_delta_over_both_D0_and_position_minimum": 0.02,
+      "joint_head_unit_ap_delta_over_both_D0_and_position_minimum": 0.02,
+      "joint_noninferiority_to_matching_single_head_unit_ap": -0.05,
+      "joint_mean_absolute_key_complete_probability_difference_minimum": 0.02,
+      "joint_key_complete_probability_correlation_maximum": 0.98,
+      "joint_correctness_auroc_delta_vs_D0_minimum": -0.1
+    },
+    "seed_aggregation": "Each named guard must pass in at least 2 of 3 seeds. The report also publishes the stricter count of seeds on which every guard passes simultaneously, but that stricter diagnostic is not the frozen selection rule.",
+    "passing_conclusion": "Direct adjudicated key/complete targets are learnable in this pipeline pilot; next freeze a containment-style collaboration comparison without enabling reconstruction.",
+    "failing_conclusion": "Do not add collaboration losses; diagnose target imbalance, position shortcut, capacity, or optimization while preserving the frozen semantic gold.",
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "runner": "scripts/run_dual_prior_pilot_v1.py",
+    "matrix_launcher": "scripts/run_dual_prior_matrix_v1.py",
+    "evaluator": "scripts/evaluate_dual_prior_predictions_v1.py",
+    "summarizer": "scripts/summarize_dual_prior_pilot_v1.py",
+    "output_root": "run_artifacts/dual_prior_evidence_v1/pilot_v1",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "max_parallel_cells": 8,
+    "clean_committed_worktree_required": true,
+    "status": "authorized_by_user"
+  },
+  "formal_mechanism_claim_allowed": false
+}

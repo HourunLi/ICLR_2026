@@ -329,6 +329,29 @@ def main() -> None:
                 row["clir_complete_prior"] = [
                     float(x) for x in outputs["complete_prior"][local_idx, :valid_length].detach().cpu().tolist()
                 ]
+                # ``clir_*_prior`` above are trajectory-normalized attention maps.
+                # Direct key/complete supervision is token-wise BCE on the logits,
+                # so publish sigmoid membership probabilities separately for exact
+                # learnability evaluation instead of treating softmax attention as
+                # a calibrated binary prediction.
+                row["clir_key_prior_membership_probs"] = [
+                    float(x)
+                    for x in torch.sigmoid(
+                        outputs["key_prior_logits"][local_idx, :valid_length]
+                    )
+                    .detach()
+                    .cpu()
+                    .tolist()
+                ]
+                row["clir_complete_prior_membership_probs"] = [
+                    float(x)
+                    for x in torch.sigmoid(
+                        outputs["complete_prior_logits"][local_idx, :valid_length]
+                    )
+                    .detach()
+                    .cpu()
+                    .tolist()
+                ]
             if "trajectory_layer_attention" in outputs:
                 layer_attention = outputs["trajectory_layer_attention"][local_idx, :valid_length]
                 row["mean_layer_pool_attention"] = layer_attention.mean(dim=0).detach().cpu().tolist()

@@ -1,0 +1,72 @@
+{
+  "schema_version": "clir-dual-prior-training-data-protocol-v1",
+  "status": "frozen_before_D0_D3_data_materialization",
+  "evidence_tier": "pipeline_pilot",
+  "inputs": {
+    "trajectory_manifest": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06"
+    },
+    "split_manifest": {
+      "path": "configs/hallucination_localization_v1/training_split_manifest_v1.jsonl",
+      "sha256": "8d57adc27e3f0440c8eca2c43727bda392b1afbb215c48e436f6936ca39e542e"
+    },
+    "gold_protocol": {
+      "path": "configs/dual_prior_evidence_v1/gold_materialization_protocol_v1.json",
+      "sha256": "10df8b53df7dc58762cd7eb9d0adf135c5bc336619f4d909a0b5b1a2fc837a49"
+    },
+    "gold_report": {
+      "path": "configs/dual_prior_evidence_v1/gold_report_v1.json",
+      "sha256": "dbb63dffe6fed2911f9cfaaacfeb53f1fc32264cffcd0e05927f0b000d67af62"
+    },
+    "supervision_dense_train": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+      "sha256": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98"
+    },
+    "supervision_localization_dev": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+      "sha256": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "split": {
+    "dense_train_rows": 48,
+    "localization_dev_rows": 16,
+    "query_disjoint": true,
+    "order": "preserve training_split_manifest_v1 order within each membership"
+  },
+  "cells": {
+    "d0_correctness_only": {
+      "supervision_fields": []
+    },
+    "d1_correctness_plus_key": {
+      "supervision_fields": [
+        "key_prior_target"
+      ]
+    },
+    "d2_correctness_plus_complete": {
+      "supervision_fields": [
+        "complete_prior_target"
+      ]
+    },
+    "d3_correctness_plus_key_and_complete": {
+      "supervision_fields": [
+        "key_prior_target",
+        "complete_prior_target"
+      ]
+    }
+  },
+  "invariants": [
+    "all four cells use identical source row identities, order, frozen features, correctness labels, and split",
+    "D0 contains no auxiliary CLIR supervision",
+    "D1 contains key targets only, D2 complete targets only, and D3 both nested targets",
+    "no hallucination, onset, tail, progress, consistency-group, or reconstruction supervision is merged",
+    "localization_dev remains evaluation-only"
+  ],
+  "output_root": "run_artifacts/dual_prior_evidence_v1/data_v1",
+  "report": "configs/dual_prior_evidence_v1/training_data_report_v1.json"
+}
