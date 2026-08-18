@@ -1,0 +1,78 @@
+{
+  "schema_version": "clir-hallucination-tail-hypothesis-audit-v2b",
+  "date": "2026-08-18",
+  "evidence_tier": "pipeline_pilot",
+  "question": "Is the existing evidence sufficient to permanently reject onset-tail labels or negative-tail reward shaping?",
+  "terminology": {
+    "onset_tail_classification": "Use the first adjudicated hallucination onset to assign hallucination target 1 to every later token.",
+    "negative_tail_reward_shaping": "Use the first adjudicated hallucination onset to push every later token value below a negative margin.",
+    "sparse_span_classification": "Supervise only reviewed claim spans: supported is 0, unsupported or contradicted is 1, and unreviewed tokens are masked."
+  },
+  "historical_onset_tail_classification_evidence": {
+    "source": "configs/hallucination_localization_v2/training_result_v2.json",
+    "matched_comparison": "s0_tail_bce versus s1_span_bce",
+    "s0_span_token_average_precision": 0.37129632964164877,
+    "s1_span_token_average_precision": 0.41557585999610835,
+    "absolute_position_average_precision": 0.39328067905143455,
+    "s1_minus_s0_paired_bootstrap_mean": 0.04118769861374449,
+    "s1_minus_s0_paired_bootstrap_95_percent_interval": [
+      -0.03190424411956694,
+      0.12766198056792122
+    ],
+    "interpretation": "S1 is the better point-estimate pilot cell and S0 fails to beat the absolute-position shortcut, but the paired interval crosses zero. This supports not selecting onset-tail classification now; it does not support a permanent rejection."
+  },
+  "historical_negative_tail_reward_evidence": {
+    "source": "configs/hallucination_localization_v1/training_result_v1.json",
+    "matched_comparison": "h1 contaminated-tail BCE versus h2 h1 plus tail_weight 0.5 and margin 0.5",
+    "h1_span_definition": "contaminated onset tail rather than reviewed claim spans",
+    "h1_token_average_precision": 0.4607553859488468,
+    "h2_token_average_precision": 0.4972594967517852,
+    "absolute_position_average_precision": 0.514,
+    "h2_mean_clean_token_value": -2.549981931285774,
+    "h2_mean_pre_onset_token_value": -3.838277675942851,
+    "h2_mean_tail_token_value": -4.3286154159944354,
+    "h2_tail_margin_violation_rate": 0.0,
+    "interpretation": "H2 enforced the margin but all three value populations were negative and token ranking stayed below the position shortcut. It failed the v1 locality gate, but it was never paired with the current sparse-span S1 target."
+  },
+  "current_full_tail_target_composition": {
+    "definition": "All generated tokens at or after adjudicated onset on hallucinated rows, intersected with current sparse claim-span labels.",
+    "train": {
+      "hallucinated_rows": 17,
+      "tail_tokens": 3220,
+      "supervised_tokens": 983,
+      "explicit_hallucinated_tokens": 922,
+      "explicit_supported_tokens": 61,
+      "unreviewed_tokens": 2237,
+      "explicit_supported_fraction_of_supervised_tail": 0.06205493387589013,
+      "unreviewed_fraction_of_full_tail": 0.69472049689441
+    },
+    "dev": {
+      "hallucinated_rows": 6,
+      "tail_tokens": 1460,
+      "supervised_tokens": 655,
+      "explicit_hallucinated_tokens": 528,
+      "explicit_supported_tokens": 127,
+      "unreviewed_tokens": 805,
+      "explicit_supported_fraction_of_supervised_tail": 0.19389312977099238,
+      "unreviewed_fraction_of_full_tail": 0.5513698630136986
+    },
+    "interpretation": "A full-tail value target is not equivalent to current token-level hallucination ground truth. It intentionally penalizes supported and unreviewed post-onset tokens, so it tests a separate error-contamination hypothesis."
+  },
+  "audit_decision": {
+    "permanently_reject_onset_tail_classification": false,
+    "select_onset_tail_classification_as_current_token_target": false,
+    "permanently_reject_negative_tail_reward_shaping": false,
+    "authorize_negative_tail_for_mixed_or_test_training": false,
+    "existing_evidence_sufficient_for_permanent_rejection": false,
+    "required_next_comparison": "Rerun S1 sparse-span supervision with tail_weight 0, 0.1, and 0.5 under identical data, seed, architecture, budget, and exact-onset labels; report relative value locality, sparse-span localization, and correctness-score guards.",
+    "allowed_language_before_comparison": "The v1 full-tail implementation failed its locality gate and tail shaping is not currently authorized. Do not say that the tail hypothesis has been disproved or permanently abandoned."
+  },
+  "limitations": [
+    "Only one training seed and sixteen development trajectories are available.",
+    "The labels are Silver pipeline-pilot labels, not independent human Gold.",
+    "No current localization run evaluates Best-of-N task selection.",
+    "Whether post-error supported tokens should receive negative reward is a reward-semantics choice, not implied by the sparse hallucination labels."
+  ],
+  "pilot_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}

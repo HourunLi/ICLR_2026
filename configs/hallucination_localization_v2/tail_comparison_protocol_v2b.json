@@ -1,0 +1,164 @@
+{
+  "schema_version": "clir-hallucination-localization-training-protocol-v2",
+  "experiment_id": "clir-hallucination-negative-tail-comparison-v2b",
+  "evidence_tier": "pipeline_pilot",
+  "purpose": "Directly compare the retained S1 sparse-span localizer with light and historical-strength full-onset-tail token-value shaping.",
+  "hypothesis_scope": {
+    "tested": "Whether lowering every post-onset token value adds a tail-specific reward signal when token hallucination classification uses sparse reviewed claim spans.",
+    "not_implied_by_labels": "Sparse token labels do not say that supported or unreviewed post-onset tokens are hallucinated; full-tail shaping is a separate error-contamination hypothesis.",
+    "permanent_rejection_allowed": false
+  },
+  "inputs": {
+    "dense_train": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+      "rows": 48,
+      "clean": 31,
+      "hallucinated": 17,
+      "explicit_supervised_tokens": 6681,
+      "explicit_positive_tokens": 922,
+      "explicit_negative_tokens": 5759
+    },
+    "localization_dev": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+      "rows": 16,
+      "clean": 10,
+      "hallucinated": 6,
+      "explicit_supervised_tokens": 2451,
+      "explicit_positive_tokens": 528,
+      "explicit_negative_tokens": 1923,
+      "query_overlap_with_train": 0
+    },
+    "tail_hypothesis_audit": {
+      "path": "configs/hallucination_localization_v2/tail_hypothesis_audit_v2b.json",
+      "sha256": "9d7cd5ca49c2debf1688f5ba83b91271fc5ed0ba13cc9d580114775ef57cc494"
+    },
+    "span_target_audit": {
+      "path": "configs/hallucination_localization_v2/span_target_audit_v2.json",
+      "sha256": "eb880ce3a504963c563247e610fd897e0e49f1661a525bc3684eb75ecdf337d9"
+    }
+  },
+  "feature_integrity_gate": {
+    "report": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+    "report_sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+    "failure_count": 0,
+    "skip_repeated_full_finite_scan": true
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seed": 42,
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 2,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": false,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 1,
+    "checkpoint_selection": "preregistered_final_epoch_5",
+    "early_stopping": false,
+    "negative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "progress_score_weight": 0.5,
+    "shared_loss_weights": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "hallucination": 1.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0
+    }
+  },
+  "cells": {
+    "t0_span_only": {
+      "description": "S1 replication: sparse claim-span BCE without reward shaping",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "tail_weight": 0.0
+    },
+    "t1_span_tail_light": {
+      "description": "S1 plus light full-onset-tail token-value margin",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "tail_weight": 0.1
+    },
+    "t2_span_tail_historical": {
+      "description": "S1 plus historical v1 full-onset-tail token-value margin",
+      "hallucination_target_mode": "explicit",
+      "hallucination_positive_weight": 1.0,
+      "tail_weight": 0.5
+    }
+  },
+  "evaluation": {
+    "fixed_threshold": 0.5,
+    "threshold_selection": "train_only_then_apply_once_to_dev",
+    "primary_value_diagnostics": [
+      "dev.tail_mean_minus_pre_onset_mean",
+      "dev.tail_mean_minus_clean_mean",
+      "dev.explicit_token_value_risk_average_precision",
+      "dev.post_onset_explicit_hallucinated_mean_minus_supported_mean"
+    ],
+    "protected_diagnostics": [
+      "dev.explicit_claim_span_hallucination_probability_average_precision",
+      "dev.reward_score_correctness_roc_auc",
+      "dev.reward_score_correctness_average_precision",
+      "dev.onset_within_5",
+      "dev.onset_mean_absolute_error"
+    ],
+    "relative_locality_rule": "For a tail cell, both (tail-pre) and (tail-clean) must be more negative than T0; this is a difference-in-differences guard against calling a uniform global value shift local.",
+    "semantic_value_guard": "Tail-cell explicit-token value-risk AP, using negative token value as hallucination risk, must be at least T0. Mechanical tail-margin satisfaction alone is not utility.",
+    "span_guard": "Tail-cell span-token AP must be no more than 0.02 below T0.",
+    "correctness_guard": "Tail-cell reward-score correctness AUROC must be no more than 0.05 below T0.",
+    "semantic_audit": "Always report supported and unreviewed post-onset coverage; satisfying the numerical gate does not turn full tail into token-level hallucination ground truth.",
+    "decision_categories": {
+      "retain_tail_for_larger_validation": "At least one tail cell passes relative locality, semantic-value, span, and correctness guards.",
+      "deprioritize_current_full_tail_not_permanently_reject": "No tail cell passes all four guards.",
+      "permanent_rejection": "Forbidden from this one-seed 16-row development pilot."
+    },
+    "paired_query_bootstrap_samples": 2000,
+    "paired_query_bootstrap_seed": 42,
+    "test_set_access_allowed": false
+  },
+  "pipeline_gate": {
+    "required": [
+      "all_three_cells_complete_without_nonfinite_loss",
+      "all_cells_share_train_dev_hashes_seed_architecture_and_budget",
+      "all_cells_use_exactly_6681_sparse_token_labels_per_epoch",
+      "only_tail_weight_differs_between_cells",
+      "all_scored_rows_bind_to_frozen_input_and_checkpoint_hashes"
+    ],
+    "formal_mechanism_claim_allowed": false
+  },
+  "execution": {
+    "launcher": "scripts/run_hallucination_localization_pilot_v2.py",
+    "summarizer": "scripts/summarize_hallucination_tail_comparison_v2b.py",
+    "output_root": "run_artifacts/hallucination_localization_v2/pilot_tail_v2b",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "gpu_count_per_cell": 1,
+    "parallel_cells_allowed": true,
+    "status": "authorized_by_user_after_tail_rejection_audit"
+  },
+  "pilot_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

@@ -5,6 +5,11 @@ import pytest
 from scripts.calibrate_hallucination_span_thresholds_v2 import explicit_token_targets
 from scripts.materialize_hallucination_span_targets_v2 import ROOT, derive_annotation
 from scripts.run_hallucination_localization_pilot_v2 import weight_args
+from scripts.summarize_hallucination_tail_comparison_v2b import (
+    tail_gate,
+    tail_label_composition,
+    value_diagnostics,
+)
 from scripts.summarize_hallucination_span_pilot_v2 import select_span_cell
 from src.clir_real_data import load_protocol
 from src.clir_supervision import output_token_ids_sha256
@@ -126,6 +131,102 @@ def test_pilot_v2_cells_keep_downstream_shaping_off_and_change_only_declared_fac
         assert args[args.index("--pseudo_tail_weight") + 1] == "0.0"
         assert args[args.index("--consistency_weight") + 1] == "0.0"
         assert args[args.index("--prior_weight") + 1] == "0.0"
+
+
+def test_pilot_v2_launcher_allows_explicit_per_cell_tail_ablation():
+    protocol = load_protocol(
+        ROOT / "configs/hallucination_localization_v2/training_protocol_v2.json"
+    )
+    protocol["cells"]["s1_span_bce"]["tail_weight"] = 0.1
+
+    args = weight_args(protocol, "s1_span_bce")
+
+    assert args[args.index("--tail_weight") + 1] == "0.1"
+    assert args[args.index("--hallucination_weight") + 1] == "1.0"
+    assert args[args.index("--mil_weight") + 1] == "0.0"
+
+
+def test_tail_value_diagnostics_keep_supported_post_onset_tokens_visible():
+    diagnostics = value_diagnostics(
+        [
+            {
+                "id": "positive",
+                "correctness": 0,
+                "reward_score": -1.0,
+                "hallucination_onset": 2,
+                "clir_token_values": [1.0, 0.5, -2.0, -1.0, -0.25],
+                "token_hallucination_target": [0, 0, 1, 0, 0],
+                "token_hallucination_mask": [1, 1, 1, 1, 0],
+            },
+            {
+                "id": "clean",
+                "correctness": 1,
+                "reward_score": 1.0,
+                "hallucination_onset": -1,
+                "clir_token_values": [2.0, 1.5],
+                "token_hallucination_target": [0, 0],
+                "token_hallucination_mask": [1, 1],
+            },
+        ]
+    )
+
+    populations = diagnostics["token_value_populations"]
+    semantic = diagnostics["post_onset_semantic_audit"]
+    assert populations["mean_pre_onset"] == 0.75
+    assert populations["mean_tail"] == pytest.approx(-3.25 / 3)
+    assert populations["mean_clean"] == 1.75
+    assert semantic["explicit_hallucinated_tokens"] == 1
+    assert semantic["explicit_supported_tokens"] == 1
+    assert semantic["unreviewed_tokens"] == 1
+    assert semantic["hallucinated_mean_minus_supported_mean"] == -1.0
+
+
+def test_tail_label_composition_does_not_hide_supported_or_unreviewed_tail():
+    composition = tail_label_composition(
+        [
+            {
+                "hallucination_onset": 1,
+                "token_hallucination_target": [0, 1, 0, 0],
+                "token_hallucination_mask": [1, 1, 1, 0],
+            },
+            {
+                "hallucination_onset": -1,
+                "token_hallucination_target": [0, 0],
+                "token_hallucination_mask": [1, 1],
+            },
+        ]
+    )
+
+    assert composition["hallucinated_rows"] == 1
+    assert composition["tail_tokens"] == 3
+    assert composition["explicit_hallucinated_tokens"] == 1
+    assert composition["explicit_supported_tokens"] == 1
+    assert composition["unreviewed_tokens"] == 1
+
+
+def test_tail_gate_requires_locality_semantic_span_and_correctness_guards():
+    def cell(tail_pre, tail_clean, value_ap, span_ap, correctness_auc):
+        return {
+            "span_token_average_precision": span_ap,
+            "value_diagnostics": {
+                "token_value_populations": {
+                    "tail_mean_minus_pre_onset_mean": tail_pre,
+                    "tail_mean_minus_clean_mean": tail_clean,
+                },
+                "explicit_token_value_localization": {
+                    "average_precision": value_ap,
+                },
+                "reward_score_correctness": {"roc_auc": correctness_auc},
+            },
+        }
+
+    control = cell(0.2, -1.0, 0.4, 0.42, 0.70)
+    passed = tail_gate(control, cell(-0.2, -1.5, 0.41, 0.41, 0.66))
+    failed = tail_gate(control, cell(-0.2, -1.5, 0.39, 0.41, 0.66))
+
+    assert passed["all_pilot_guards_passed"] is True
+    assert failed["semantic_value_guard_passed"] is False
+    assert failed["all_pilot_guards_passed"] is False
 
 
 def test_span_cell_selection_prefers_simpler_cell_on_ties_and_requires_both_shortcuts():

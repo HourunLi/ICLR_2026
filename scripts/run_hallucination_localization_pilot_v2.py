@@ -46,15 +46,23 @@ def weight_args(protocol: dict[str, Any], cell_name: str) -> list[str]:
     shared = protocol["matched_training"]["shared_loss_weights"]
     cell = protocol["cells"][cell_name]
     values = {
-        "final_weight": shared["final"],
-        "consistency_weight": shared["consistency"],
-        "hallucination_weight": shared["hallucination"],
-        "mil_weight": cell["mil_weight"],
-        "token_reward_weight": shared["token_reward"],
-        "tail_weight": shared["tail"],
-        "pseudo_tail_weight": shared["pseudo_tail"],
-        "progress_weight": shared["progress"],
-        "prior_weight": shared["prior"],
+        "final_weight": cell.get("final_weight", shared["final"]),
+        "consistency_weight": cell.get(
+            "consistency_weight", shared["consistency"]
+        ),
+        "hallucination_weight": cell.get(
+            "hallucination_weight", shared["hallucination"]
+        ),
+        "mil_weight": cell.get("mil_weight", shared.get("mil", 0.0)),
+        "token_reward_weight": cell.get(
+            "token_reward_weight", shared["token_reward"]
+        ),
+        "tail_weight": cell.get("tail_weight", shared["tail"]),
+        "pseudo_tail_weight": cell.get(
+            "pseudo_tail_weight", shared["pseudo_tail"]
+        ),
+        "progress_weight": cell.get("progress_weight", shared["progress"]),
+        "prior_weight": cell.get("prior_weight", shared["prior"]),
     }
     return [value for key, number in values.items() for value in (f"--{key}", str(number))]
 
