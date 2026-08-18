@@ -7,6 +7,8 @@ from src.clir_localization_evaluation import (
     binary_metrics,
     binary_roc_auc,
     evaluate_localization_rows,
+    select_binary_threshold,
+    select_onset_threshold,
 )
 
 
@@ -65,3 +67,29 @@ def test_localization_missed_onset_is_penalized_by_row_length():
     assert metrics["onset"]["detected_rows"] == 0
     assert metrics["onset"]["mean_absolute_error_with_miss_as_length"] == 3
     assert metrics["path_noisy_or_log_space"]["roc_auc"] is None
+
+
+def test_train_only_threshold_selection_is_deterministic_and_conservative_on_ties():
+    selected = select_binary_threshold(
+        [0, 0, 1, 1],
+        [0.1, 0.2, 0.8, 0.9],
+        objective="balanced_accuracy",
+    )
+    assert selected["threshold"] == 0.8
+    assert selected["objective_value"] == 1.0
+
+    rows = [
+        {
+            "path_hallucinated": 1,
+            "hallucination_onset": 2,
+            "clir_token_hallucination_probs": [0.1, 0.2, 0.8, 0.9],
+        },
+        {
+            "path_hallucinated": 1,
+            "hallucination_onset": 1,
+            "clir_token_hallucination_probs": [0.2, 0.7, 0.8],
+        },
+    ]
+    onset = select_onset_threshold(rows)
+    assert onset["threshold"] == 0.7
+    assert onset["objective_value"] == 0.0

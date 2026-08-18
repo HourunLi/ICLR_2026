@@ -131,6 +131,138 @@ def binary_metrics(
     }
 
 
+def select_binary_threshold(
+    labels: Sequence[int],
+    scores: Sequence[float],
+    *,
+    objective: str,
+) -> dict[str, Any]:
+    """Select a conservative threshold using only the supplied calibration rows."""
+
+    targets = _binary_labels(labels)
+    values = [float(score) for score in scores]
+    if len(targets) != len(values) or any(not math.isfinite(value) for value in values):
+        raise ValueError("Threshold calibration requires equal finite labels and scores")
+    if objective not in {"balanced_accuracy", "f1"}:
+        raise ValueError("Threshold objective must be balanced_accuracy or f1")
+    positives = sum(targets)
+    negatives = len(targets) - positives
+    if positives == 0 or negatives == 0:
+        raise ValueError("Threshold calibration requires both binary classes")
+    ordered = sorted(range(len(values)), key=lambda index: (-values[index], index))
+    tp = fp = 0
+    fn = positives
+    tn = negatives
+
+    def objective_value() -> float:
+        if objective == "balanced_accuracy":
+            return ((tp / positives) + (tn / negatives)) / 2.0
+        precision = tp / (tp + fp) if tp + fp else 0.0
+        recall = tp / positives
+        return (
+            2.0 * precision * recall / (precision + recall)
+            if precision + recall
+            else 0.0
+        )
+
+    best_threshold = math.nextafter(max(values), math.inf)
+    best_value = objective_value()
+    best_confusion = {"tp": tp, "fp": fp, "tn": tn, "fn": fn}
+    candidate_count = 1
+    cursor = 0
+    while cursor < len(ordered):
+        threshold = values[ordered[cursor]]
+        end = cursor + 1
+        while end < len(ordered) and values[ordered[end]] == threshold:
+            end += 1
+        for position in range(cursor, end):
+            if targets[ordered[position]]:
+                tp += 1
+                fn -= 1
+            else:
+                fp += 1
+                tn -= 1
+        value = objective_value()
+        candidate_count += 1
+        # Descending traversal and strict improvement deterministically prefer
+        # the higher, more conservative threshold when objectives tie.
+        if value > best_value:
+            best_threshold = threshold
+            best_value = value
+            best_confusion = {"tp": tp, "fp": fp, "tn": tn, "fn": fn}
+        cursor = end
+    return {
+        "objective": objective,
+        "threshold": best_threshold,
+        "objective_value": best_value,
+        "confusion": best_confusion,
+        "candidate_count": candidate_count,
+    }
+
+
+def select_onset_threshold(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Choose a token threshold minimizing positive-row onset error on calibration data."""
+
+    positive_rows = [row for row in rows if int(row["path_hallucinated"]) == 1]
+    if not positive_rows:
+        raise ValueError("Onset threshold calibration requires positive rows")
+    events: list[tuple[float, int, int]] = []
+    true_onsets: list[int] = []
+    lengths: list[int] = []
+    for row_index, row in enumerate(positive_rows):
+        probabilities = row.get("clir_token_hallucination_probs")
+        if not isinstance(probabilities, list) or not probabilities:
+            raise ValueError("Onset threshold calibration requires token probabilities")
+        onset = int(row["hallucination_onset"])
+        if onset < 0 or onset >= len(probabilities):
+            raise ValueError("Positive calibration onset is outside the token sequence")
+        true_onsets.append(onset)
+        lengths.append(len(probabilities))
+        for position, probability in enumerate(probabilities):
+            value = float(probability)
+            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+                raise ValueError("Onset calibration probabilities must be in [0, 1]")
+            events.append((value, row_index, position))
+    events.sort(key=lambda event: (-event[0], event[1], event[2]))
+    predictions = [-1] * len(positive_rows)
+
+    def state() -> tuple[float, int]:
+        errors = [
+            abs(predicted - onset) if predicted >= 0 else length
+            for predicted, onset, length in zip(predictions, true_onsets, lengths)
+        ]
+        return sum(errors) / len(errors), sum(predicted >= 0 for predicted in predictions)
+
+    best_error, best_detected = state()
+    best_threshold = math.nextafter(events[0][0], math.inf)
+    candidate_count = 1
+    cursor = 0
+    while cursor < len(events):
+        threshold = events[cursor][0]
+        end = cursor + 1
+        while end < len(events) and events[end][0] == threshold:
+            end += 1
+        for _, row_index, position in events[cursor:end]:
+            current = predictions[row_index]
+            if current < 0 or position < current:
+                predictions[row_index] = position
+        error, detected = state()
+        candidate_count += 1
+        if error < best_error:
+            best_threshold = threshold
+            best_error = error
+            best_detected = detected
+        cursor = end
+    return {
+        "objective": "mean_absolute_error_with_miss_as_length",
+        "threshold": best_threshold,
+        "objective_value": best_error,
+        "detected_rows": best_detected,
+        "positive_rows": len(positive_rows),
+        "candidate_count": candidate_count,
+    }
+
+
 def _pearson(first: Sequence[float], second: Sequence[float]) -> float | None:
     if len(first) != len(second) or len(first) < 2:
         return None
@@ -152,11 +284,20 @@ def evaluate_localization_rows(
     *,
     threshold: float = 0.5,
     negative_tail_margin: float = 0.5,
+    path_log_threshold: float | None = None,
+    token_threshold: float | None = None,
+    onset_threshold: float | None = None,
 ) -> dict[str, Any]:
     """Evaluate path, contaminated-tail tokens, onset, and value shaping."""
 
     if not rows:
         raise ValueError("Localization evaluation requires scored rows")
+    token_threshold = threshold if token_threshold is None else token_threshold
+    onset_threshold = threshold if onset_threshold is None else onset_threshold
+    if not 0.0 <= token_threshold <= 1.0:
+        raise ValueError("Token threshold must be in [0, 1]")
+    if not 0.0 <= onset_threshold <= 1.0:
+        raise ValueError("Onset threshold must be in [0, 1]")
     path_labels: list[int] = []
     noisy_or_log_scores: list[float] = []
     noisy_or_probability_scores: list[float] = []
@@ -212,7 +353,14 @@ def evaluate_localization_rows(
         token_labels.extend(target)
         token_scores.extend(probs)
         if onset >= 0:
-            predicted = int(row["clir_pseudo_onset"])
+            predicted = next(
+                (
+                    position
+                    for position, probability in enumerate(probs)
+                    if probability >= onset_threshold
+                ),
+                -1,
+            )
             if predicted >= 0:
                 error = abs(predicted - onset)
                 onset_detected += 1
@@ -230,21 +378,31 @@ def evaluate_localization_rows(
         else:
             clean_values.extend(token_values)
 
-    stable_path_threshold = (
-        -math.log1p(-threshold) if threshold < 1.0 else float("inf")
-    )
+    stable_path_threshold = path_log_threshold
+    if stable_path_threshold is None:
+        stable_path_threshold = (
+            -math.log1p(-threshold) if threshold < 1.0 else float("inf")
+        )
     path_overall = binary_metrics(
         path_labels,
         noisy_or_log_scores,
         threshold=stable_path_threshold,
     )
-    path_overall["equivalent_probability_threshold"] = threshold
+    path_overall["equivalent_probability_threshold"] = (
+        -math.expm1(-stable_path_threshold)
+        if math.isfinite(stable_path_threshold)
+        else 1.0
+    )
     path_probability_diagnostic = binary_metrics(
         path_labels,
         noisy_or_probability_scores,
         threshold=threshold,
     )
-    path_max_token = binary_metrics(path_labels, max_token_scores, threshold=threshold)
+    path_max_token = binary_metrics(
+        path_labels,
+        max_token_scores,
+        threshold=token_threshold,
+    )
     subgroup: dict[str, Any] = {}
     for name, wanted in (("incorrect_only", 0), ("correct_only", 1)):
         indices = [index for index, value in enumerate(correctness) if value == wanted]
@@ -281,7 +439,10 @@ def evaluate_localization_rows(
     clean_indices = [index for index, value in enumerate(path_labels) if value == 0]
     return {
         "rows": len(rows),
-        "threshold": threshold,
+        "fixed_default_threshold": threshold,
+        "path_log_threshold": stable_path_threshold,
+        "token_threshold": token_threshold,
+        "onset_threshold": onset_threshold,
         "path_noisy_or_log_space": path_overall,
         "path_noisy_or_probability_diagnostic": {
             **path_probability_diagnostic,
@@ -294,7 +455,7 @@ def evaluate_localization_rows(
         "contaminated_tail_tokens": binary_metrics(
             token_labels,
             token_scores,
-            threshold=threshold,
+            threshold=token_threshold,
         ),
         "onset": onset,
         "token_value_shaping": {

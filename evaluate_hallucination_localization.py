@@ -22,6 +22,9 @@ def main() -> None:
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--expected-input-sha256", default=None)
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--path-log-threshold", type=float, default=None)
+    parser.add_argument("--token-threshold", type=float, default=None)
+    parser.add_argument("--onset-threshold", type=float, default=None)
     parser.add_argument("--negative-tail-margin", type=float, default=0.5)
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
@@ -51,6 +54,9 @@ def main() -> None:
             read_jsonl(input_path),
             threshold=args.threshold,
             negative_tail_margin=args.negative_tail_margin,
+            path_log_threshold=args.path_log_threshold,
+            token_threshold=args.token_threshold,
+            onset_threshold=args.onset_threshold,
         ),
         "code": git_state(ROOT),
         "pilot_test_accessed": False,
