@@ -134,6 +134,13 @@ pseudo-tail 与 mixed-data mechanism run 继续禁止。
 v2c 随后在 folds 1–3 的 48 条 out-of-fold predictions 上做三 seed 复核。T2 的 value-risk/span/correctness
 mean delta 为 `+.0357/+.0170/+.0093`，但三个 seed 的 `tail−clean` gap 全部恶化，clean mean value 的绝对
 下移均大于 tail 下移；因此 0/3 seed 通过预设 locality，当前默认选择 T0/S1，暂缓 absolute-margin T2。
-这不是永久否证 tail，而是要求未来 objective 必须有 clean/pre-onset relative anchor。当前下一步进入
-dual-prior 外部 target pipeline；完整结果见 `docs/hallucination_tail_cross_validation_v2c.md`、
-`docs/hallucination_tail_comparison_v2b.md` 与 `docs/hallucination_localization_pilot_v2.md`。
+这不是永久否证 tail，而是要求未来 objective 必须有明确 anchor。
+
+v2d 随后测试行内 pre-onset-relative R1：对每条 `onset>0` 的 hallucinated row 优化
+`mean relu(margin + value_tail - mean(value_pre))^2`，`onset=0` 只从该 loss 排除。它把 relative-margin
+violation `.586→.091`，证明消除了统一 value shift 捷径；但 clean 下移比 tail 更大，`tail−clean` gap
+恶化 `+.925`，value-risk/span AP 下降 `.109/.100`。因此 R1 冻结为 `completed_fail_keep_t0`，不扩跑、不扫
+weight；未来若重开必须显式控制 matched clean positional baseline。当前下一步仍是 dual-prior 外部 target
+pipeline；完整结果见 `docs/hallucination_relative_tail_pilot_v2d.md`、
+`docs/hallucination_tail_cross_validation_v2c.md`、`docs/hallucination_tail_comparison_v2b.md` 与
+`docs/hallucination_localization_pilot_v2.md`。

@@ -6,12 +6,13 @@
 `docs/decision_history.md`；Localization v1 的 contaminated-tail 实验见
 `docs/hallucination_localization_pilot_v1.md`，当前 tail 撤销审计与直接比较见
 `docs/hallucination_tail_comparison_v2b.md`，最终 4-fold × 3-seed 复核见
-`docs/hallucination_tail_cross_validation_v2c.md`。
+`docs/hallucination_tail_cross_validation_v2c.md`，首个相对锚定修复试验见
+`docs/hallucination_relative_tail_pilot_v2d.md`。
 
 ## 1. 当前停止点
 
-Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
-`completed_keep_t0_defer_tail`，证据等级仍是 `pipeline pilot`：
+Hallucination Localization v2/v2b/v2c/v2d 已完成。最新 relative-tail R1 冻结状态为
+`completed_fail_keep_t0`，证据等级仍是 `pipeline pilot`：
 
 - 64 条裁决 trajectory 形成 41 clean / 23 hallucinated；标签来自双 AI 标注与内部盲审，不是人工 Gold；
 - claim reviews 被物化为 9,132 个 conflict-free sparse token labels；train/dev 为 query-disjoint
@@ -30,7 +31,10 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
   `+.0357/+.0170/+.0093`，所以它有 regularization/ranking signal；
 - 但三个 seed 的 `tail−clean` gap 全部恶化，mean delta `+.2517`。T2 的 clean mean value 分别下移
   `-3.728/-3.552/-4.620`，均比对应 tail 下移更大，0/3 seed 通过 tail-specific locality；
-- 当前 localization 默认选择 T0（S1 sparse BCE、无 full tail）。当前 absolute-margin T2 暂缓而非永久
+- v2d 的单-cell R1 改用行内 pre-onset-relative margin，relative violation `.586→.091`、`tail−pre`
+  delta `-1.712`，所以它确实消除了统一平移捷径；但 clean mean 下移 `-2.300`，大于 tail 的 `-1.374`，
+  `tail−clean` delta `+.925`，value-risk/span AP 分别下降 `.109/.100`，未获多 seed 扩跑资格；
+- 当前 localization 默认选择 T0（S1 sparse BCE、无 full tail）。absolute T2 与 relative R1 都暂缓而非永久
   否证；pseudo-tail、mixed 3968-row mechanism run 仍未获授权，pilot/final test 未读。
 
 当前三种监督和一种 reward shaping 不要混称：
@@ -40,7 +44,7 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 | 整条序列 | `path_hallucinated` | trajectory 是否包含 unsupported/contradicted material claim | 有 ranking 信号，仅作小样本诊断 |
 | token/span | `token_hallucination_target` + `token_hallucination_mask` | 只监督已审 claim span；mask 外不是负例 | T0/S1 为当前 standalone 默认 |
 | 首错边界 | `hallucination_onset` | 第一个 unsupported/contradicted claim 的首 token | 独立 gate 未通过 |
-| onset 后 value shaping | full-tail margin loss | 从 onset 起降低全部 token value，包括 supported/unreviewed token | 当前 absolute-margin T2 因全局 shift 暂缓；不是 token 标签 |
+| onset 后 value shaping | full-tail margin loss | 从 onset 起降低全部 token value，包括 supported/unreviewed token | absolute T2 因全局 shift 暂缓；relative R1 因无 clean anchor 与 sparse AP 损失失败；不是 token 标签 |
 
 ## 2. 当前采用的研究路线
 
@@ -48,8 +52,8 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 2. Consistency 主路线是 Route A：同一原始 prompt 下从 Phi on-policy candidates 挖掘
    reasoning-equivalent pairs；Route B 的 Phi self-rewrite 只作后续对照。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
-4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓。exact onset 和有锚定的 tail
-   repair 都是独立后续问题。
+4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
+   通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
 5. 当前进入 dual-prior。v1 已冻结 64 条 fixed-unit 双标包；key/complete 由外部双标生成，首轮只验证 direct
    targets。mutual distill、gate alignment 和 reconstruction 全关；后者仍只接受独立 768-d target。
 
@@ -93,6 +97,16 @@ Hallucination Localization v2/v2b/v2c 已完成。当前冻结状态为
 - 22 个新 cell：`run_artifacts/hallucination_localization_v2/pilot_tail_cv_v2c/`；
 - 完整解释：`docs/hallucination_tail_cross_validation_v2c.md`。
 
+### Relative full-tail pilot v2d
+
+- 冻结协议：`configs/hallucination_localization_v2/relative_tail_protocol_v2d.json`，SHA256
+  `1543f8169606f86e6eee054e5ee59105e345f875a2d0ebca2f02b89bb5de1361`；
+- 机器结论：`configs/hallucination_localization_v2/relative_tail_result_v2d.json`，SHA256
+  `6ced98914c37ee9cea0ac4686d3b1b079c806fd857589070d8774e18c33e71d1`；
+- 单个新 R1 cell：`run_artifacts/hallucination_localization_v2/pilot_relative_tail_v2d/`；T0 严格复用 v2b；
+- 结论：执行门通过，但 clean-locality、semantic-value 与 sparse-span guards 失败，不扩跑；
+- 完整解释：`docs/hallucination_relative_tail_pilot_v2d.md`。
+
 ### Dual-prior evidence v1
 
 - 冻结协议/定义：`configs/dual_prior_evidence_v1/protocol_v1.json`、`annotation_guide_v1.md`；
@@ -124,7 +138,8 @@ protocol/audit 中，不在本 handoff 重复展开。
    hallucination、tail、progress、distill、gate alignment 和 reconstruction；
 5. direct target 可学后，才另发协议比较 containment collaboration 与旧 mutual MSE。reconstruction 仍要求
    独立 768-d target，禁止 same-candidate pooling；
-6. exact onset 与 relative/centered tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run。
+6. exact onset 与下一代 clean-matched tail repair 进入 backlog，不阻塞 dual-prior，也不进入 mixed run；不要
+   扩跑或扫描已经失败的 R1 weight/margin。
 
 ## 5. 不可破坏的约束
 
@@ -142,10 +157,11 @@ protocol/audit 中，不在本 handoff 重复展开。
 ## 6. 当前证据边界
 
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
-- Route A v1a、Localization v1/v2/v2b/v2c 都是 `pipeline pilot`。
+- Route A v1a、Localization v1/v2/v2b/v2c/v2d 都是 `pipeline pilot`。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权，不能自动迁移为 hallucination Gold。
 - T2 的 AP/ranking signal 在 v2c 仍存在，但 absolute-margin implementation 的 tail locality 0/3 seed 通过；
-  只能选择 T0 并暂缓该实现，不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
+  R1 虽解决统一 shift，却没有 clean anchor，并明显损伤当前 sparse AP。只能选择 T0 并暂缓这两个实现，
+  不能写成 tail hypothesis 永久失败。exact onset 明确未通过。
 - 不能宣称 consistency、hallucination localization 或 tail shaping 已改善 Best-of-N，也不能说 tail 已被
   永久证伪或已获 mixed-training 授权。
 
@@ -168,6 +184,7 @@ docs/handoff.md                                   当前执行交接
 docs/hallucination_localization_pilot_v2.md       当前 localization 结果
 docs/hallucination_tail_comparison_v2b.md         tail 撤销审计与 matched 直接比较
 docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
+docs/hallucination_relative_tail_pilot_v2d.md     relative R1 单-cell 修复试验
 docs/clir_supervision_protocol.md                  外部监督与 sparse-mask 契约
 docs/decision_history.md                          历史路线与转向理由
 
@@ -179,5 +196,6 @@ scripts/run_hallucination_localization_pilot_v2.py    S0-S3 launcher
 scripts/summarize_hallucination_span_pilot_v2.py      冻结结论与 bootstrap
 scripts/summarize_hallucination_tail_comparison_v2b.py  T0-T2 护栏与 bootstrap
 scripts/summarize_hallucination_tail_cv_v2c.py        out-of-fold 多 seed 采用门
+scripts/summarize_hallucination_relative_tail_v2d.py  relative R1 冻结裁决
 train_clir.py / score_clir.py / evaluate_clir.py     训练、打分、Best-of-N
 ```

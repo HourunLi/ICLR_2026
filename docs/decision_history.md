@@ -216,6 +216,31 @@ hallucinated private audit 中只有 1 条 key 覆盖 exact onset、12 条重叠
 `status`，不能把多条已完成判断只留在上下文或内存中。最终输出路径和双标独立性规则不变，因此 v1a 是
 operational addendum，不是新一轮语义标注协议。
 
+### 7.6 relative full-tail v2d：修掉统一 shift，但暴露 clean-anchor 缺口
+
+用户仍希望保留“首错后整段 continuation value 应降低”的 tail 假设，因此项目没有把 v2c 对
+absolute-margin T2 的失败外推成对整个 family 的否证。新协议先只授权一个 seed-42 R1 cell，严格复用
+v2b T0，并把 loss 改成行内相对约束：对 `onset>0` 的 hallucinated row，要求每个 tail token 低于该行
+pre-onset mean 至少 `.5`。该 loss 对整行 value 的常数平移精确不变；train 唯一 `onset=0` row 只从 R1
+排除，其他监督不变。代码默认权重仍为 0，absolute/pseudo tail 也保持关闭。
+
+R1 完成全部 5 epochs、监督计数与 provenance gate。relative-margin violation 从 `.5863` 降到 `.0911`，
+pooled `tail−pre` gap 从 `+.3081` 变为 `-1.4034`，说明相对目标确实学到了，并且不再靠把整行统一平移来
+满足。但 clean population 没有进入 R1：pre/tail/clean mean shift 分别为 `+.3370/-1.3745/-2.2996`，所以
+`tail−clean` gap 反而恶化 `+.9251`。explicit-token value-risk AP 下降 `.1092`，sparse-span AP 下降
+`.0996`，同时违反预注册 semantic-value 与 span guards；correctness AUROC 的 `-.0317` 仍在容忍范围内。
+
+因此机器裁决为 `completed_fail_keep_t0`：不授权 folds × seeds expansion，不扫描 R1 weight/margin，不进入
+mixed training，T0/S1 继续作为 standalone 默认。这一结果只否证当前“hallucinated-row pre anchor”实现，
+不是永久否证 tail hypothesis。若再次重开，必须显式加入 matched clean positional control，并评估或隔离
+shared-encoder 对 sparse head 的干扰。协议、机器结果与完整解释为：
+
+```text
+configs/hallucination_localization_v2/relative_tail_protocol_v2d.json
+configs/hallucination_localization_v2/relative_tail_result_v2d.json
+docs/hallucination_relative_tail_pilot_v2d.md
+```
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。
@@ -224,8 +249,9 @@ operational addendum，不是新一轮语义标注协议。
 - NLL/off-policy score 先作为 diagnostic，不在首轮设硬 gate。
 - consistency loss 暂不修改；旧 tiny sweep 的权重不冻结为新默认。
 - localization 首轮 `pseudo_tail_weight=0`，避免未校准 head 循环自训练。
-- 不采用 light tail `.1`；absolute-margin full-tail `.5` 经 v2c 发现全局 value shift 后暂缓。tail 假设本身
-  不永久否证，重开必须换成有 clean/pre-onset anchor 的新 objective。
+- 不采用 light tail `.1`；absolute-margin full-tail `.5` 经 v2c 发现全局 value shift 后暂缓。简单
+  pre-onset-relative R1 经 v2d 发现 clean-anchor 缺口与 sparse AP 损失，也不扩跑或扫权重。tail 假设本身
+  不永久否证；重开必须显式控制 matched clean positional baseline，并发布新协议。
 - consistency、localization、dual prior 首轮分开训练，避免无法归因。
 - dual-prior/reconstruction 不用全零或 same-candidate pooling 伪造缺失 external targets。
 - `pilot_test/final_test` 在 validation/calibration 冻结前不用于选择。
@@ -244,3 +270,4 @@ operational addendum，不是新一轮语义标注协议。
 - `configs/hallucination_localization_v1/`：localization selection、labels 和报告
 - `docs/hallucination_tail_comparison_v2b.md`：tail 撤销审计、direct comparison 与严格结论边界
 - `docs/hallucination_tail_cross_validation_v2c.md`：4-fold × 3-seed 复核与全局 shift 暂缓理由
+- `docs/hallucination_relative_tail_pilot_v2d.md`：relative R1 单-cell 修复、clean-anchor 失败与裁决
