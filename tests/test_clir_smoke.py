@@ -20,7 +20,7 @@ from src.consistency_localized_reward import (
     path_level_hallucination_mil,
     path_no_hallucination_log_probability,
 )
-from train_clir import make_config, parse_args
+from train_clir import _component_counts, make_config, parse_args
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -276,6 +276,29 @@ def test_explicit_sparse_hallucination_target_overrides_onset_tail_and_weights_p
 
     assert explicit["token_bce"].item() == pytest.approx(2.0 * torch.log(torch.tensor(2.0)).item())
     assert tail["token_bce"].item() == pytest.approx(torch.log(torch.tensor(2.0)).item())
+
+
+def test_localization_applicable_count_follows_the_frozen_target_mode():
+    batch = {
+        "hidden_states": torch.zeros(1, 4, 2),
+        "mask": torch.ones(1, 4),
+        "hallucination_onset": torch.tensor([2]),
+        "onset_label_mask": torch.tensor([True]),
+        "token_hallucination_target": torch.tensor([[0.0, 1.0, 0.0, 0.0]]),
+        "token_hallucination_mask": torch.tensor([[True, True, False, False]]),
+    }
+    losses = {"localization_token_bce": torch.tensor(0.0)}
+
+    assert _component_counts(
+        batch,
+        losses,
+        hallucination_target_mode="onset_tail",
+    )["localization_token_bce"] == 4
+    assert _component_counts(
+        batch,
+        losses,
+        hallucination_target_mode="explicit",
+    )["localization_token_bce"] == 2
 
 
 def test_sparse_hallucination_targets_collate_with_their_explicit_mask(tmp_path: Path):

@@ -375,7 +375,12 @@ def prior_phase_for_epoch(mode: str, epoch: int) -> str:
     return mode
 
 
-def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tensor]) -> Dict[str, int]:
+def _component_counts(
+    batch: Mapping[str, Any],
+    losses: Mapping[str, torch.Tensor],
+    *,
+    hallucination_target_mode: str = "auto",
+) -> Dict[str, int]:
     batch_size = int(batch["hidden_states"].shape[0])
     mask = batch["mask"].bool()
     counts: Dict[str, int] = {"total": batch_size}
@@ -408,7 +413,11 @@ def _component_counts(batch: Mapping[str, Any], losses: Mapping[str, torch.Tenso
         "onset_label_mask",
         torch.zeros(batch_size, dtype=torch.bool, device=mask.device),
     ).bool()
-    if "token_hallucination_target" in batch:
+    use_explicit_targets = (
+        "token_hallucination_target" in batch
+        and hallucination_target_mode != "onset_tail"
+    )
+    if use_explicit_targets:
         supervised_tokens = batch["token_hallucination_mask"].bool() & mask
     else:
         supervised_tokens = onset_mask[:, None] & mask
@@ -530,7 +539,11 @@ def run_epoch(
             batches += 1
             for key, value in losses.items():
                 totals[key] = totals.get(key, 0.0) + float(value.detach().cpu()) * batch_size
-            for key, value in _component_counts(batch, losses).items():
+            for key, value in _component_counts(
+                batch,
+                losses,
+                hallucination_target_mode=model.config.hallucination_target_mode,
+            ).items():
                 applicable[key] = applicable.get(key, 0) + value
 
     return {

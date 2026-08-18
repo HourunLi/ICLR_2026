@@ -144,11 +144,12 @@
   "execution": {
     "launcher": "scripts/run_hallucination_localization_pilot_v2.py",
     "calibration": "scripts/calibrate_hallucination_span_thresholds_v2.py",
-    "output_root": "run_artifacts/hallucination_localization_v2/pilot_span_v2",
+    "output_root": "run_artifacts/hallucination_localization_v2/pilot_span_v2a",
     "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
     "gpu_count_per_cell": 1,
     "parallel_cells_allowed": true,
-    "status": "authorized_by_user"
+    "status": "authorized_by_user_v2a_after_pre_audit_counting_fix",
+    "supersedes_pre_audit_output_root": "run_artifacts/hallucination_localization_v2/pilot_span_v2"
   },
   "pilot_test_access_allowed": false,
   "formal_mechanism_claim_allowed": false
