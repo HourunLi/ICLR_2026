@@ -17,7 +17,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | correctness baseline | `strict_swift / encoded_swift / clir` 共用候选、split 和预算 | correctness 只监督 outcome，不伪造机制标签 |
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
-| hallucination localization | 对原始 Phi trajectory 双标 material claims 和首个 unsupported/contradicted claim | onset 映射到冻结 `output_token_ids`；uncertain 必须 mask |
+| hallucination localization | S1：对已审 claim span 做 unweighted sparse token BCE；path/onset 分开判门 | unreviewed token 必须 mask；exact onset 当前未通过 |
 | dual-prior localization | 等 consistency 与 hallucination 模块分别验证后再做 | key/complete/reconstruction 必须来自外部 target |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
@@ -39,26 +39,27 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   `0.5766`；共同判 positive 的 15 条只有 `5/15` onset exact match，说明 path 定义尚可用，但首错
   边界分歧很大。22 条阻塞分歧经内部盲审后得到 41 clean / 23 hallucinated；这是
   `pipeline pilot` Silver，不是人工 Gold。
-- 裁决标签已通过 identity/token/provenance merge：4096 行 train 中恰好 64 行有 path/onset 监督，
-  其余保持缺失。query-disjoint dense pilot 使用 48 train / 16 dev，H0–H3 四个 5-epoch cell 均完成。
-- H1/H2 的 dev path AUROC 均为 `0.933`，incorrect-only 为 `0.778`，高于 length shortcut；但
-  token AP (`0.461/0.497`) 低于绝对位置 baseline (`0.514`)，六个 positive dev onset 的 `±5`
-  命中均为 `0`。H2 虽把 tail margin violation 压到 `0%`，却同时整体下移 clean/pre/tail value。
-  因而只保留 path 分支为有希望的诊断，onset 和 localized tail shaping 均未通过。
+- Localization v2 从现有 claim reviews 物化了 9,132 个 sparse exact-token labels：supported span 为 0，
+  unsupported/contradicted span 为 1，non-claim 与 unreviewed token 保持 mask。train/dev 仍为
+  query-disjoint 48/16，所有 identity、token hash、provenance 与 feature gate 通过。
+- 四个 matched 5-epoch cell 中，unweighted sparse S1 的 dev span-token AP `.416`，超过 onset-tail S0
+  `.371` 和 absolute-position `.393`；claim-mean AP `.464` 也超过 position `.422`。因此 point-estimate
+  token gate 通过并保留 S1。2,000 次 query bootstrap 区间仍跨 0，不能视为稳定机制证据。
+- exact onset 仍未通过：S1 fixed MAE 从 `134.2` 降到 `82.5`，但六个 positive 的 `±5` 仍为 `0/6`，
+  train-only calibration 不能修复。pseudo-tail、negative-tail shaping 和 mixed-data run 继续禁止。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
-- `pilot_test` 和 `final_test` 尚未用于当前模块选择。当前没有 formal mechanism-efficacy 结论。
+- `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-Hallucination Localization v1 已冻结为 `completed_path_signal_onset_gate_failed`。下一轮先做
-position-shortcut-controlled onset repair：在不启用 pseudo-tail、不跑 mixed 3968-row 机制训练的前提下，
-扩大 positive onset 标签并预注册绝对/归一化位置 baseline。若同一 token BCE 在扩大数据后仍不能超过
-位置 baseline 或形成 onset `±5` 命中，再讨论 claim-boundary objective 或 loss 变更。path-only 分支可
-保留，但当前 16-row dev 不足以授权扩量训练。
+Hallucination Localization v2 已冻结为 `completed_span_token_gate_passed_onset_gate_failed`。下一轮不要再
+调 class weight 或把 path MIL 混进 S1；应单独冻结 causal boundary/segment objective 或 transition-
+constrained onset decoder，并与 raw first-crossing 对照。之后扩大 positive labels、跑多 seed，只有 span
+ranking 和 onset 两道门都稳定后才讨论 pseudo-tail 或 mixed-data mechanism run。
 
 完整停止条件和标签定义见
-[Hallucination Localization Pilot v1](docs/hallucination_localization_pilot_v1.md)。
+[Hallucination Localization Pilot v2](docs/hallucination_localization_pilot_v2.md)。
 
 ## 受保护的数据契约
 
@@ -70,6 +71,8 @@ position-shortcut-controlled onset repair：在不启用 pseudo-tail、不跑 mi
 - `query_id` 只表示 Best-of-N candidate pool；`semantic_id` 只表示 consistency group，不能互相 fallback。
 - `online` 与 `precomputed` hidden-state source 都受支持，但同一正式比较的所有 variants/seeds 必须一致。
 - 外部监督必须按 row ID、query ID、精确 token-ID hash 和协议 provenance 绑定；缺失监督保持缺失。
+- 稀疏 token hallucination 监督必须同时写 `token_hallucination_target` 与
+  `token_hallucination_mask`；mask 外 target 固定为 0，但不参与 loss。
 - 冻结协议和 artifact 只读；任何阈值、schema、loss 或指标语义变化必须发布新版本。
 
 详细契约见 [CLIR supervision protocol](docs/clir_supervision_protocol.md)。
@@ -111,7 +114,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 
 - [docs/handoff.md](docs/handoff.md)：当前可执行状态、artifact 和下一步
 - [docs/proposal.md](docs/proposal.md)：研究假设、目标函数与完整 ablation 设计
-- [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：当前模块协议
+- [docs/hallucination_localization_pilot_v2.md](docs/hallucination_localization_pilot_v2.md)：当前模块结果
+- [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的
   on-policy mining / Phi self-rewrite 契约

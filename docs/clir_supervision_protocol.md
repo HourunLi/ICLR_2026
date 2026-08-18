@@ -1,9 +1,8 @@
 # CLIR 外部监督导入与覆盖审计协议
 
 本协议定义“监督标签怎样安全进入真实 trajectory manifest”。它不是标签生成器，也不把
-`correctness` 伪装成 token/step 标签。当前 Stage 1B v4 数据经审计后 7 个 CLIR 组件全部
-不可用；真正的机制实验必须先由独立的 rewrite/verifier/judge 流水线产出本协议中的显式标签，
-再发布新的冻结实验协议。
+`correctness` 伪装成 token/step 标签。Stage 1B v4 仍是冻结的 outcome-only control；当前真正进入
+localization Pilot 的是独立 claim review 物化出的显式 sparse token labels。
 
 ## 1. 不变量
 
@@ -33,7 +32,9 @@
     "annotation_source": "human-or-versioned-verifier-name"
   },
   "path_hallucinated": 1,
-  "hallucination_onset": 37,
+  "hallucination_onset": 3,
+  "token_hallucination_target": [0, 0, 0, 1, 1],
+  "token_hallucination_mask": [1, 1, 0, 1, 1],
   "semantic_id": "semantic-group-17",
   "style_id": "equation-first",
   "domain_id": "gsm8k"
@@ -47,12 +48,18 @@
 |---|---|---|
 | `path_hallucinated` | 数值 `0` 或 `1` | path-level MIL |
 | `hallucination_onset` | 无幻觉为 `-1`，有幻觉为 `[0,T-1]`；必须同时给 path 标签且一致 | token localization / negative tail |
+| `token_hallucination_target` + `token_hallucination_mask` | 两者必须同时提供、长度严格等于 `T`、值为 binary；mask 至少覆盖一个 token，mask 外 target 必须为 0 | sparse token/span localization |
 | `token_advantage` | 长度严格等于 `T=len(output_token_ids)`，全部 finite | token reward target |
 | `progress_targets` | 长度严格等于 `T`，全部 finite | progress-head target |
 | `key_prior_target` / `complete_prior_target` | 长度严格等于 `T`，值域 `[0,1]` | dual-prior BCE；两者共同覆盖才启用 distill/gate 对齐 |
 | `semantic_id` + `style_id` 或 `domain_id` | semantic 必须有一个非空 spurious-attribute ID；`style_id` 优先，`domain_id` 可作兼容 fallback | consistency positive/negative pairs |
 | `domain_id` | 提供时非空；同时给 `style_id` 时作为独立诊断元数据 | domain 诊断 |
 | `complete_reconstruction_target` | 独立生成的 finite 定长向量；正式 CLIR 配置预期宽度为 `model_dim` | complete-prior reconstruction |
+
+`token_hallucination_mask=1,target=0` 表示“该 token 被明确审核为 non-hallucinated”；mask 为 0 表示
+缺失监督，绝不是负例。target vector 虽在 mask 外以 0 占位，collate、loss 与 evaluation 都必须保留 mask，
+不得把占位 0 纳入 BCE。具体任务协议还可以增加更强约束；Localization v2 例如要求最早 positive token
+等于冻结 onset，且 positive token 的存在性与 path label 一致。
 
 annotation 可以是稀疏的：例如只有 path label 时，不要写 onset 或任何全零 token vector。为了让
 consistency loss 真正有适用样本，数据集必须同时形成“同 semantic、不同 style”的正 pairs 与
@@ -87,25 +94,25 @@ PYTHON=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 ```
 
 `--require` 应只列入预注册实验真正声称使用的组件；缺少任一组件时审计会以非零状态退出。
-报告同时给出逐字段 row/token 覆盖、path 两类计数、positive onset 数、joint-prior token 数、
-reconstruction 维度和 consistency pair 数。通过覆盖审计只证明数据契约成立，不证明 verifier
-标签正确；标签质量仍需盲审样本、inter-annotator agreement 或独立 verifier parity。
+报告同时给出逐字段 row/token 覆盖、sparse mask 内 positive/negative token 数、path 两类计数、
+positive onset 数、joint-prior token 数、reconstruction 维度和 consistency pair 数。通过覆盖审计只证明
+数据契约成立，不证明 verifier 标签正确；标签质量仍需盲审样本、inter-annotator agreement 或独立
+verifier parity。
 
 ## 4. 当前状态与下一步
 
-截至 2026-08-15，Stage 1B v4 的 train 4096 行与 validation 8000 行都已用上述审计器检查：
-10 个辅助字段的 row count 全为 0，7 个机制组件的 eligibility 全为 false。v4 launcher 会在
-preflight 中复算并强制这一 outcome-only 契约，避免将 v4 误报为机制实验。
+Stage 1B v4 的 train 4096 行与 validation 8000 行仍保持 outcome-only。其冻结 contract 列出当时的
+10 个辅助字段且全为 0；当前 auditor 会额外返回新增的两个 sparse-token canonical 字段，v4 launcher
+允许这些未写入旧 contract 的字段保持 0，但会拒绝任何非零新增监督。因此历史控制没有被 schema 扩展
+悄悄改变。
 
-下一步应先在 train/validation 范围实现并小规模人工审核：
+截至 2026-08-18，Hallucination Localization v2 已按本协议导入 64 行：
 
-1. semantics-preserving rewrite + answer/evidence relation verifier，生成真实
-   `semantic_id/style_id/domain_id`；
-2. 独立 step/verifier 标注 path hallucination 和 first unsupported token，并记录原始判据；
-3. 从 prefix entailment/evidence coverage 生成 progress、advantage 与 key/complete prior；
-4. 冻结 annotation protocol/hash，走本协议的 merge/audit，再为非零 applicable counts 发布
-   新的 mechanism protocol。`pilot_test` 在协议锁定前继续保持未读取。
+- 9,132 个 mask 内 supervised tokens；
+- query-disjoint train 48 行为 922 positive / 5,759 negative；
+- dev 16 行为 528 positive / 1,923 negative；
+- row/query/token hash、annotation provenance、target/mask 长度与取值均通过；
+- S1 sparse span BCE 的 point-estimate token gate 通过，但 bootstrap 区间跨 0，exact onset gate 失败。
 
-当前已启动 `docs/semantic_rewrite_pilot_v1.md` 定义的 train-only 可逆格式 pilot。它只用于证明
-semantic/style 身份、token 对齐和 consistency pair 流水线，不能替代上述 LLM generator、
-answer/evidence verifier 或人工审核。
+当前下一步是单独冻结 boundary/segment onset Pilot；在它通过前不启用 pseudo-tail、negative-tail shaping
+或 mixed-data mechanism run。完整结果见 `docs/hallucination_localization_pilot_v2.md`。

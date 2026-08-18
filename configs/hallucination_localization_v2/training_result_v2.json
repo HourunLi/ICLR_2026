@@ -1,0 +1,176 @@
+{
+  "schema_version": "clir-hallucination-localization-training-result-v2",
+  "status": "completed_span_token_gate_passed_onset_gate_failed",
+  "evidence_tier": "pipeline_pilot",
+  "training_protocol": {
+    "path": "configs/hallucination_localization_v2/training_protocol_v2.json",
+    "sha256": "78596859cf96df4e8fee4109ff312f586a6444f46c903eba108675e4947922ff"
+  },
+  "data": {
+    "dense_train_rows": 48,
+    "dense_train_sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+    "localization_dev_rows": 16,
+    "localization_dev_positive_rows": 6,
+    "localization_dev_sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+    "query_overlap": 0,
+    "claim_level_gold": false
+  },
+  "execution_gate": {
+    "all_four_cells_completed_epoch_5": true,
+    "all_losses_finite": true,
+    "identical_train_dev_seed_architecture_budget_commit": true,
+    "s0_train_supervised_tokens_per_epoch": 14307,
+    "s1_s2_s3_train_supervised_tokens_per_epoch": 6681,
+    "passed": true
+  },
+  "frozen_shortcuts": {
+    "dev_token_absolute_position_average_precision": 0.39328067905143455,
+    "dev_token_normalized_position_average_precision": 0.2406033976299641,
+    "dev_claim_absolute_position_average_precision": 0.42198767865054354,
+    "v1_constant_train_median_onset_mean_absolute_error": 101.5
+  },
+  "cells": {
+    "s0_tail_bce": {
+      "description": "v1 contaminated-tail token BCE baseline",
+      "checkpoint_sha256": "77d1c0bc4dea920f8a0d069d51735991c052cf38bfadfe376b72317870b0fc57",
+      "metrics_sha256": "0932f935961f9453730bb38b5b20435ef5f1b22d0c770f4fb82e86e2edf02fea",
+      "dev_scored_sha256": "76ea29c3898c7ff94cb0a7aea6ba791807e242f4e3b6e54a4b76f4ca9de765cf",
+      "cell_result_sha256": "e3adc235e39f233c1ae2425710ba63a51c47af4477f78f8941d82e6f444cf5f4",
+      "span_token_roc_auc": 0.7063482918104603,
+      "span_token_average_precision": 0.37129632964164877,
+      "span_token_fixed_0_5_f1": 0.21037037037037035,
+      "claim_mean_roc_auc": 0.7702773417059131,
+      "claim_mean_average_precision": 0.3753913725691556,
+      "claim_max_average_precision": 0.3928598420996228,
+      "path_roc_auc": 0.9333333333333333,
+      "path_average_precision": 0.8734126984126983,
+      "fixed_onset_mae": 134.16666666666666,
+      "fixed_onset_within_5": 0,
+      "train_calibrated_onset_mae": 183.33333333333334,
+      "train_calibrated_onset_within_5": 0
+    },
+    "s1_span_bce": {
+      "description": "sparse adjudicated claim-span token BCE",
+      "checkpoint_sha256": "c6e45ad1714b4c748f4e62453ed009d31c511c81975b61ef20a249b29bc419b1",
+      "metrics_sha256": "a5c6d3eebac20e32cebbb8522fb7183e42064dfcddab77922837b6d45177a27f",
+      "dev_scored_sha256": "47e0ecb580d8e174fd06bf2d8fd21bbd2aed68ecfad011513c6eb31dc26bfb42",
+      "cell_result_sha256": "e2192c36d06a6f2862121a6874723cd4b53280705b0f76390955990787db92de",
+      "span_token_roc_auc": 0.7145676736160356,
+      "span_token_average_precision": 0.41557585999610835,
+      "span_token_fixed_0_5_f1": 0.26262626262626265,
+      "claim_mean_roc_auc": 0.7901622187336473,
+      "claim_mean_average_precision": 0.4644269435571306,
+      "claim_max_average_precision": 0.49686678287892705,
+      "path_roc_auc": 0.95,
+      "path_average_precision": 0.915079365079365,
+      "fixed_onset_mae": 82.5,
+      "fixed_onset_within_5": 0,
+      "train_calibrated_onset_mae": 172.66666666666666,
+      "train_calibrated_onset_within_5": 0
+    },
+    "s2_span_balanced": {
+      "description": "sparse claim-span BCE with frozen train negative-over-positive weight",
+      "checkpoint_sha256": "edf9b106266a89645f1659581ad6defd55c2c19829ac755626f8a420618b9441",
+      "metrics_sha256": "cb3001019dbf818a16e5cad04c3fa95c8965b2aadbb4a0236fe6d687a3df8a5f",
+      "dev_scored_sha256": "8b6c07d8da3efc7c501531880d9f78f296e7ee35a79d9d9588d4d648185b2d65",
+      "cell_result_sha256": "9da4cd040eb9040f0f363197703165fe62b85c336565f2bad2ec6f80d2daebd2",
+      "span_token_roc_auc": 0.6562928426227959,
+      "span_token_average_precision": 0.31993005076348574,
+      "span_token_fixed_0_5_f1": 0.4085365853658537,
+      "claim_mean_roc_auc": 0.6933542647828362,
+      "claim_mean_average_precision": 0.3702399038809157,
+      "claim_max_average_precision": 0.3038178870521119,
+      "path_roc_auc": 0.8833333333333333,
+      "path_average_precision": 0.8134920634920635,
+      "fixed_onset_mae": 99.0,
+      "fixed_onset_within_5": 0,
+      "train_calibrated_onset_mae": 267.0,
+      "train_calibrated_onset_within_5": 0
+    },
+    "s3_span_balanced_path": {
+      "description": "balanced sparse claim-span BCE plus weak path noisy-or MIL",
+      "checkpoint_sha256": "884aaeeb01933de53cdd2eeb42a0e68645338e594c87b049a4cd4dbe1deaf343",
+      "metrics_sha256": "69d80ec071772ce28fe82b103f523dd072f7d33aed284f9ea016c813bedc0ac3",
+      "dev_scored_sha256": "683832e18399d0584a30d0c093f26f554df3167d1e081ffd1c46db0b074288ae",
+      "cell_result_sha256": "33af697a20c8177c28ca71deda53a13d14853ff1814be1ed461b2b1882b63ed0",
+      "span_token_roc_auc": 0.6817965142848138,
+      "span_token_average_precision": 0.34497162965578054,
+      "span_token_fixed_0_5_f1": 0.42659644502962474,
+      "claim_mean_roc_auc": 0.7336473050758765,
+      "claim_mean_average_precision": 0.4042280252026375,
+      "claim_max_average_precision": 0.31557492938399717,
+      "path_roc_auc": 0.9,
+      "path_average_precision": 0.8551587301587301,
+      "fixed_onset_mae": 98.5,
+      "fixed_onset_within_5": 0,
+      "train_calibrated_onset_mae": 234.16666666666666,
+      "train_calibrated_onset_within_5": 0
+    }
+  },
+  "selection": {
+    "selected_cell": "s1_span_bce",
+    "beats_s0": true,
+    "beats_token_position": true,
+    "beats_claim_position": true,
+    "token_gate_passed": true
+  },
+  "paired_query_bootstrap_diagnostic": {
+    "unit": "query_trajectory_row",
+    "requested_resamples": 2000,
+    "seed": 42,
+    "token_ap_selected_minus_s0": {
+      "mean": 0.04118769861374449,
+      "lower_2_5_percentile": -0.03190424411956694,
+      "upper_97_5_percentile": 0.12766198056792122,
+      "fraction_above_zero": 0.8464232116058029,
+      "valid_resamples": 1999
+    },
+    "token_ap_selected_minus_absolute_position": {
+      "mean": 0.02805676362560674,
+      "lower_2_5_percentile": -0.21968804099813033,
+      "upper_97_5_percentile": 0.2647032590108408,
+      "fraction_above_zero": 0.5892946473236619,
+      "valid_resamples": 1999
+    },
+    "claim_mean_ap_selected_minus_s0": {
+      "mean": 0.09053814938416571,
+      "lower_2_5_percentile": -0.055666112559015324,
+      "upper_97_5_percentile": 0.309599756968178,
+      "fraction_above_zero": 0.8364182091045522,
+      "valid_resamples": 1999
+    },
+    "claim_mean_ap_selected_minus_absolute_position": {
+      "mean": 0.09402919096577651,
+      "lower_2_5_percentile": -0.21914872583768338,
+      "upper_97_5_percentile": 0.48630827975579805,
+      "fraction_above_zero": 0.6533266633316658,
+      "valid_resamples": 1999
+    }
+  },
+  "decision": {
+    "engineering_pipeline_passed": true,
+    "span_token_localization_gate_passed": true,
+    "selected_span_cell": "s1_span_bce",
+    "exact_onset_gate_passed": false,
+    "authorize_pseudo_tail": false,
+    "authorize_negative_tail_shaping": false,
+    "authorize_mixed_data_mechanism_run": false,
+    "recommended_next_step": "Keep unweighted sparse claim-span BCE as the token-localization candidate; next test a separately frozen boundary/segment decoder or loss for exact onset, then expand labels and seeds before any mechanism or Best-of-N claim."
+  },
+  "interpretation": {
+    "span_token": "S1 improves the held-out span-token and claim-mean AP point estimates over S0 and the strongest absolute-position shortcuts.",
+    "uncertainty": "The paired query bootstrap intervals cross zero on only 16 dev rows; the point-estimate gate is a pilot selection signal, not stable efficacy evidence.",
+    "class_balance": "Full negative-over-positive weighting increases fixed-threshold F1 but reduces threshold-free span and claim ranking; S2/S3 are not selected.",
+    "onset": "No cell places any of six raw first-threshold crossings within five tokens; span discrimination and exact first-error boundary detection remain separate gates."
+  },
+  "code": {
+    "training_commit": "f436eeec0da08b1a072874e0102c42a2bea89b5c",
+    "summary_commit": {
+      "commit": "6095538b6bd09a148eef4ed4e4e25b7e1bcf94e1",
+      "dirty": false
+    }
+  },
+  "pre_audit_output_excluded": "run_artifacts/hallucination_localization_v2/pilot_span_v2",
+  "pilot_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}

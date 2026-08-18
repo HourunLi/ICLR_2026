@@ -1,6 +1,8 @@
 # Hallucination Localization Pilot v1
 
-状态：双标、裁决、supervision merge 和 H0–H3 已完成；冻结为 `completed_path_signal_onset_gate_failed`
+状态：历史基线；双标、裁决、supervision merge 和 H0–H3 已完成，冻结为
+`completed_path_signal_onset_gate_failed`。当前方案与后续结果见
+`docs/hallucination_localization_pilot_v2.md`。
 
 日期：2026-08-18
 
