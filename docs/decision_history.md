@@ -281,6 +281,17 @@ softmax attention 公式不变。两格使用相同 48/16、seeds 42/43/44、5 e
 gate alignment、reconstruction 及其他 CLIR losses 全关。新增 evaluator 指标直接复现两方向 MSE 的数值，并
 以 held-out discrepancy 下降、localization non-inferiority、map separation 与 correctness 共同裁决。
 
+6/6 cells 随后从 clean commit `91733a8` 完成。M1 在 seeds 42/43/44 上将 held-out symmetric attention MSE
+分别相对降低 `26.999%/23.997%/33.313%`，三种子均值从 `.015379` 降至 `.010700`。key/complete unit AP
+均值从 `.432512/.919237` 变为 `.424021/.918480`，delta `-.008490/-.000757`；correctness AUROC 完全持平。
+M1 map 的平均概率差 `.29455`、相关性 `.79283`，没有塌成同一张 membership map。全部预注册 guard 与
+per-seed all-guard 都是 3/3 通过，机器状态为 `completed_pass_original_mutual_distillation`。
+
+因此原始 mutual distillation 获得当前 dual-prior collaboration 方法的保留资格；准确证据边界只是它在这个
+pipeline pilot 中降低了自身 branch-attention discrepancy 且没有不可接受的辅助任务损失。reward gate 尚未
+使用 prior，Best-of-N 也未评价，不能把该结果写成最终 reward 增益。下一步若推进，应单独冻结 gate-prior
+integration，而不是再以 containment 替换 mutual。
+
 ## 8. 已拒绝或暂缓的选择
 
 - 不再把“换更强的外部 rewrite generator”作为默认扩量方向。

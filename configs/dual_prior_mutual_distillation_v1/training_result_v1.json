@@ -1,0 +1,185 @@
+{
+  "across_seed_checks": {
+    "mutual_complete_localization_protected": true,
+    "mutual_correctness_protected": true,
+    "mutual_key_localization_protected": true,
+    "mutual_localization_above_position": true,
+    "mutual_maps_remain_separated": true,
+    "mutual_reduces_heldout_attention_discrepancy": true
+  },
+  "cell_result_hashes": {
+    "seed_42/m0_direct_no_distill": "5a3258dd6c5a087f4e70213fc4846c65740694a24ed1ba78157139561cb9a00c",
+    "seed_42/m1_original_mutual_distill": "46f786cd7c2b52ac3e39b954e98475a5f7a4e87ff42bcd1519852630d6d983d9",
+    "seed_43/m0_direct_no_distill": "d601b8d2a349c66ff93734622567a627e67e0420a58c8c2fb47d37c6fcedbe1d",
+    "seed_43/m1_original_mutual_distill": "9a9050370ef382a1badf271b5e8bc6d68c277d334561f0a29a7986069d3543ae",
+    "seed_44/m0_direct_no_distill": "643d0f7dc36ec539571c2ce74e0e3768a0cbf6ad5b6f8d10ff20d6fe8018fe9a",
+    "seed_44/m1_original_mutual_distill": "273534743e157d4c119914fd7d4098e8db4c7090d61eb698f7fda2a9a4567042"
+  },
+  "completed_matrix_cells": 6,
+  "containment_replacement_used": false,
+  "evidence_tier": "pipeline_pilot",
+  "formal_mechanism_claim_allowed": false,
+  "gate_alignment_enabled": false,
+  "mean_metrics_and_deltas": {
+    "control_complete_unit_ap": 0.9192369895738104,
+    "control_correctness_auroc": 0.6931216931216931,
+    "control_dev_symmetric_attention_mse": 0.015378876324296943,
+    "control_key_unit_ap": 0.432511581576351,
+    "control_train_symmetric_attention_mse": 0.01776996799620462,
+    "dev_symmetric_attention_mse_relative_reduction": 0.28102886334583405,
+    "mutual_complete_unit_ap": 0.9184798675099529,
+    "mutual_complete_unit_ap_vs_control": -0.0007571220638574369,
+    "mutual_complete_unit_ap_vs_position": 0.6500665507260541,
+    "mutual_correctness_auroc": 0.6931216931216931,
+    "mutual_correctness_auroc_vs_control": 0.0,
+    "mutual_dev_attention_l1_distance": 0.5588033434236923,
+    "mutual_dev_attention_overlap_mass": 0.7205983399192094,
+    "mutual_dev_symmetric_attention_mse": 0.010700387099806882,
+    "mutual_key_complete_probability_correlation": 0.792829480435236,
+    "mutual_key_unit_ap": 0.424021082460919,
+    "mutual_key_unit_ap_vs_control": -0.008490499115432001,
+    "mutual_key_unit_ap_vs_position": 0.29127281869101856,
+    "mutual_mean_absolute_key_complete_probability_difference": 0.29454853402403364,
+    "mutual_train_symmetric_attention_mse": 0.012343560433061899,
+    "position_complete_unit_ap": 0.2684133167838988,
+    "position_key_unit_ap": 0.13274826376990045,
+    "train_symmetric_attention_mse_relative_reduction": 0.2809539584507039
+  },
+  "method_formula_preserved": true,
+  "mutual_distillation_weight": 0.25,
+  "next_step": "The preserved original mutual-distillation objective is active and reduces its held-out branch-discrepancy target without unacceptable localization, map-separation, or correctness regression in this pipeline pilot. Advance it as the dual-prior collaboration method; downstream reward-gate efficacy remains untested.",
+  "passing_seed_counts": {
+    "all": 3,
+    "mutual_complete_localization_protected": 3,
+    "mutual_correctness_protected": 3,
+    "mutual_key_localization_protected": 3,
+    "mutual_localization_above_position": 3,
+    "mutual_maps_remain_separated": 3,
+    "mutual_reduces_heldout_attention_discrepancy": 3
+  },
+  "pilot_test_accessed": false,
+  "protocol": "configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json",
+  "protocol_sha256": "f9e1158eb15747129b5749f63a32e610309e3f2d8551592663d604678e1d4c5e",
+  "reconstruction_enabled": false,
+  "required_matrix_cells": 6,
+  "schema_version": "clir-dual-prior-mutual-distillation-result-v1",
+  "seed_results": {
+    "42": {
+      "checks": {
+        "all": true,
+        "mutual_complete_localization_protected": true,
+        "mutual_correctness_protected": true,
+        "mutual_key_localization_protected": true,
+        "mutual_localization_above_position": true,
+        "mutual_maps_remain_separated": true,
+        "mutual_reduces_heldout_attention_discrepancy": true
+      },
+      "deltas": {
+        "dev_symmetric_attention_mse_relative_reduction": 0.2699930746180593,
+        "mutual_complete_unit_ap_vs_control": -0.0028191525010220486,
+        "mutual_complete_unit_ap_vs_position": 0.6653012893506847,
+        "mutual_correctness_auroc_vs_control": 0.0,
+        "mutual_key_unit_ap_vs_control": -0.01519612315970309,
+        "mutual_key_unit_ap_vs_position": 0.36254788116401016,
+        "train_symmetric_attention_mse_relative_reduction": 0.2746556179728861
+      },
+      "values": {
+        "control_complete_unit_ap": 0.9365337586356055,
+        "control_correctness_auroc": 0.7301587301587301,
+        "control_dev_symmetric_attention_mse": 0.012967537811196876,
+        "control_key_unit_ap": 0.5104922680936137,
+        "control_train_symmetric_attention_mse": 0.014756042925242475,
+        "mutual_complete_unit_ap": 0.9337146061345835,
+        "mutual_correctness_auroc": 0.7301587301587301,
+        "mutual_dev_attention_l1_distance": 0.561733478724868,
+        "mutual_dev_attention_overlap_mass": 0.7191332787419427,
+        "mutual_dev_symmetric_attention_mse": 0.009466392407325892,
+        "mutual_key_complete_probability_correlation": 0.7671132443835811,
+        "mutual_key_unit_ap": 0.4952961449339106,
+        "mutual_mean_absolute_key_complete_probability_difference": 0.33859219565072535,
+        "mutual_train_symmetric_attention_mse": 0.010703212836775569,
+        "position_complete_unit_ap": 0.2684133167838988,
+        "position_key_unit_ap": 0.13274826376990045
+      }
+    },
+    "43": {
+      "checks": {
+        "all": true,
+        "mutual_complete_localization_protected": true,
+        "mutual_correctness_protected": true,
+        "mutual_key_localization_protected": true,
+        "mutual_localization_above_position": true,
+        "mutual_maps_remain_separated": true,
+        "mutual_reduces_heldout_attention_discrepancy": true
+      },
+      "deltas": {
+        "dev_symmetric_attention_mse_relative_reduction": 0.23996599010353753,
+        "mutual_complete_unit_ap_vs_control": 0.0017138283899925666,
+        "mutual_complete_unit_ap_vs_position": 0.625218581653858,
+        "mutual_correctness_auroc_vs_control": 0.0,
+        "mutual_key_unit_ap_vs_control": -0.022474229422187186,
+        "mutual_key_unit_ap_vs_position": 0.22667563201259766,
+        "train_symmetric_attention_mse_relative_reduction": 0.23507283461260078
+      },
+      "values": {
+        "control_complete_unit_ap": 0.8919180700477642,
+        "control_correctness_auroc": 0.6349206349206349,
+        "control_dev_symmetric_attention_mse": 0.005530340230000621,
+        "control_key_unit_ap": 0.3818981252046853,
+        "control_train_symmetric_attention_mse": 0.006293936305778034,
+        "mutual_complete_unit_ap": 0.8936318984377568,
+        "mutual_correctness_auroc": 0.6349206349206349,
+        "mutual_dev_attention_l1_distance": 0.3991039272694934,
+        "mutual_dev_attention_overlap_mass": 0.8004480530049705,
+        "mutual_dev_symmetric_attention_mse": 0.004203246661099096,
+        "mutual_key_complete_probability_correlation": 0.8517315086303738,
+        "mutual_key_unit_ap": 0.3594238957824981,
+        "mutual_mean_absolute_key_complete_probability_difference": 0.2938897134810567,
+        "mutual_train_symmetric_attention_mse": 0.004814402857507631,
+        "position_complete_unit_ap": 0.2684133167838988,
+        "position_key_unit_ap": 0.13274826376990045
+      }
+    },
+    "44": {
+      "checks": {
+        "all": true,
+        "mutual_complete_localization_protected": true,
+        "mutual_correctness_protected": true,
+        "mutual_key_localization_protected": true,
+        "mutual_localization_above_position": true,
+        "mutual_maps_remain_separated": true,
+        "mutual_reduces_heldout_attention_discrepancy": true
+      },
+      "deltas": {
+        "dev_symmetric_attention_mse_relative_reduction": 0.33312752531590534,
+        "mutual_complete_unit_ap_vs_control": -0.0011660420805428284,
+        "mutual_complete_unit_ap_vs_position": 0.6596797811736197,
+        "mutual_correctness_auroc_vs_control": 0.0,
+        "mutual_key_unit_ap_vs_control": 0.012198855235594275,
+        "mutual_key_unit_ap_vs_position": 0.2845949428964478,
+        "train_symmetric_attention_mse_relative_reduction": 0.3331334227666249
+      },
+      "values": {
+        "control_complete_unit_ap": 0.9292591400380613,
+        "control_correctness_auroc": 0.7142857142857143,
+        "control_dev_symmetric_attention_mse": 0.02763875093169333,
+        "control_key_unit_ap": 0.405144351430754,
+        "control_train_symmetric_attention_mse": 0.03225992475759335,
+        "mutual_complete_unit_ap": 0.9280930979575185,
+        "mutual_correctness_auroc": 0.7142857142857143,
+        "mutual_dev_attention_l1_distance": 0.7155726242767155,
+        "mutual_dev_attention_overlap_mass": 0.642213688010715,
+        "mutual_dev_symmetric_attention_mse": 0.01843152223099566,
+        "mutual_key_complete_probability_correlation": 0.7596436882917533,
+        "mutual_key_unit_ap": 0.4173432066663483,
+        "mutual_mean_absolute_key_complete_probability_difference": 0.25116369294031893,
+        "mutual_train_symmetric_attention_mse": 0.021513065604902498,
+        "position_complete_unit_ap": 0.2684133167838988,
+        "position_key_unit_ap": 0.13274826376990045
+      }
+    }
+  },
+  "selection_passed": true,
+  "status": "completed_pass_original_mutual_distillation",
+  "training_commit": "91733a85463991147e6546152a588d58637a09cd"
+}

@@ -18,7 +18,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
-| dual-prior localization | v1 的 64 条双标、盲审裁决与 D0–D3 direct-target pilot 已完成；原始 mutual-distillation v1 已冻结待跑 | 保留双向 stop-gradient mutual MSE，不以 containment 替换；gate alignment 与 reconstruction 仍关闭 |
+| dual-prior localization | direct-target D0–D3 与原始 mutual-distillation M0/M1 三种子 pilot 均已完成 | 保留双向 stop-gradient mutual MSE，不以 containment 替换；下一步单独验证 reward-gate integration |
 
 模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
 同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
@@ -71,23 +71,24 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
   key 为 D0 `.079`、D1 `.377`、D3 `.433`，位置基线 `.133`；complete 为 D0 `.328`、D2 `.921`、
   D3 `.919`，位置基线 `.268`。全部预设 guard 为 3/3 seeds 通过，D3 correctness AUROC 相对 D0
   `+.005`，两张 prior map 的平均概率差 `.302`、相关系数 `.770`。
-- 该 dual-prior direct-target 结果只说明 adjudicated targets 在当前 pipeline pilot 中可学且可共存，不说明
-  Best-of-N 改善。用户随后裁决保留原始双向 stop-gradient mutual MSE；新的 M0/M1 协议已冻结，但尚无运行
-  结果。gate alignment 与 reconstruction 仍未授权。
+- 原始 mutual-distillation M0/M1 又完成 2 cells × 3 seeds。M1 使 held-out symmetric attention MSE 在三个
+  seed 分别相对下降 `27.0%/24.0%/33.3%`，均值 `28.1%`；key/complete unit AP 相对 M0 均值仅
+  `-.0085/-.0008`，correctness AUROC 持平，map probability difference/correlation 为 `.295/.793`。所有冻结
+  guard 3/3 通过，因此保留原始 mutual MSE；这仍不说明 Best-of-N 改善。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-Dual-prior direct-target gate 已以 `completed_pass_direct_targets_learnable` 关闭。当前下一道门是冻结的 M0/M1
-matched pilot：M0 复跑 D3 direct BCE control，M1 只增加原始双向 stop-gradient mutual-attention MSE，权重
-`.25`。相互蒸馏公式受保护，不以 containment 替换；评价直接检查 held-out symmetric attention MSE，同时保护
-key/complete AP、两图可分性与 correctness。gate alignment 继续关闭，reconstruction 继续等待独立 768-d
-target，不得使用 same-candidate pooling。完整 direct-target 结果见
+Dual-prior mutual-distillation gate 已以 `completed_pass_original_mutual_distillation` 关闭。下一步不做
+containment replacement，而是另发只改变 reward-gate integration 的 matched protocol：以当前 M1 为 control，
+只开启 gate 对 fused prior 的对齐，同时保护 prior localization、map separation、correctness 与最终 ranking。
+reconstruction 继续等待独立 768-d target，不得使用 same-candidate pooling。完整 direct-target 结果见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md) 与
 `configs/dual_prior_evidence_v1/training_result_v1.json`；新协议见
-[Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)。
+[Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)，机器结果为
+`configs/dual_prior_mutual_distillation_v1/training_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
@@ -127,8 +128,9 @@ target，不得使用 same-candidate pooling。完整 direct-target 结果见
 | `score_clir.py` | 逐候选 reward scoring |
 | `evaluate_hallucination_localization.py` | localization held-out evaluation |
 | `scripts/checkpoint_dual_prior_secondary_v1.py` | secondary 逐条 durable checkpoint、顺序校验与续跑状态 |
-| `scripts/run_dual_prior_matrix_v1.py` | D0–D3 × 三种子的独占 GPU launcher |
+| `scripts/run_dual_prior_matrix_v1.py` | dual-prior 多 cell × 多 seed 的独占 GPU launcher |
 | `scripts/summarize_dual_prior_pilot_v1.py` | direct-target learnability 与位置基线采用门 |
+| `scripts/summarize_dual_prior_mutual_distillation_v1.py` | 原始 mutual-distillation 协同目标与保护门 |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
@@ -160,7 +162,9 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
 - [docs/hallucination_relative_tail_pilot_v2d.md](docs/hallucination_relative_tail_pilot_v2d.md)：
   pre-onset-relative R1 单-cell 试验、clean-anchor 缺口与冻结负结果
 - [docs/dual_prior_evidence_pilot_v1.md](docs/dual_prior_evidence_pilot_v1.md)：双标裁决、exact-token gold、
-  D0–D3 direct-target 结果与下一道 collaboration 门
+  D0–D3 direct-target 结果
+- [docs/dual_prior_mutual_distillation_pilot_v1.md](docs/dual_prior_mutual_distillation_pilot_v1.md)：原始双向
+  stop-gradient mutual-distillation 的冻结协议、三种子结果与下一道 gate-integration 门
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = (
     ROOT / "configs/dual_prior_mutual_distillation_v1/training_protocol_v1.json"
 )
+RESULT = ROOT / "configs/dual_prior_mutual_distillation_v1/training_result_v1.json"
 
 
 def _distill_fixture() -> tuple[dict, dict, torch.Tensor, torch.Tensor]:
@@ -108,3 +109,23 @@ def test_collaboration_metric_matches_two_direction_training_value():
     assert metrics["one_direction_attention_mse"] == pytest.approx(0.25)
     assert metrics["symmetric_attention_mse"] == pytest.approx(0.5)
     assert metrics["mean_attention_overlap_mass"] == pytest.approx(0.75)
+
+
+def test_completed_original_mutual_distillation_result_passes_all_guards():
+    result = json.loads(RESULT.read_text(encoding="utf-8"))
+    assert result["status"] == "completed_pass_original_mutual_distillation"
+    assert result["method_formula_preserved"] is True
+    assert result["mutual_distillation_weight"] == 0.25
+    assert result["required_matrix_cells"] == result["completed_matrix_cells"] == 6
+    assert result["selection_passed"] is True
+    assert result["passing_seed_counts"]["all"] == 3
+    assert all(result["across_seed_checks"].values())
+    mean = result["mean_metrics_and_deltas"]
+    assert mean["dev_symmetric_attention_mse_relative_reduction"] > 0.02
+    assert mean["mutual_key_unit_ap_vs_control"] > -0.05
+    assert mean["mutual_complete_unit_ap_vs_control"] > -0.05
+    assert mean["mutual_correctness_auroc_vs_control"] >= -0.1
+    assert result["gate_alignment_enabled"] is False
+    assert result["reconstruction_enabled"] is False
+    assert result["containment_replacement_used"] is False
+    assert result["pilot_test_accessed"] is False
