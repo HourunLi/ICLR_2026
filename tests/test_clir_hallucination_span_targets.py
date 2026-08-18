@@ -5,6 +5,7 @@ import pytest
 from scripts.calibrate_hallucination_span_thresholds_v2 import explicit_token_targets
 from scripts.materialize_hallucination_span_targets_v2 import ROOT, derive_annotation
 from scripts.run_hallucination_localization_pilot_v2 import weight_args
+from scripts.summarize_hallucination_span_pilot_v2 import select_span_cell
 from src.clir_real_data import load_protocol
 from src.clir_supervision import output_token_ids_sha256
 
@@ -125,3 +126,33 @@ def test_pilot_v2_cells_keep_downstream_shaping_off_and_change_only_declared_fac
         assert args[args.index("--pseudo_tail_weight") + 1] == "0.0"
         assert args[args.index("--consistency_weight") + 1] == "0.0"
         assert args[args.index("--prior_weight") + 1] == "0.0"
+
+
+def test_span_cell_selection_prefers_simpler_cell_on_ties_and_requires_both_shortcuts():
+    cells = {
+        "s0_tail_bce": {
+            "span_token_average_precision": 0.30,
+            "claim_mean_average_precision": 0.30,
+        },
+        "s1_span_bce": {
+            "span_token_average_precision": 0.50,
+            "claim_mean_average_precision": 0.50,
+        },
+        "s2_span_balanced": {
+            "span_token_average_precision": 0.50,
+            "claim_mean_average_precision": 0.60,
+        },
+        "s3_span_balanced_path": {
+            "span_token_average_precision": 0.40,
+            "claim_mean_average_precision": 0.70,
+        },
+    }
+
+    selected = select_span_cell(
+        cells,
+        token_position_ap=0.40,
+        claim_position_ap=0.40,
+    )
+
+    assert selected["selected_cell"] == "s1_span_bce"
+    assert selected["token_gate_passed"] is True
