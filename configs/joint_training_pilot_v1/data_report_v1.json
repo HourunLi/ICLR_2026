@@ -1,0 +1,226 @@
+{
+  "schema_version": "clir-joint-training-data-report-v1",
+  "status": "joint_manifests_ready",
+  "evidence_tier": "small-scale real",
+  "protocol": "configs/joint_training_pilot_v1/data_protocol_v1.json",
+  "protocol_sha256": "76dc414418f6961209ba38c4cf6c24c0a108774bcfde0a37c74b93e6590130c9",
+  "outputs": {
+    "train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+      "sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48",
+      "rows": 3968
+    },
+    "mechanism_train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6",
+      "rows": 48
+    },
+    "mechanism_dev": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+      "sha256": "22b4dadc0c75cfe9422bc9805697028dd31e19fe129ac100ab5a10b69a16678d",
+      "rows": 16
+    }
+  },
+  "train_queries": 496,
+  "ranking_validation_queries": 500,
+  "query_overlap": {
+    "train_mechanism_dev": 0,
+    "train_ranking_validation": 0,
+    "mechanism_dev_ranking_validation": 0
+  },
+  "row_classes": {
+    "correctness_only_rows": 3866,
+    "correctness_plus_consistency_rows": 54,
+    "correctness_plus_hallucination_and_prior_rows": 48
+  },
+  "consistency_mechanism_row_overlap": 0,
+  "train_coverage": {
+    "schema_version": "clir-supervision-coverage-v1",
+    "rows": 3968,
+    "supervised_rows": 102,
+    "provenanced_supervised_rows": 102,
+    "unprovenanced_supervised_rows": 0,
+    "field_rows": {
+      "path_hallucinated": 48,
+      "hallucination_onset": 48,
+      "token_hallucination_target": 48,
+      "token_hallucination_mask": 48,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 48,
+      "complete_prior_target": 48,
+      "semantic_id": 54,
+      "style_id": 54,
+      "domain_id": 0,
+      "complete_reconstruction_target": 0
+    },
+    "field_tokens": {
+      "token_hallucination_target": 14307,
+      "token_hallucination_mask": 14307,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 14307,
+      "complete_prior_target": 14307
+    },
+    "path_label_values": {
+      "0": 31,
+      "1": 17
+    },
+    "joint_prior_rows": 48,
+    "joint_prior_tokens": 14307,
+    "positive_onset_rows": 17,
+    "explicit_hallucination_tokens": {
+      "supervised": 6681,
+      "positive": 922,
+      "negative": 5759
+    },
+    "reconstruction_dimensions": {},
+    "consistency_pairs": {
+      "positive_same_semantic_different_style": 27,
+      "negative_different_semantic_same_style": 702
+    },
+    "eligible_components": {
+      "consistency": true,
+      "path_hallucination": true,
+      "onset_localization": true,
+      "token_advantage": false,
+      "progress": false,
+      "dual_prior": true,
+      "reconstruction": false
+    },
+    "eligible_component_count": 4
+  },
+  "mechanism_train_coverage": {
+    "schema_version": "clir-supervision-coverage-v1",
+    "rows": 48,
+    "supervised_rows": 48,
+    "provenanced_supervised_rows": 48,
+    "unprovenanced_supervised_rows": 0,
+    "field_rows": {
+      "path_hallucinated": 48,
+      "hallucination_onset": 48,
+      "token_hallucination_target": 48,
+      "token_hallucination_mask": 48,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 48,
+      "complete_prior_target": 48,
+      "semantic_id": 0,
+      "style_id": 0,
+      "domain_id": 0,
+      "complete_reconstruction_target": 0
+    },
+    "field_tokens": {
+      "token_hallucination_target": 14307,
+      "token_hallucination_mask": 14307,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 14307,
+      "complete_prior_target": 14307
+    },
+    "path_label_values": {
+      "0": 31,
+      "1": 17
+    },
+    "joint_prior_rows": 48,
+    "joint_prior_tokens": 14307,
+    "positive_onset_rows": 17,
+    "explicit_hallucination_tokens": {
+      "supervised": 6681,
+      "positive": 922,
+      "negative": 5759
+    },
+    "reconstruction_dimensions": {},
+    "consistency_pairs": {
+      "positive_same_semantic_different_style": 0,
+      "negative_different_semantic_same_style": 0
+    },
+    "eligible_components": {
+      "consistency": false,
+      "path_hallucination": true,
+      "onset_localization": true,
+      "token_advantage": false,
+      "progress": false,
+      "dual_prior": true,
+      "reconstruction": false
+    },
+    "eligible_component_count": 3
+  },
+  "mechanism_dev_coverage": {
+    "schema_version": "clir-supervision-coverage-v1",
+    "rows": 16,
+    "supervised_rows": 16,
+    "provenanced_supervised_rows": 16,
+    "unprovenanced_supervised_rows": 0,
+    "field_rows": {
+      "path_hallucinated": 16,
+      "hallucination_onset": 16,
+      "token_hallucination_target": 16,
+      "token_hallucination_mask": 16,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 16,
+      "complete_prior_target": 16,
+      "semantic_id": 0,
+      "style_id": 0,
+      "domain_id": 0,
+      "complete_reconstruction_target": 0
+    },
+    "field_tokens": {
+      "token_hallucination_target": 5008,
+      "token_hallucination_mask": 5008,
+      "token_advantage": 0,
+      "progress_targets": 0,
+      "key_prior_target": 5008,
+      "complete_prior_target": 5008
+    },
+    "path_label_values": {
+      "0": 10,
+      "1": 6
+    },
+    "joint_prior_rows": 16,
+    "joint_prior_tokens": 5008,
+    "positive_onset_rows": 6,
+    "explicit_hallucination_tokens": {
+      "supervised": 2451,
+      "positive": 528,
+      "negative": 1923
+    },
+    "reconstruction_dimensions": {},
+    "consistency_pairs": {
+      "positive_same_semantic_different_style": 0,
+      "negative_different_semantic_same_style": 0
+    },
+    "eligible_components": {
+      "consistency": false,
+      "path_hallucination": true,
+      "onset_localization": true,
+      "token_advantage": false,
+      "progress": false,
+      "dual_prior": true,
+      "reconstruction": false
+    },
+    "eligible_component_count": 3
+  },
+  "sampler_epoch_1": {
+    "batches": 992,
+    "visited_rows": 3968,
+    "unique_visited_rows": 3968,
+    "positive_pairs": 27,
+    "negative_pairs": 26,
+    "all_batch_sizes": {
+      "4": 992
+    }
+  },
+  "features": {
+    "unique_trajectory_features": 3984,
+    "unique_condition_features": 512
+  },
+  "code": {
+    "commit": "9bf2a83f6f923885ab635ab6555e6484e022409a",
+    "dirty": false
+  },
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}

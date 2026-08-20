@@ -129,9 +129,17 @@ def _validate_epoch_metrics(
                 int(active_batches.get(name, 0)) <= 0 or name not in active_losses
             ):
                 raise ValueError(f"Epoch {expected_epoch} lacks active loss for {name}")
-        for value in train.get("losses", {}).values():
-            if not isinstance(value, (int, float)) or not float("-inf") < float(value) < float("inf"):
-                raise ValueError("Training metrics contain a non-finite loss")
+        for collection_name, collection in (
+            ("coverage-weighted", train.get("losses", {})),
+            ("active-supervision", active_losses),
+        ):
+            for value in collection.values():
+                if not isinstance(value, (int, float)) or not (
+                    float("-inf") < float(value) < float("inf")
+                ):
+                    raise ValueError(
+                        f"Training metrics contain a non-finite {collection_name} loss"
+                    )
     return rows
 
 
