@@ -41,6 +41,7 @@ SUPPORTED_PROTOCOL_SCHEMAS = {
     "clir-dual-prior-original-scale-training-protocol-v2",
     "clir-joint-training-pilot-protocol-v1",
     "clir-joint-training-drop-one-protocol-v1",
+    "clir-joint-training-packing-protocol-v1",
 }
 
 

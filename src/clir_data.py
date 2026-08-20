@@ -22,7 +22,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import random
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -535,11 +535,18 @@ def add_optional_vector(
 
 
 class SemanticGroupBatchSampler(BatchSampler):
-    """Batch sampler that keeps LLM rewrites from the same semantic id together.
+    """Batch sampler for semantic pairs plus optional exclusive packing pools.
 
     Each batch packs small chunks from multiple semantic groups when possible.
     This makes PRISM-style positive and negative pairs likely in real training,
     instead of relying on random shuffle to place augmentations together.
+
+    ``packing_pools`` is deliberately independent of ``semantic_id``.  Every
+    listed row is removed from semantic packing and batched only with rows in
+    the same pool.  This lets sparse supervision rows share optimizer steps
+    without falsely claiming that unrelated trajectories are semantically
+    equivalent.  A pool whose size is divisible by ``batch_size`` therefore
+    produces full, supervision-only batches.
     """
 
     def __init__(
@@ -550,6 +557,7 @@ class SemanticGroupBatchSampler(BatchSampler):
         drop_last: bool = False,
         seed: int = 0,
         indices: Optional[Sequence[int]] = None,
+        packing_pools: Optional[Mapping[str, Sequence[int]]] = None,
     ) -> None:
         if batch_size < 2:
             raise ValueError("SemanticGroupBatchSampler requires batch_size >= 2")
@@ -560,8 +568,34 @@ class SemanticGroupBatchSampler(BatchSampler):
         self.seed = seed
         self.epoch = 0
         self.indices = list(indices) if indices is not None else list(range(len(dataset.rows)))
+        selected = set(self.indices)
+        if len(selected) != len(self.indices):
+            raise ValueError("Batch sampler indices must be unique")
+        self.packing_pools: Dict[str, List[int]] = {}
+        packed_indices: set[int] = set()
+        for raw_pool_id, raw_indices in (packing_pools or {}).items():
+            pool_id = str(raw_pool_id)
+            if not pool_id:
+                raise ValueError("Packing pool ids must be non-empty")
+            pool_indices = [int(index) for index in raw_indices]
+            if not pool_indices:
+                raise ValueError(f"Packing pool {pool_id!r} must not be empty")
+            if len(set(pool_indices)) != len(pool_indices):
+                raise ValueError(f"Packing pool {pool_id!r} contains duplicate indices")
+            outside = set(pool_indices) - selected
+            if outside:
+                raise ValueError(
+                    f"Packing pool {pool_id!r} references rows outside the sampler indices"
+                )
+            overlap = packed_indices & set(pool_indices)
+            if overlap:
+                raise ValueError("Packing pools must be row-disjoint")
+            packed_indices.update(pool_indices)
+            self.packing_pools[pool_id] = pool_indices
         self.groups: Dict[str, List[int]] = {}
         for row_index in self.indices:
+            if row_index in packed_indices:
+                continue
             row = dataset.rows[row_index]
             semantic_id = first_present(
                 row,
@@ -579,6 +613,20 @@ class SemanticGroupBatchSampler(BatchSampler):
         return len(self._build_batches(None))
 
     def _build_batches(self, rng: Optional[random.Random]) -> List[List[int]]:
+        exclusive_batches: List[List[int]] = []
+        pool_items = [list(indices) for indices in self.packing_pools.values()]
+        if rng is not None and pool_items:
+            packing_rng = random.Random()
+            packing_rng.setstate(rng.getstate())
+            packing_rng.shuffle(pool_items)
+            for indices in pool_items:
+                packing_rng.shuffle(indices)
+        for indices in pool_items:
+            for start in range(0, len(indices), self.batch_size):
+                batch = indices[start : start + self.batch_size]
+                if len(batch) == self.batch_size or (batch and not self.drop_last):
+                    exclusive_batches.append(batch)
+
         group_items = [list(indices) for indices in self.groups.values()]
         if rng is not None:
             rng.shuffle(group_items)
@@ -631,9 +679,55 @@ class SemanticGroupBatchSampler(BatchSampler):
             if len(batch) == self.batch_size or (batch and not self.drop_last):
                 batches.append(batch)
 
+        batches.extend(exclusive_batches)
         if rng is not None:
             rng.shuffle(batches)
         return batches
+
+
+def load_batch_packing_pools(
+    path: str | Path,
+    dataset: CLIRTrajectoryDataset,
+) -> Dict[str, List[int]]:
+    """Resolve an auditable row-id sidecar into exclusive sampler pools.
+
+    Each JSONL record must contain exactly one trajectory ``id`` and a
+    non-empty ``packing_pool_id``.  The sidecar changes only batching: it is
+    never exposed through ``clir_collate`` and cannot activate a model loss.
+    """
+
+    records = read_jsonl(path)
+    if not records:
+        raise ValueError(f"No batch-packing rows found in {path}")
+    index_by_id: Dict[str, int] = {}
+    for row_index, row in enumerate(dataset.rows):
+        row_id = str(row.get("id", row_index))
+        if row_id in index_by_id:
+            raise ValueError(f"Training manifest contains duplicate row id {row_id!r}")
+        index_by_id[row_id] = row_index
+
+    pools: Dict[str, List[int]] = {}
+    assigned_ids: set[str] = set()
+    for line_number, record in enumerate(records, start=1):
+        if set(record) != {"id", "packing_pool_id"}:
+            raise ValueError(
+                f"Batch-packing line {line_number} must contain only id and packing_pool_id"
+            )
+        row_id = record["id"]
+        pool_id = record["packing_pool_id"]
+        if not isinstance(row_id, str) or not row_id:
+            raise ValueError(f"Batch-packing line {line_number} has an invalid id")
+        if not isinstance(pool_id, str) or not pool_id:
+            raise ValueError(
+                f"Batch-packing line {line_number} has an invalid packing_pool_id"
+            )
+        if row_id in assigned_ids:
+            raise ValueError(f"Batch-packing sidecar repeats row id {row_id!r}")
+        if row_id not in index_by_id:
+            raise ValueError(f"Batch-packing sidecar references unknown row id {row_id!r}")
+        assigned_ids.add(row_id)
+        pools.setdefault(pool_id, []).append(index_by_id[row_id])
+    return pools
 
 
 class EpochRandomSampler(Sampler[int]):
@@ -672,6 +766,7 @@ __all__ = [
     "EpochRandomSampler",
     "SemanticGroupBatchSampler",
     "clir_collate",
+    "load_batch_packing_pools",
     "move_batch_to_device",
     "read_jsonl",
     "write_jsonl",

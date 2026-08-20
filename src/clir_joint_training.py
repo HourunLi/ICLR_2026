@@ -9,6 +9,7 @@ from .consistency_localized_reward import RewardConfig
 
 JOINT_PROTOCOL_SCHEMA = "clir-joint-training-pilot-protocol-v1"
 JOINT_DROP_ONE_PROTOCOL_SCHEMA = "clir-joint-training-drop-one-protocol-v1"
+JOINT_PACKING_PROTOCOL_SCHEMA = "clir-joint-training-packing-protocol-v1"
 LOSS_NAMES = (
     "final",
     "consistency",
@@ -97,6 +98,12 @@ _FROZEN_CELL_OVERRIDES_BY_SCHEMA = {
             "prior": 1.0,
         },
     },
+    JOINT_PACKING_PROTOCOL_SCHEMA: {
+        "jph_supervision_packed": {
+            "hallucination": 1.0,
+            "prior": 1.0,
+        },
+    },
 }
 
 
@@ -155,6 +162,26 @@ def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
         for name, expected in expected_rules.items():
             if rules.get(name) != expected:
                 raise ValueError(f"Frozen drop-one decision rule drifted: {name}")
+    if schema == JOINT_PACKING_PROTOCOL_SCHEMA:
+        packing = protocol.get("batch_packing", {})
+        expected_packing = {
+            "enabled": True,
+            "sidecar_schema": "id_and_packing_pool_id_jsonl",
+            "pool_id": "mechanism_explicit_hallucination_and_original_prior",
+            "rows": 48,
+            "pool_size": 48,
+            "exclusive_batch_size": 4,
+            "exclusive_batches_per_epoch": 12,
+            "reshuffle_membership_each_epoch": True,
+            "semantic_metadata_unchanged": True,
+        }
+        for name, expected in expected_packing.items():
+            if packing.get(name) != expected:
+                raise ValueError(f"Frozen joint packing field drifted: {name}")
+        if protocol.get("method", {}).get("sampler_or_batch_packing_changed") is not True:
+            raise ValueError("Packing protocol must declare its sampler change")
+        if protocol.get("method", {}).get("dual_prior_architecture_changed") is not False:
+            raise ValueError("Packing protocol must preserve the original dual-prior architecture")
 
 
 def resolve_loss_weights(
@@ -224,6 +251,7 @@ def reward_config_from_protocol(
 
 __all__ = [
     "JOINT_DROP_ONE_PROTOCOL_SCHEMA",
+    "JOINT_PACKING_PROTOCOL_SCHEMA",
     "JOINT_PROTOCOL_SCHEMA",
     "LOSS_NAMES",
     "resolve_loss_weights",

@@ -19,6 +19,7 @@ from src.clir_data import (
     EpochRandomSampler,
     SemanticGroupBatchSampler,
     clir_collate,
+    load_batch_packing_pools,
     move_batch_to_device,
 )
 from src.clir_real_data import file_sha256
@@ -70,6 +71,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run_json", default=None)
     parser.add_argument("--expected_train_sha256", default=None)
     parser.add_argument("--expected_val_sha256", default=None)
+    parser.add_argument(
+        "--batch_packing_jsonl",
+        default=None,
+        help=(
+            "Optional train-row sidecar with id/packing_pool_id records. Rows in one "
+            "pool are packed into exclusive batches without changing semantic metadata."
+        ),
+    )
+    parser.add_argument("--expected_batch_packing_sha256", default=None)
     parser.add_argument("--hidden_dim", type=int, required=True,
                         help="Raw input feature width; 101376 for frozen Phi all-layer features.")
     parser.add_argument("--model_variant", default="clir",
@@ -320,6 +330,7 @@ def make_loader(
     num_workers: int = 0,
     pin_memory: bool = False,
     persistent_workers: bool = False,
+    packing_pools: Mapping[str, list[int]] | None = None,
 ) -> DataLoader:
     if num_workers < 0:
         raise ValueError("num_workers must be non-negative")
@@ -343,6 +354,7 @@ def make_loader(
             drop_last=False,
             seed=seed,
             indices=indices,
+            packing_pools=packing_pools,
         )
         return DataLoader(
             dataset,
@@ -637,6 +649,7 @@ RESUME_PINNED_ARGS = (
     "amp_dtype",
     "skip_feature_finite_check",
     "group_by_semantic_id",
+    "batch_packing_jsonl",
     "prior_phase_mode",
     "val_every_n_epochs",
     "prior_collapse_tolerance",
@@ -668,6 +681,7 @@ LEGACY_RESUME_DEFAULTS: Dict[str, Any] = {
     "extractor_trust_remote_code": False,
     "extractor_layer_count": None,
     "extractor_per_layer_hidden_size": None,
+    "batch_packing_jsonl": None,
 }
 
 
@@ -932,6 +946,12 @@ def main() -> None:
         raise ValueError("Use explicit --val_jsonl or legacy --val_fraction, not both")
     if args.val_feature_root and not args.val_jsonl:
         raise ValueError("--val_feature_root requires --val_jsonl")
+    if args.batch_packing_jsonl and not args.group_by_semantic_id:
+        raise ValueError("--batch_packing_jsonl requires --group_by_semantic_id")
+    if args.expected_batch_packing_sha256 and not args.batch_packing_jsonl:
+        raise ValueError(
+            "--expected_batch_packing_sha256 requires --batch_packing_jsonl"
+        )
     if args.hidden_state_source == "online" and (
         args.feature_root is not None or args.val_feature_root is not None
     ):
@@ -1020,11 +1040,29 @@ def main() -> None:
     if val_indices is not None:
         validate_dataset_feature_contract(val_dataset, config, "validation")
 
+    batch_packing_pools = (
+        load_batch_packing_pools(args.batch_packing_jsonl, train_dataset)
+        if args.batch_packing_jsonl
+        else None
+    )
+    batch_packing_sha256 = (
+        file_sha256(args.batch_packing_jsonl) if args.batch_packing_jsonl else None
+    )
+    if (
+        args.expected_batch_packing_sha256
+        and batch_packing_sha256 != args.expected_batch_packing_sha256
+    ):
+        raise ValueError(
+            "Batch-packing sidecar SHA256 mismatch: expected "
+            f"{args.expected_batch_packing_sha256}, got {batch_packing_sha256}"
+        )
+
     train_loader = make_loader(
         train_dataset, args.batch_size, train_indices, shuffle=True,
         group_by_semantic_id=args.group_by_semantic_id, seed=args.seed,
         num_workers=args.num_workers, pin_memory=args.pin_memory,
         persistent_workers=args.persistent_workers,
+        packing_pools=batch_packing_pools,
     )
     val_loader = (
         make_loader(val_dataset, args.batch_size, val_indices, shuffle=False,
@@ -1056,6 +1094,22 @@ def main() -> None:
         "val_sha256": val_sha256,
         "val_rows": len(val_indices) if val_indices is not None else 0,
         "val_queries": len(val_queries),
+        "batch_packing_jsonl": (
+            str(Path(args.batch_packing_jsonl).resolve())
+            if args.batch_packing_jsonl
+            else None
+        ),
+        "batch_packing_sha256": batch_packing_sha256,
+        "batch_packing_rows": (
+            sum(len(indices) for indices in batch_packing_pools.values())
+            if batch_packing_pools
+            else 0
+        ),
+        "batch_packing_pool_sizes": (
+            {name: len(indices) for name, indices in batch_packing_pools.items()}
+            if batch_packing_pools
+            else {}
+        ),
     }
     if online_hidden_state_config is not None:
         data_state["hidden_state_source"] = "online"

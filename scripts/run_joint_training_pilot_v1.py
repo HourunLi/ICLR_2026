@@ -129,6 +129,15 @@ def _validate_epoch_metrics(
                 int(active_batches.get(name, 0)) <= 0 or name not in active_losses
             ):
                 raise ValueError(f"Epoch {expected_epoch} lacks active loss for {name}")
+        expected_active_batches = protocol["engineering_gates"].get(
+            "per_epoch_active_batches"
+        )
+        if expected_active_batches is not None:
+            for name, expected in expected_active_batches.items():
+                if int(active_batches.get(name, -1)) != int(expected):
+                    raise ValueError(
+                        f"Epoch {expected_epoch} active batch count drifted for {name}"
+                    )
         for collection_name, collection in (
             ("coverage-weighted", train.get("losses", {})),
             ("active-supervision", active_losses),
@@ -310,6 +319,17 @@ def main() -> None:
     ]
     for name in weights:
         train_command.extend([f"--{name}_weight", str(weights[name])])
+    packing = protocol.get("batch_packing")
+    if isinstance(packing, Mapping) and packing.get("enabled"):
+        sidecar = protocol["inputs"]["batch_packing_sidecar"]
+        train_command.extend(
+            [
+                "--batch_packing_jsonl",
+                str(resolve(sidecar["path"])),
+                "--expected_batch_packing_sha256",
+                str(sidecar["sha256"]),
+            ]
+        )
     run(train_command)
     run_record = json.loads(paths["run"].read_text(encoding="utf-8"))
     if run_record.get("status") != "completed" or int(
@@ -498,6 +518,19 @@ def main() -> None:
         "pilot_test_accessed": False,
         "final_test_accessed": False,
         "formal_mechanism_claim_allowed": False,
+        "batch_packing": (
+            {
+                "sidecar_sha256": protocol["inputs"]["batch_packing_sidecar"][
+                    "sha256"
+                ],
+                "pool_id": packing["pool_id"],
+                "exclusive_batches_per_epoch": packing[
+                    "exclusive_batches_per_epoch"
+                ],
+            }
+            if isinstance(packing, Mapping) and packing.get("enabled")
+            else None
+        ),
     }
     atomic_write_json(paths["result"], result)
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))

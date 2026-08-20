@@ -8,7 +8,13 @@ import pytest
 import torch
 from torch.utils.data import DataLoader
 
-from src.clir_data import CLIRTrajectoryDataset, SemanticGroupBatchSampler, clir_collate, write_jsonl
+from src.clir_data import (
+    CLIRTrajectoryDataset,
+    SemanticGroupBatchSampler,
+    clir_collate,
+    load_batch_packing_pools,
+    write_jsonl,
+)
 from src.consistency_localized_reward import (
     ConsistencyLocalizedReward,
     RewardConfig,
@@ -562,6 +568,92 @@ def test_semantic_group_batch_sampler_len_matches_iter_for_uneven_groups(tmp_pat
 
     assert batches == [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9]]
     assert len(sampler) == len(batches)
+
+
+def test_semantic_group_batch_sampler_uses_independent_exclusive_packing_pool(
+    tmp_path: Path,
+):
+    rows = [
+        {
+            "id": f"mechanism-{index}",
+            "query_id": f"mechanism-query-{index}",
+            "hidden_states": [[0.0, 1.0]],
+            "correctness": index % 2,
+            "token_hallucination_target": [index % 2],
+            "token_hallucination_mask": [1],
+        }
+        for index in range(8)
+    ]
+    rows.extend(
+        {
+            "id": f"semantic-{semantic_id}-{style_id}",
+            "query_id": f"semantic-query-{semantic_id}-{style_id}",
+            "hidden_states": [[0.0, 1.0]],
+            "correctness": 1,
+            "semantic_id": semantic_id,
+            "style_id": style_id,
+        }
+        for semantic_id in ("a", "b")
+        for style_id in ("direct", "verbose")
+    )
+    manifest = tmp_path / "train.jsonl"
+    sidecar = tmp_path / "packing.jsonl"
+    write_jsonl(manifest, rows)
+    write_jsonl(
+        sidecar,
+        [
+            {
+                "id": f"mechanism-{index}",
+                "packing_pool_id": "mechanism",
+            }
+            for index in range(8)
+        ],
+    )
+    dataset = CLIRTrajectoryDataset(manifest)
+    pools = load_batch_packing_pools(sidecar, dataset)
+    sampler = SemanticGroupBatchSampler(
+        dataset,
+        batch_size=4,
+        shuffle=False,
+        packing_pools=pools,
+    )
+
+    batches = list(sampler)
+    assert batches == [[8, 9, 10, 11], [0, 1, 2, 3], [4, 5, 6, 7]]
+    assert sorted(index for batch in batches for index in batch) == list(range(12))
+    assert all(
+        sum(index < 8 for index in batch) in {0, 4}
+        for batch in batches
+    )
+    assert all("semantic_id" not in dataset.rows[index] for index in range(8))
+
+
+def test_batch_packing_sidecar_rejects_unknown_or_extra_metadata(tmp_path: Path):
+    manifest = tmp_path / "train.jsonl"
+    write_jsonl(
+        manifest,
+        [
+            {
+                "id": "known",
+                "query_id": "q",
+                "hidden_states": [[0.0, 1.0]],
+                "correctness": 1,
+            }
+        ],
+    )
+    dataset = CLIRTrajectoryDataset(manifest)
+    unknown = tmp_path / "unknown.jsonl"
+    write_jsonl(unknown, [{"id": "missing", "packing_pool_id": "mechanism"}])
+    with pytest.raises(ValueError, match="unknown row id"):
+        load_batch_packing_pools(unknown, dataset)
+
+    extra = tmp_path / "extra.jsonl"
+    write_jsonl(
+        extra,
+        [{"id": "known", "packing_pool_id": "mechanism", "semantic_id": "fake"}],
+    )
+    with pytest.raises(ValueError, match="must contain only"):
+        load_batch_packing_pools(extra, dataset)
 
 
 def test_collate_preserves_bfloat16_feature_storage():
