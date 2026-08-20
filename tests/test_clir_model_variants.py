@@ -28,6 +28,55 @@ def small_layer_config(model_variant: str = "clir") -> RewardConfig:
     )
 
 
+def _condition_routing_batch() -> dict[str, torch.Tensor]:
+    return {
+        "hidden_states": torch.randn(2, 5, 24),
+        "condition_states": torch.randn(2, 3, 24),
+        "condition_mask": torch.ones(2, 3),
+        "mask": torch.tensor(
+            [[1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 0.0]]
+        ),
+        "correctness": torch.tensor([1.0, 0.0]),
+        "token_hallucination_target": torch.tensor(
+            [[0.0, 1.0, 0.0, 1.0, 0.0], [1.0, 0.0, 1.0, 0.0, 0.0]]
+        ),
+        "token_hallucination_mask": torch.tensor(
+            [[1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 0.0]]
+        ),
+        "key_prior_target": torch.tensor(
+            [[1.0, 0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 1.0, 0.0]]
+        ),
+        "key_prior_mask": torch.tensor(
+            [[1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 0.0]]
+        ),
+        "complete_prior_target": torch.tensor(
+            [[1.0, 1.0, 1.0, 0.0, 0.0], [1.0, 1.0, 0.0, 1.0, 0.0]]
+        ),
+        "complete_prior_mask": torch.tensor(
+            [[1.0, 1.0, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0, 0.0]]
+        ),
+    }
+
+
+def _named_gradients(
+    model: torch.nn.Module, loss: torch.Tensor
+) -> dict[str, torch.Tensor | None]:
+    names = [name for name, _ in model.named_parameters()]
+    parameters = [parameter for _, parameter in model.named_parameters()]
+    gradients = torch.autograd.grad(loss, parameters, allow_unused=True)
+    return dict(zip(names, gradients))
+
+
+def _prefix_gradient_norm(
+    gradients: dict[str, torch.Tensor | None], prefixes: tuple[str, ...]
+) -> float:
+    squared = 0.0
+    for name, gradient in gradients.items():
+        if gradient is not None and name.startswith(prefixes):
+            squared += float(gradient.detach().float().square().sum())
+    return squared**0.5
+
+
 def test_strict_swift_real_width_has_only_linear_d_by_two_head():
     config = RewardConfig(hidden_dim=33 * 3072, model_variant="strict_swift")
     model = build_reward_model(config)
@@ -84,6 +133,113 @@ def test_real_width_clir_has_no_raw_width_squared_parameter():
     for parameter in model.parameters():
         if parameter.ndim >= 2:
             assert not (parameter.shape[-1] == config.hidden_dim and parameter.shape[-2] == config.hidden_dim)
+
+
+def test_hallucination_condition_stop_gradient_changes_only_target_parameter_gradients():
+    torch.manual_seed(31)
+    config = small_layer_config("clir")
+    config.hallucination_target_mode = "explicit"
+    model = build_reward_model(config).eval()
+    batch = _condition_routing_batch()
+
+    model.config.hallucination_condition_stop_gradient = False
+    baseline_outputs, baseline_losses = model.training_step(batch, prior_phase="joint")
+    baseline_values = {
+        name: baseline_outputs[name].detach().clone()
+        for name in (
+            "scores",
+            "hallucination_logits",
+            "token_features",
+            "key_prior",
+            "complete_prior",
+            "gates",
+        )
+    }
+    baseline_gradients = _named_gradients(
+        model, baseline_losses["localization_token_bce"]
+    )
+
+    model.config.hallucination_condition_stop_gradient = True
+    routed_outputs, routed_losses = model.training_step(batch, prior_phase="joint")
+    routed_gradients = _named_gradients(
+        model, routed_losses["localization_token_bce"]
+    )
+
+    for name, baseline in baseline_values.items():
+        assert torch.equal(routed_outputs[name].detach(), baseline)
+    assert torch.equal(
+        routed_losses["localization_token_bce"].detach(),
+        baseline_losses["localization_token_bce"].detach(),
+    )
+
+    blocked = (
+        "condition_query.",
+        "condition_key.",
+        "condition_value.",
+        "condition_fusion.",
+    )
+    assert _prefix_gradient_norm(baseline_gradients, blocked) > 0.0
+    assert _prefix_gradient_norm(routed_gradients, blocked) == 0.0
+    for required_prefix in (
+        ("input_encoder.",),
+        ("feature_norm.",),
+        ("hallucination_head.",),
+    ):
+        assert _prefix_gradient_norm(routed_gradients, required_prefix) > 0.0
+
+    for name, baseline in baseline_gradients.items():
+        routed = routed_gradients[name]
+        if name.startswith(blocked):
+            continue
+        assert (baseline is None) == (routed is None)
+        if baseline is not None and routed is not None:
+            assert torch.equal(routed, baseline), name
+
+
+@pytest.mark.parametrize(
+    ("objective", "scale"),
+    [
+        ("final", 1.0),
+        ("prior_key", 1.0),
+        ("prior_complete", 1.0),
+        ("prior_distill", 0.25),
+        ("prior_gate", 10.0),
+    ],
+)
+def test_hallucination_condition_routing_preserves_original_objective_gradients(
+    objective: str, scale: float
+):
+    torch.manual_seed(37)
+    config = small_layer_config("clir")
+    config.hallucination_target_mode = "explicit"
+    model = build_reward_model(config).eval()
+    batch = _condition_routing_batch()
+
+    model.config.hallucination_condition_stop_gradient = False
+    baseline_outputs, baseline_losses = model.training_step(batch, prior_phase="joint")
+    baseline_loss = scale * baseline_losses[objective]
+    baseline_gradients = _named_gradients(model, baseline_loss)
+
+    model.config.hallucination_condition_stop_gradient = True
+    routed_outputs, routed_losses = model.training_step(batch, prior_phase="joint")
+    routed_loss = scale * routed_losses[objective]
+    routed_gradients = _named_gradients(model, routed_loss)
+
+    assert torch.equal(routed_outputs["scores"], baseline_outputs["scores"])
+    assert torch.equal(routed_loss.detach(), baseline_loss.detach())
+    for name, baseline in baseline_gradients.items():
+        routed = routed_gradients[name]
+        assert (baseline is None) == (routed is None), name
+        if baseline is not None and routed is not None:
+            assert torch.equal(routed, baseline), name
+
+    if objective == "prior_distill":
+        assert _prefix_gradient_norm(routed_gradients, ("key_prior_head.",)) > 0.0
+        assert _prefix_gradient_norm(routed_gradients, ("complete_prior_head.",)) > 0.0
+    if objective == "prior_gate":
+        assert _prefix_gradient_norm(routed_gradients, ("token_reward_head.",)) > 0.0
+        assert _prefix_gradient_norm(routed_gradients, ("key_prior_head.",)) == 0.0
+        assert _prefix_gradient_norm(routed_gradients, ("complete_prior_head.",)) == 0.0
 
 
 def test_layer_encoder_chunks_normalization_without_changing_outputs():

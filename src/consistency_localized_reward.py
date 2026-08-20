@@ -48,6 +48,7 @@ class RewardConfig:
     pseudo_onset_threshold: float = 0.5
     prior_fusion_alpha: float = 0.5
     condition_attention_temperature: float = 1.0
+    hallucination_condition_stop_gradient: bool = False
     progress_score_weight: float = 0.5
     eps: float = 1e-8
 
@@ -144,6 +145,8 @@ class RewardConfig:
             or self.hallucination_positive_weight <= 0.0
         ):
             raise ValueError("hallucination_positive_weight must be positive")
+        if not isinstance(self.hallucination_condition_stop_gradient, bool):
+            raise ValueError("hallucination_condition_stop_gradient must be boolean")
 
 
 class IdentityFeatureEncoder(nn.Module):
@@ -483,6 +486,7 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_mask: Optional[Tensor] = None,
         condition_embedding: Optional[Tensor] = None,
         condition_embedding_mask: Optional[Tensor] = None,
+        apply_hallucination_condition_stop_gradient: Optional[bool] = None,
     ) -> Dict[str, Tensor]:
         """Compute scalar reward, token rewards, hallucination, and priors."""
         _validate_raw_features(hidden_states, self.config, "hidden_states")
@@ -520,12 +524,39 @@ class ConsistencyLocalizedReward(nn.Module):
             condition_embedding_mask=condition_embedding_mask,
         )
 
+        hallucination_features = token_features
+        if apply_hallucination_condition_stop_gradient is None:
+            route_hallucination_gradient = (
+                self.config.hallucination_condition_stop_gradient
+                and torch.is_grad_enabled()
+            )
+        else:
+            route_hallucination_gradient = (
+                apply_hallucination_condition_stop_gradient
+            )
+        if route_hallucination_gradient:
+            # Keep the exact conditioned forward value, while treating only the
+            # condition-attention/fusion parameters as constants for the
+            # hallucination branch.  Detached weights still propagate gradients
+            # to their inputs, so the trajectory/condition feature encoder and
+            # feature_norm retain the same hallucination gradient as the
+            # ordinary path.
+            hallucination_features, _, _ = self._condition_token_features(
+                hidden_states,
+                mask,
+                condition_states=condition_states,
+                condition_mask=condition_mask,
+                condition_embedding=condition_embedding,
+                condition_embedding_mask=condition_embedding_mask,
+                detach_condition_parameters=True,
+            )
+
         token_head = self.token_reward_head(token_features)
         gate_logits = token_head[..., 0]
         token_rewards = token_head[..., 1]
         gates = torch.sigmoid(gate_logits) * mask
 
-        hallucination_logits = self.hallucination_head(token_features).squeeze(-1)
+        hallucination_logits = self.hallucination_head(hallucination_features).squeeze(-1)
         progress = self.progress_head(token_features).squeeze(-1)
         token_values = token_rewards + self.config.progress_score_weight * progress
 
@@ -593,6 +624,17 @@ class ConsistencyLocalizedReward(nn.Module):
             condition_mask=batch.get("condition_mask"),
             condition_embedding=batch.get("condition_embedding"),
             condition_embedding_mask=batch.get("condition_embedding_mask"),
+            apply_hallucination_condition_stop_gradient=(
+                self.config.hallucination_condition_stop_gradient
+                and any(
+                    name in batch
+                    for name in (
+                        "hallucination_onset",
+                        "token_hallucination_target",
+                        "path_hallucinated",
+                    )
+                )
+            ),
         )
         losses = self.loss(outputs, batch, prior_phase=prior_phase)
         return outputs, losses
@@ -735,6 +777,7 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_mask: Optional[Tensor],
         condition_embedding: Optional[Tensor],
         condition_embedding_mask: Optional[Tensor],
+        detach_condition_parameters: bool = False,
     ) -> Tuple[Tensor, Tensor, Tensor]:
         condition_parts = []
         mask_parts = []
@@ -767,9 +810,27 @@ class ConsistencyLocalizedReward(nn.Module):
         condition_bool = combined_condition_mask.to(device=hidden_states.device).bool()
         has_condition = condition_bool.any(dim=1)
 
-        queries = F.normalize(self.condition_query(hidden_states), dim=-1)
-        keys = F.normalize(self.condition_key(condition_tokens), dim=-1)
-        values = self.condition_value(condition_tokens)
+        queries = F.normalize(
+            self._condition_linear(
+                self.condition_query,
+                hidden_states,
+                detach_parameters=detach_condition_parameters,
+            ),
+            dim=-1,
+        )
+        keys = F.normalize(
+            self._condition_linear(
+                self.condition_key,
+                condition_tokens,
+                detach_parameters=detach_condition_parameters,
+            ),
+            dim=-1,
+        )
+        values = self._condition_linear(
+            self.condition_value,
+            condition_tokens,
+            detach_parameters=detach_condition_parameters,
+        )
 
         temperature = max(self.config.condition_attention_temperature, self.config.eps)
         attention_logits = torch.matmul(queries, keys.transpose(1, 2)) / temperature
@@ -791,12 +852,63 @@ class ConsistencyLocalizedReward(nn.Module):
             ],
             dim=-1,
         )
-        delta = self.condition_fusion(fusion_input)
+        delta = self._condition_fusion_forward(
+            fusion_input,
+            detach_parameters=detach_condition_parameters,
+        )
         active_rows = has_condition[:, None, None].to(hidden_states.dtype)
         conditioned = self.feature_norm(hidden_states + delta * mask.unsqueeze(-1) * active_rows)
         token_features = torch.where(has_condition[:, None, None], conditioned, hidden_states)
         attention = attention * has_condition[:, None, None].to(hidden_states.dtype)
         return token_features, relevance, attention
+
+    @staticmethod
+    def _condition_linear(
+        layer: nn.Linear,
+        inputs: Tensor,
+        *,
+        detach_parameters: bool,
+    ) -> Tensor:
+        if not detach_parameters:
+            return layer(inputs)
+        weight = layer.weight.detach()
+        bias = layer.bias.detach() if layer.bias is not None else None
+        return F.linear(inputs, weight, bias)
+
+    def _condition_fusion_forward(
+        self,
+        inputs: Tensor,
+        *,
+        detach_parameters: bool,
+    ) -> Tensor:
+        if not detach_parameters:
+            return self.condition_fusion(inputs)
+        value = inputs
+        for layer in self.condition_fusion:
+            if isinstance(layer, nn.Linear):
+                value = self._condition_linear(
+                    layer,
+                    value,
+                    detach_parameters=True,
+                )
+            elif isinstance(layer, nn.LayerNorm):
+                weight = layer.weight.detach() if layer.weight is not None else None
+                bias = layer.bias.detach() if layer.bias is not None else None
+                value = F.layer_norm(
+                    value,
+                    layer.normalized_shape,
+                    weight,
+                    bias,
+                    layer.eps,
+                )
+            else:
+                if any(True for _ in layer.parameters(recurse=True)):
+                    raise TypeError(
+                        "Detached condition fusion only supports parameter-free "
+                        f"nonlinearities, got {type(layer).__name__}"
+                    )
+                value = layer(value)
+        return value
 
 
 def build_reward_model(config: RewardConfig) -> nn.Module:

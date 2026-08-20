@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import torch
+
 from scripts.evaluate_dual_prior_gate_predictions_v1 import (
     SUPPORTED_PROTOCOL_SCHEMAS,
 )
@@ -13,6 +15,12 @@ from scripts.summarize_joint_training_packing_v1 import (
 from scripts.audit_joint_gradient_interactions_v1 import (
     audit_stream_structure,
     controlled_batch_report,
+)
+from scripts.audit_joint_condition_routing_v1 import gradient_difference
+from src.clir_condition_routing import (
+    BLOCKED_PARAMETER_PREFIXES,
+    INVARIANT_OBJECTIVE_WEIGHTS,
+    validate_condition_routing_protocol,
 )
 from src.clir_data import (
     CLIRTrajectoryDataset,
@@ -49,6 +57,9 @@ GRADIENT_INTERACTION_RESULT_PATH = (
 PACKING_PROTOCOL_PATH = (
     ROOT / "configs/joint_training_packing_v1/training_protocol_v1.json"
 )
+CONDITION_ROUTING_PROTOCOL_PATH = (
+    ROOT / "configs/joint_condition_routing_v1/audit_protocol_v1.json"
+)
 
 
 def load_protocol():
@@ -67,6 +78,12 @@ def load_gradient_interaction_protocol():
 
 def load_packing_protocol():
     return json.loads(PACKING_PROTOCOL_PATH.read_text(encoding="utf-8"))
+
+
+def load_condition_routing_protocol():
+    return json.loads(
+        CONDITION_ROUTING_PROTOCOL_PATH.read_text(encoding="utf-8")
+    )
 
 
 def test_joint_protocol_freezes_the_three_authorized_cells():
@@ -493,3 +510,55 @@ def test_packing_outcome_classifier_requires_ranking_and_both_target_families():
         )
         == "packing_schedule_not_supported_at_frozen_gates_seed42"
     )
+
+
+def test_condition_routing_protocol_freezes_only_the_targeted_h_route():
+    protocol = load_condition_routing_protocol()
+    validate_condition_routing_protocol(protocol)
+    route = protocol["route_contract"]
+    assert tuple(route["blocked_parameter_prefixes"]) == BLOCKED_PARAMETER_PREFIXES
+    assert route["feature_norm_blocked"] is False
+    assert route["condition_forward_value_changed"] is False
+    assert route["dual_prior_architecture_or_loss_changed"] is False
+    assert route["gate_fused_prior_target_remains_detached"] is True
+    assert route["bidirectional_mutual_updates_both_prior_heads"] is True
+    assert route["packing_enabled"] is False
+    assert protocol["invariant_objective_weights"] == INVARIANT_OBJECTIVE_WEIGHTS
+    assert protocol["decision_rules"]["automatic_training_authorized"] is False
+    assert protocol["scope"]["does_not_authorize_training"] is True
+
+
+def test_condition_routing_protocol_references_are_exact():
+    protocol = load_condition_routing_protocol()
+    for section in ("parent_artifacts", "inputs"):
+        for spec in protocol[section].values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+    parent = load_drop_one_protocol()
+    config = reward_config_from_protocol(parent, "jph_prior_plus_hallucination")
+    assert config.hallucination_condition_stop_gradient is False
+    assert config.prior_distill_weight == 0.25
+    assert config.gate_prior_weight == 10.0
+
+
+def test_condition_routing_gradient_difference_handles_blocked_parameters():
+    names = ["condition_query.weight", "input_encoder.weight"]
+    reference = [
+        torch.tensor([1.0, 2.0]),
+        torch.tensor([3.0, 4.0]),
+    ]
+    candidate = [
+        None,
+        torch.tensor([3.0, 4.0]),
+    ]
+    full = gradient_difference(names, reference, candidate)
+    nonblocked = gradient_difference(
+        names,
+        reference,
+        candidate,
+        exclude_prefixes=BLOCKED_PARAMETER_PREFIXES,
+    )
+    assert full["difference_l2_norm"] > 0.0
+    assert nonblocked["difference_l2_norm"] == 0.0
+    assert nonblocked["relative_l2_difference"] == 0.0

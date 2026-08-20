@@ -174,6 +174,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hallucination_positive_weight", type=float, default=1.0)
     parser.add_argument("--pseudo_onset_threshold", type=float, default=0.5)
     parser.add_argument("--condition_attention_temperature", type=float, default=1.0)
+    parser.add_argument(
+        "--hallucination_condition_stop_gradient",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Keep conditioned hallucination forward values while blocking only "
+            "hallucination-loss gradients to condition query/key/value and fusion parameters."
+        ),
+    )
     parser.add_argument("--progress_score_weight", type=float, default=0.5)
     return parser.parse_args()
 
@@ -233,6 +242,9 @@ def make_config(args: argparse.Namespace) -> RewardConfig:
         hallucination_positive_weight=args.hallucination_positive_weight,
         pseudo_onset_threshold=args.pseudo_onset_threshold,
         condition_attention_temperature=args.condition_attention_temperature,
+        hallucination_condition_stop_gradient=(
+            args.hallucination_condition_stop_gradient
+        ),
         progress_score_weight=args.progress_score_weight,
     )
 

@@ -308,6 +308,14 @@ def main() -> None:
         protocol["method"]["hallucination_target_mode"],
         "--hallucination_positive_weight",
         str(protocol["method"]["hallucination_positive_weight"]),
+        bool_flag(
+            "hallucination_condition_stop_gradient",
+            bool(
+                protocol["method"].get(
+                    "hallucination_condition_stop_gradient", False
+                )
+            ),
+        ),
         "--negative_tail_margin",
         str(protocol["method"]["negative_tail_margin"]),
         "--relative_tail_margin",

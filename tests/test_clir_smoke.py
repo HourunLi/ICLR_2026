@@ -776,6 +776,7 @@ def test_train_cli_exposes_new_reward_config_fields():
         "2",
         "--condition_attention_temperature",
         "0.7",
+        "--hallucination_condition_stop_gradient",
         "--progress_score_weight",
         "0.25",
         "--key_prior_weight",
@@ -794,6 +795,7 @@ def test_train_cli_exposes_new_reward_config_fields():
     config = make_config(args)
 
     assert config.condition_attention_temperature == 0.7
+    assert config.hallucination_condition_stop_gradient is True
     assert config.progress_score_weight == 0.25
     assert config.key_prior_weight == 0.8
     assert config.complete_prior_weight == 0.7

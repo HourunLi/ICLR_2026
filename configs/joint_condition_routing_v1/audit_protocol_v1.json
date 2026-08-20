@@ -1,0 +1,135 @@
+{
+  "schema_version": "clir-joint-condition-routing-audit-v1",
+  "status": "frozen_before_audit",
+  "created_at_utc": "2026-08-20",
+  "evidence_tier": "small-scale real",
+  "question": "Can hallucination BCE keep identical conditioned forward values and all non-target gradients while being prevented only from updating condition query/key/value and condition_fusion parameters?",
+  "parent_artifacts": {
+    "jph_protocol": {
+      "path": "configs/joint_training_drop_one_v1/training_protocol_v1.json",
+      "sha256": "ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128"
+    },
+    "preceding_gradient_interaction_result": {
+      "path": "configs/joint_gradient_interaction_v1/audit_result_v1.json",
+      "sha256": "de368ef395de9032afd5453479ee71122328502e4d3ab72ec62a959bcdb8144b"
+    },
+    "packing_negative_result": {
+      "path": "configs/joint_training_packing_v1/training_result_v1.json",
+      "sha256": "8452e9dc5e1be7046c873cece40e33de52cc5843b32c0cc4c81497ac30388b00"
+    }
+  },
+  "inputs": {
+    "mechanism_manifest": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    },
+    "jp_epoch5_checkpoint": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+      "sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+      "schema_version": "clir-full-checkpoint-v2",
+      "completed_epoch": 5,
+      "training_code_commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+      "experiment_protocol_sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053",
+      "train_manifest_sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48"
+    }
+  },
+  "model_states": [
+    {
+      "name": "initialization_seed42",
+      "kind": "deterministic_initialization",
+      "seed": 42,
+      "expected_parameter_checksum": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace"
+    },
+    {
+      "name": "jp_epoch5",
+      "kind": "checkpoint",
+      "input": "jp_epoch5_checkpoint"
+    }
+  ],
+  "controlled_batches": {
+    "rows": 48,
+    "batch_size": 4,
+    "batches": 12,
+    "coverage": "all frozen mechanism-train rows in manifest order",
+    "row_mean_objectives": true
+  },
+  "route_contract": {
+    "config_field": "hallucination_condition_stop_gradient",
+    "baseline_flag": false,
+    "candidate_flag": true,
+    "blocked_parameter_prefixes": [
+      "condition_query.",
+      "condition_key.",
+      "condition_value.",
+      "condition_fusion."
+    ],
+    "hallucination_required_nonzero_prefixes": {
+      "trajectory_and_condition_encoder": [
+        "input_encoder."
+      ],
+      "shared_feature_norm": [
+        "feature_norm."
+      ],
+      "hallucination_head": [
+        "hallucination_head."
+      ]
+    },
+    "feature_norm_blocked": false,
+    "condition_forward_value_changed": false,
+    "dual_prior_architecture_or_loss_changed": false,
+    "gate_fused_prior_target_remains_detached": true,
+    "bidirectional_mutual_updates_both_prior_heads": true,
+    "ordinary_jph_sampler_restored_for_any_future_training": true,
+    "packing_enabled": false
+  },
+  "forward_invariant_fields": [
+    "scores",
+    "hallucination_logits",
+    "token_features",
+    "key_prior",
+    "complete_prior",
+    "gates"
+  ],
+  "invariant_objective_weights": {
+    "final": 1.0,
+    "prior_key": 1.0,
+    "prior_complete": 1.0,
+    "prior_distill": 0.25,
+    "prior_gate": 10.0
+  },
+  "decision_rules": {
+    "forward_max_abs_tolerance": 0.0,
+    "objective_loss_max_abs_tolerance": 0.0,
+    "blocked_hallucination_gradient_l2_tolerance": 0.0,
+    "baseline_blocked_hallucination_gradient_must_be_positive": true,
+    "required_hallucination_routes_must_be_positive": true,
+    "gradient_max_abs_difference_tolerance": 0.00001,
+    "gradient_relative_l2_difference_tolerance": 0.00001,
+    "all_controlled_batches_must_pass": true,
+    "no_parameter_update_required": true,
+    "optimizer_grad_buffers_must_remain_absent": true,
+    "automatic_training_authorized": false,
+    "automatic_loss_weight_tuning_authorized": false,
+    "automatic_sampler_change_authorized": false
+  },
+  "scope": {
+    "evidence": "Engineering gradient-routing audit on all 48 real mechanism-train rows at initialization and the frozen JP epoch-5 state.",
+    "not_efficacy": true,
+    "does_not_authorize_training": true,
+    "does_not_authorize_additional_seeds": true,
+    "pilot_test_access_forbidden": true,
+    "final_test_access_forbidden": true
+  },
+  "execution": {
+    "script": "scripts/audit_joint_condition_routing_v1.py",
+    "output": "configs/joint_condition_routing_v1/audit_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "additional_training_after_pass_requires_user_approval": true
+  }
+}

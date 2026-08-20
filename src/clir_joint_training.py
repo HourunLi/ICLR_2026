@@ -241,6 +241,9 @@ def reward_config_from_protocol(
         consistency_margin=float(method["consistency_margin"]),
         hallucination_target_mode=str(method["hallucination_target_mode"]),
         hallucination_positive_weight=float(method["hallucination_positive_weight"]),
+        hallucination_condition_stop_gradient=bool(
+            method.get("hallucination_condition_stop_gradient", False)
+        ),
         prior_fusion_alpha=float(method["prior_fusion_alpha"]),
         progress_score_weight=float(method["progress_score_weight"]),
         negative_tail_margin=float(method["negative_tail_margin"]),
