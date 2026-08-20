@@ -102,21 +102,24 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `+.133/+.268`，都不支持全 shared-encoder 冲突；C↔mutual 为 `-.400/-.536`、C↔H 为
   `-.110/-.200`，但五个 epoch 中 C 与 H/prior active batches 从不重叠，只能称 cross-stream pressure。
   JP 状态 H/C norm 是 residual prior-total 的 `2.33×/3.20×`，优先指向 schedule/budget 诊断。
-- JPH supervision-aware packing v1 已冻结并通过静态组批审计：独立 sidecar 不修改 `semantic_id` 或 label，
-  每个 epoch 把 48 条 mechanism rows 精确组成 12 个纯 4-row batches；3968 行仍各一次、总计 992 batches，
-  27/26 个 consistency pairs 不变。该 cell 保留全部原 loss、双向 mutual `.25` 与 shared-gradient gate
-  `10`，尚未产生训练结果。
+- JPH supervision-aware packing v1 已从 clean commit `950f5c4` 完成。工程目标达成：每 epoch
+  48 条 mechanism rows 被组成 12 个纯 batch，行 exposure、总 optimizer steps、loss/direct/mutual/gate
+  均未改。但冻结效果门失败：BoN@16 `.924` 守住 ranking，H claim AP `.448` 通过，H
+  span AP `.206` 失败，key/complete AP 降至 `.096/.429`。这说明对 per-row H/prior 直接照搬
+  main 的 pair-aware sampler 只会把 auxiliary-active updates 从约 48 次压缩为 12 次，没有像
+  consistency 那样新增 relational supervision。该 packing 不进入保留方案，不扩 seeds。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-`joint_training_packing_v1` 的单个 JPH-pack cell 已获用户批准、完成实现和协议冻结，下一步是从 clean commit
-执行 seed-42 五 epoch 训练、mechanism/ranking 评分与冻结总结。它只用独立 sidecar 改组批；loss 权重和原始
-prior 不变。由于 auxiliary-active steps 从 233/五 epoch 降到 60/五 epoch，该比较只能称
-packing/schedule+effective-budget diagnostic，不能伪称纯 packing 因果。当前仍不引入 gradient surgery、
-不扩 seeds。
+`joint_training_packing_v1` 已冻结判定为不支持，当前恢复原 JPH ordinary single-stream sampler。
+下一个待用户拍板的最小修复是 JPH condition-branch gradient-routing control：H 仍使用 condition
+做 forward，但不更新 `condition_query/key/value` 与 `condition_fusion`；final 和项目原 prior 的全部
+梯度保留，direct targets、双向 mutual `.25` 和 shared-gradient gate `10` 不变。它来自已有
+condition-local H↔prior 稳定负向诊断；须先做 no-update routing audit，再决定是否训练单个 seed-42
+cell。当前仍不引入 blanket PCGrad、不扩 seeds。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -133,7 +136,9 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 [Joint Training Drop-One Diagnosis v1](docs/joint_training_drop_one_v1.md)，机器结果为
 `configs/joint_training_drop_one_v1/training_result_v1.json`；梯度审计见
 [Joint Shared-Gradient Interaction Audit v1](docs/joint_gradient_interaction_v1.md)，机器结果为
-`configs/joint_gradient_interaction_v1/audit_result_v1.json`。
+`configs/joint_gradient_interaction_v1/audit_result_v1.json`；packing 负结果与机制边界见
+[JPH Supervision-Aware Packing v1](docs/joint_training_packing_v1.md)，机器结果为
+`configs/joint_training_packing_v1/training_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
@@ -221,6 +226,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   mixed-supervision 放大训练与 500×16 paired ranking 协议
 - [docs/joint_training_pilot_v1.md](docs/joint_training_pilot_v1.md)：第一轮 single-stream 联合训练、冻结失败门、
   batching confound 与 drop-one 归因方案
+- [docs/joint_training_packing_v1.md](docs/joint_training_packing_v1.md)：从 main pair-aware sampler 出发的
+  JPH packing 对照、冻结负结果与 effective-budget 解释
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

@@ -1,0 +1,158 @@
+{
+  "schema_version": "clir-joint-training-packing-result-v1",
+  "status": "completed_seed42_packing_schedule_diagnostic",
+  "evidence_tier": "small-scale real integration pilot",
+  "protocol": "configs/joint_training_packing_v1/training_protocol_v1.json",
+  "protocol_sha256": "27cf4adc820652800b0a35ff1e9bce21352f8bd4aec8e342a8150a65201c28c9",
+  "seed": 42,
+  "cells": {
+    "jph_supervision_packed": {
+      "result_sha256": "993a0506793ea3cb51a1346aba2b5216f62fef5470cf26ad9b6171cdb90ab31b",
+      "bon_at_primary_k": 0.924,
+      "pairwise_accuracy": 0.663882664493787,
+      "score_population_std": 1.9423806496854517,
+      "hallucination_span_token_ap": 0.20605375564408834,
+      "hallucination_claim_mean_ap": 0.44810313744685637,
+      "key_unit_ap": 0.09575420922658316,
+      "complete_unit_ap": 0.4286408663379219,
+      "consistency_mean_cosine_gap": 0.008124096016598581,
+      "code": {
+        "commit": "950f5c4dbc80de87a66d89207c27748f44fa5fd4",
+        "dirty": false
+      }
+    },
+    "jph_prior_plus_hallucination": {
+      "result_sha256": "e3c8dabcd4be1e715b4393a1fe5ed20c48977cde020e574a4fe8bd901b2a0f02",
+      "bon_at_primary_k": 0.92,
+      "pairwise_accuracy": 0.6862904868608678,
+      "score_population_std": 2.11733011466739,
+      "hallucination_span_token_ap": 0.3190437655958111,
+      "hallucination_claim_mean_ap": 0.3382286662203997,
+      "key_unit_ap": 0.3135744485036375,
+      "complete_unit_ap": 0.9275592904044775,
+      "consistency_mean_cosine_gap": 0.011447003424337465,
+      "code": {
+        "commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+        "dirty": false
+      }
+    },
+    "jp_original_prior": {
+      "result_sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32",
+      "bon_at_primary_k": 0.918,
+      "pairwise_accuracy": 0.7001425952332451,
+      "score_population_std": 2.721782554452695,
+      "hallucination_span_token_ap": 0.19178346571995392,
+      "hallucination_claim_mean_ap": 0.17205157544496402,
+      "key_unit_ap": 0.43196465946788765,
+      "complete_unit_ap": 0.9462837038723717,
+      "consistency_mean_cosine_gap": 0.023034116481444156,
+      "code": {
+        "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+        "dirty": false
+      }
+    }
+  },
+  "primary_ranking": {
+    "k": 16,
+    "query_count": 500,
+    "paired_comparisons": {
+      "packed_minus_jph": {
+        "query_count": 500,
+        "mean_delta": 0.004,
+        "bootstrap_ci": [
+          -0.012,
+          0.02
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      },
+      "packed_minus_jp": {
+        "query_count": 500,
+        "mean_delta": 0.006,
+        "bootstrap_ci": [
+          -0.012,
+          0.024
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      }
+    }
+  },
+  "packing_engineering": {
+    "final_epoch_active_batches": {
+      "final": 992,
+      "total": 992,
+      "consistency_positive": 14,
+      "consistency_negative": 13,
+      "consistency_score": 14,
+      "consistency_total": 14,
+      "localization_token_bce": 12,
+      "localization_token_reward": 8,
+      "localization_tail_margin": 8,
+      "hallucination_mil": 12,
+      "prior_key": 12,
+      "prior_complete": 12,
+      "prior_distill": 12,
+      "prior_gate": 12,
+      "prior_total": 12
+    },
+    "expected_active_batches": {
+      "final": 992,
+      "localization_token_bce": 12,
+      "prior_key": 12,
+      "prior_complete": 12,
+      "prior_distill": 12,
+      "prior_gate": 12,
+      "prior_total": 12
+    },
+    "row_exposure_unchanged": true,
+    "total_optimizer_steps_unchanged": true,
+    "effective_auxiliary_active_steps_changed": true,
+    "loss_formulas_or_configured_weights_changed": false,
+    "semantic_metadata_changed": false
+  },
+  "decision": {
+    "classification": "packing_schedule_not_supported_at_frozen_gates_seed42",
+    "key": {
+      "packed_minus_jph": -0.21782023927705435,
+      "packed_minus_jp": -0.33621045024130447,
+      "minimum_recovery_vs_jph": 0.05,
+      "maximum_drop_vs_jp": 0.05,
+      "improves_vs_jph": false,
+      "near_jp": false,
+      "both_gates_pass": false
+    },
+    "hallucination": {
+      "packed_minus_jph_span_ap": -0.11299000995172276,
+      "packed_minus_jph_claim_ap": 0.10987447122645666,
+      "span_position_baseline": 0.39328067905143455,
+      "claim_position_baseline": 0.42198767865054354,
+      "span_pass": false,
+      "claim_pass": true,
+      "both_gates_pass": false
+    },
+    "ranking": {
+      "packed_minus_jp_bon": 0.006000000000000005,
+      "maximum_regression_vs_jp": 0.02,
+      "gate_pass": true
+    },
+    "scope": "one seed and a packing/effective-budget compound intervention; not formal efficacy or a pure causal packing estimate"
+  },
+  "automatic_loss_weight_tuning_performed": false,
+  "automatic_gradient_surgery_performed": false,
+  "automatic_stream_switch_performed": false,
+  "expand_to_additional_seeds_authorized": false,
+  "new_training_commit": "950f5c4dbc80de87a66d89207c27748f44fa5fd4",
+  "summary_code": {
+    "commit": "950f5c4dbc80de87a66d89207c27748f44fa5fd4",
+    "dirty": false
+  },
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false,
+  "next_action_requires_user_approval": true
+}

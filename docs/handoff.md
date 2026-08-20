@@ -295,23 +295,31 @@ protocol/audit 中，不在本 handoff 重复展开。
   schedule/effective budget，而不是删除或替换原 mutual/gate。完整结果见
   `docs/joint_gradient_interaction_v1.md` 与
   `configs/joint_gradient_interaction_v1/audit_result_v1.json`。
-- JPH supervision-aware packing v1 已获批准并冻结。实现沿用 main 原始 semantic sampler 的结构感知原则，
-  但通过独立 row-id sidecar 建立 mechanism packing pool，不伪造或复用 `semantic_id`。静态审计在五个
-  epoch 均得到 992 total batches、12 个纯 4-row mechanism batches、27/26 consistency pairs，且每行一次；
-  loss/label/model/direct/mutual/gate 全部未改。协议与理由见 `docs/joint_training_packing_v1.md`。
+- JPH supervision-aware packing v1 已从 clean commit `950f5c4` 完成。静态与运行审计都确认每 epoch
+  992 total batches、12 个纯 4-row mechanism batches、27/26 consistency pairs，且每行一次；
+  loss/label/model/direct/mutual/gate 全部未改。结果 BoN@16 `.924`、H span/claim AP `.206/.448`、
+  key/complete AP `.096/.429`；因 key 和 H-span 冻结门失败，分类为
+  `packing_schedule_not_supported_at_frozen_gates_seed42`，不扩 seeds。
+- 这一负结果校正了对 main 的理解：semantic sampler 为必须共批的 pairwise consistency 服务；
+  H/prior 是 per-row/per-token objective，直接打包没有新增 relational loss，只把 auxiliary-active
+  optimizer opportunities 从约 48 次压缩为 12 次。packing 因此不进入当前保留方案；完整记录见
+  `docs/joint_training_packing_v1.md` 和 `configs/joint_training_packing_v1/training_result_v1.json`。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。下一格已获用户批准并冻结：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing seeds，或放宽历史失败门。当前恢复
+原 JPH ordinary single-stream sampler；packing 代码只作 optional diagnostic，不要默认启用。
 
-1. 执行唯一的 `jph_supervision_packed` cell，复用冻结 JPH：48 条 mechanism rows 集中为 12 个 4-row
-   batches，C 仍关闭；
-2. 每行每 epoch 仍恰好一次，保持 seed 42、初始化、3968-row manifest、5 epochs、final checkpoint、所有
-   loss 权重与原始 direct/mutual/gate 不变；
-3. 明确记录 active auxiliary steps 从约 48 降到 12，所以这是 packing+effective-budget test，不宣称纯
-   packing 因果；
-4. 当前不采用 blanket PCGrad，不处理 C cross-stream pressure，不扩 seeds 43/44，也不读取
-   `pilot_test/final_test`。若 JPH-pack 仍失败，才评估 condition branch targeted repair。
+下一个待用户拍板的最小实验是 `JPH + H-condition-stopgrad`：
+
+1. forward 仍使用 problem condition，H BCE 仍更新 hallucination head、trajectory encoder 与共享 token
+   representation；
+2. 仅阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；final 与原 prior 对这些参数的
+   梯度保留，原 direct targets、双向 stop-gradient mutual `.25`、shared-gradient gate `10` 不变；
+3. 先做 no-update routing audit，证明仅 H→condition 路由被截断，其他原方法路由不变；通过后再冻结一个
+   seed-42 5-epoch cell；
+4. 不采用 blanket PCGrad，不修改 C cross-stream pressure，不扩 seeds 43/44，不读取
+   `pilot_test/final_test`。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

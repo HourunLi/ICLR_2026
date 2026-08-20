@@ -2,7 +2,7 @@
 
 最后更新：2026-08-20
 
-状态：`frozen_before_training`
+状态：`completed_seed42_packing_schedule_not_supported`
 
 ## 1. 为什么这样改
 
@@ -64,6 +64,9 @@ reconstruction 关闭。
 - 静态审计：`configs/joint_training_packing_v1/packing_report_v1.json`
 - 执行入口：`scripts/run_joint_training_pilot_v1.py`
 - 总结入口：`scripts/summarize_joint_training_packing_v1.py`
+- 冻结机器结果：`configs/joint_training_packing_v1/training_result_v1.json`
+- seed-42 cell result：
+  `run_artifacts/joint_training_packing_v1/seed42_v1/seed_42/jph_supervision_packed/cell_result.json`
 
 执行必须来自 clean committed worktree：
 
@@ -75,3 +78,54 @@ reconstruction 关闭。
   --seed 42 \
   --execute
 ```
+
+## 6. seed-42 结果
+
+训练从 clean commit `950f5c4` 完成 5 epochs，无 OOM/NaN/runtime failure；未访问
+`pilot_test/final_test`。工程上完全达到预期：每个 epoch 都是 992 个 optimizer steps，H 与
+prior 都只在 12 个纯 mechanism batch 上 active，而每条数据的 exposure 不变。
+
+| 指标 | JP | JPH | JPH packed | 冻结判定 |
+|---|---:|---:|---:|---|
+| BoN@16 | `.918` | `.920` | `.924` | 通过 ranking guard；packed−JP `+.006` |
+| H span-token AP | `.192` | `.319` | `.206` | 失败；低于 `.393` position baseline |
+| H claim-mean AP | `.172` | `.338` | `.448` | 通过；高于 `.422` position baseline |
+| key unit AP | `.432` | `.314` | `.096` | 失败；相对 JPH/JP 下降 `.218/.336` |
+| complete unit AP | `.946` | `.928` | `.429` | 非主门，但同样显示 prior 拟合大幅损伤 |
+
+BoN@16 的 packed−JPH 配对 bootstrap 差为 `+.004 [-.012,+.020]`，packed−JP 为
+`+.006 [-.012,+.024]`；只能说 ranking 没有崩坏，不能宣称改善。冻结分类为
+`packing_schedule_not_supported_at_frozen_gates_seed42`，不授权扩 seeds。
+
+## 7. 从 main 得到的真正结论
+
+main 的 `SemanticGroupBatchSampler` 解决的是“relational loss 缺少同批 pair”：consistency 必须同时
+看到两个 view 才能定义 positive/negative pair。H sparse BCE 和 dual-prior direct/mutual/gate 的基本
+监督单元却都是 per-row/per-token；把四条 mechanism row 同批并不会新增一条跨样本约束。
+
+在当前 loss 以 active mask 均值规约的实现下，原 JPH 约 48 个单条-active batch 产生约 48 次
+auxiliary update；packed 变成 12 个四条均值 batch，等价于将每个 epoch 的 auxiliary optimizer
+opportunities 压缩到约四分之一。prior 两张 map 同时大幅恶化，与这一机制一致。因此不应把
+本结果解释为“结构组批尚需调一个阈值”；它更直接地说明，main 的 pair-aware 原则不能原样
+套到非 relational 的 H/prior loss 上。
+
+packing 能力保留为显式 optional 诊断工具，不进入当前保留训练方案。当前方案恢复 JPH
+的普通 single-stream sampler，不通过事后乘 4、oversampling 或重复 row 挽救本格；这些都会引入
+新的 effective-weight/exposure 变量，需要独立冻结协议。
+
+## 8. 下一个可讨论的最小修复
+
+已有 no-update audit 中，H↔prior-total 在整个 shared encoder 上没有稳定冲突，但在
+condition-attention/fusion 子空间的两个模型状态都低于 `-.05`。因此下一个候选不是继续打包、
+改原 mutual/gate，也不是全模型 PCGrad，而是一个窄的 JPH condition-branch gradient-routing
+control：
+
+- forward 仍使用同一 problem condition；
+- H BCE 仍训练 hallucination head、trajectory encoder 和共享 token representation；
+- 只阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；
+- final 与项目原 prior 对这些参数的梯度完整保留，direct targets、双向 stop-gradient
+  mutual `.25` 和 shared-gradient gate `10` 均不变；
+- 恢复原 JPH 普通 sampler 和约 45–48 个 active steps，先做 no-update routing audit，再决定是否
+  训练单个 seed-42 cell。
+
+这是基于已观测局部信号的 targeted ablation，仍需用户批准后单独冻结；它当前不是保留方法。
