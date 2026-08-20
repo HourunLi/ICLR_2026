@@ -182,6 +182,23 @@ def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
             raise ValueError("Packing protocol must declare its sampler change")
         if protocol.get("method", {}).get("dual_prior_architecture_changed") is not False:
             raise ValueError("Packing protocol must preserve the original dual-prior architecture")
+        rules = protocol.get("packing_decision_rules", {})
+        expected_rules = {
+            "key_ap_min_recovery_vs_jph": 0.05,
+            "key_ap_max_drop_vs_jp": 0.05,
+            "hallucination_span_token_ap_min_exclusive": 0.39328067905143455,
+            "hallucination_claim_ap_min_exclusive": 0.42198767865054354,
+            "ranking_max_absolute_regression_vs_jp": 0.02,
+            "success_requires_budget_matched_followup": True,
+            "failure_authorizes_condition_branch_design_discussion_only": True,
+            "no_seed_expansion_from_this_diagnostic": True,
+            "automatic_loss_weight_tuning": False,
+            "automatic_gradient_surgery": False,
+            "automatic_stream_switch": False,
+        }
+        for name, expected in expected_rules.items():
+            if rules.get(name) != expected:
+                raise ValueError(f"Frozen packing decision rule drifted: {name}")
 
 
 def resolve_loss_weights(

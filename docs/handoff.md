@@ -295,13 +295,17 @@ protocol/audit 中，不在本 handoff 重复展开。
   schedule/effective budget，而不是删除或替换原 mutual/gate。完整结果见
   `docs/joint_gradient_interaction_v1.md` 与
   `configs/joint_gradient_interaction_v1/audit_result_v1.json`。
+- JPH supervision-aware packing v1 已获批准并冻结。实现沿用 main 原始 semantic sampler 的结构感知原则，
+  但通过独立 row-id sidecar 建立 mechanism packing pool，不伪造或复用 `semantic_id`。静态审计在五个
+  epoch 均得到 992 total batches、12 个纯 4-row mechanism batches、27/26 consistency pairs，且每行一次；
+  loss/label/model/direct/mutual/gate 全部未改。协议与理由见 `docs/joint_training_packing_v1.md`。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。梯度审计已完成，下一格尚待用户批准：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。下一格已获用户批准并冻结：
 
-1. 只增加一个 JPH supervision-aware packing/schedule cell，复用冻结 JPH：48 条 mechanism rows 集中为
-   12 个 4-row batches，C 仍关闭；
+1. 执行唯一的 `jph_supervision_packed` cell，复用冻结 JPH：48 条 mechanism rows 集中为 12 个 4-row
+   batches，C 仍关闭；
 2. 每行每 epoch 仍恰好一次，保持 seed 42、初始化、3968-row manifest、5 epochs、final checkpoint、所有
    loss 权重与原始 direct/mutual/gate 不变；
 3. 明确记录 active auxiliary steps 从约 48 降到 12，所以这是 packing+effective-budget test，不宣称纯

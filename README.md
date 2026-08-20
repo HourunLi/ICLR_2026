@@ -102,18 +102,21 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `+.133/+.268`，都不支持全 shared-encoder 冲突；C↔mutual 为 `-.400/-.536`、C↔H 为
   `-.110/-.200`，但五个 epoch 中 C 与 H/prior active batches 从不重叠，只能称 cross-stream pressure。
   JP 状态 H/C norm 是 residual prior-total 的 `2.33×/3.20×`，优先指向 schedule/budget 诊断。
+- JPH supervision-aware packing v1 已冻结并通过静态组批审计：独立 sidecar 不修改 `semantic_id` 或 label，
+  每个 epoch 把 48 条 mechanism rows 精确组成 12 个纯 4-row batches；3968 行仍各一次、总计 992 batches，
+  27/26 个 consistency pairs 不变。该 cell 保留全部原 loss、双向 mutual `.25` 与 shared-gradient gate
+  `10`，尚未产生训练结果。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-`joint_gradient_interaction_v1` 已完成。它不支持统一 PCGrad-style repair：H/C 与 total prior 没有稳定负
-cosine，且 C 与 prior 从不共批。下一格建议只补一个 JPH supervision-aware packing/schedule cell，把 48 条
-mechanism rows 集中成 12 个 4-row batches，复用冻结 JPH control；每行仍每 epoch 一次，保持初始化、epochs、
-loss 权重和原始 prior 不变。这个比较会把 auxiliary-active steps 从约 48 降到 12，因此只能称
-packing/schedule test，不能伪称完全相同的 gradient budget。它仍需用户单独批准和冻结协议；在此之前不改
-sampler、不引入 gradient surgery、不扩 seeds。
+`joint_training_packing_v1` 的单个 JPH-pack cell 已获用户批准、完成实现和协议冻结，下一步是从 clean commit
+执行 seed-42 五 epoch 训练、mechanism/ranking 评分与冻结总结。它只用独立 sidecar 改组批；loss 权重和原始
+prior 不变。由于 auxiliary-active steps 从 233/五 epoch 降到 60/五 epoch，该比较只能称
+packing/schedule+effective-budget diagnostic，不能伪称纯 packing 因果。当前仍不引入 gradient surgery、
+不扩 seeds。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止

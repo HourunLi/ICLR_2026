@@ -7,11 +7,18 @@ from scripts.evaluate_dual_prior_gate_predictions_v1 import (
 from scripts.summarize_joint_training_drop_one_v1 import (
     classify_key_attribution,
 )
+from scripts.summarize_joint_training_packing_v1 import (
+    classify_packing_outcome,
+)
 from scripts.audit_joint_gradient_interactions_v1 import (
     audit_stream_structure,
     controlled_batch_report,
 )
-from src.clir_data import CLIRTrajectoryDataset
+from src.clir_data import (
+    CLIRTrajectoryDataset,
+    SemanticGroupBatchSampler,
+    load_batch_packing_pools,
+)
 from src.clir_gradient_interaction import (
     classify_cross_stream_pressure,
     classify_same_batch_conflict,
@@ -39,6 +46,9 @@ GRADIENT_INTERACTION_PROTOCOL_PATH = (
 GRADIENT_INTERACTION_RESULT_PATH = (
     ROOT / "configs/joint_gradient_interaction_v1/audit_result_v1.json"
 )
+PACKING_PROTOCOL_PATH = (
+    ROOT / "configs/joint_training_packing_v1/training_protocol_v1.json"
+)
 
 
 def load_protocol():
@@ -53,6 +63,10 @@ def load_gradient_interaction_protocol():
     return json.loads(
         GRADIENT_INTERACTION_PROTOCOL_PATH.read_text(encoding="utf-8")
     )
+
+
+def load_packing_protocol():
+    return json.loads(PACKING_PROTOCOL_PATH.read_text(encoding="utf-8"))
 
 
 def test_joint_protocol_freezes_the_three_authorized_cells():
@@ -346,3 +360,136 @@ def test_gradient_interaction_result_is_no_update_and_matches_frozen_rules():
         == "stable_cross_stream_opposition"
     )
     assert protocol["decision_rules"]["automatic_repair_authorized"] is False
+
+
+def test_packing_protocol_changes_only_the_declared_sampler_family():
+    parent = load_drop_one_protocol()
+    protocol = load_packing_protocol()
+    validate_joint_protocol(protocol)
+    assert list(protocol["cells"]) == ["jph_supervision_packed"]
+    packed = resolve_loss_weights(protocol, "jph_supervision_packed")
+    jph = resolve_loss_weights(parent, "jph_prior_plus_hallucination")
+    assert packed == jph
+    assert protocol["model"] == parent["model"]
+    assert protocol["losses"]["shared"] == parent["losses"]["shared"]
+    assert protocol["manifests"] == parent["manifests"]
+    for name in (
+        "seeds",
+        "epochs",
+        "batch_size",
+        "learning_rate",
+        "weight_decay",
+        "max_grad_norm",
+        "amp_dtype",
+        "num_workers",
+        "pin_memory",
+        "persistent_workers",
+        "group_by_semantic_id",
+        "hidden_state_source",
+        "validation_every_n_epochs",
+        "prior_phase_mode",
+        "train_rows",
+        "batches_per_epoch",
+        "each_row_once_per_epoch",
+        "auxiliary_oversampling",
+    ):
+        assert protocol["matched_training"][name] == parent["matched_training"][name]
+    for name in (
+        "consistency_margin",
+        "hallucination_target_mode",
+        "hallucination_positive_weight",
+        "prior_fusion_alpha",
+        "progress_score_weight",
+        "negative_tail_margin",
+        "relative_tail_margin",
+        "pseudo_onset_threshold",
+        "dual_prior_formula",
+    ):
+        assert protocol["method"][name] == parent["method"][name]
+    assert protocol["method"]["mutual_distillation_changed"] is False
+    assert protocol["method"]["loss_formula_changed"] is False
+    assert protocol["method"]["sampler_or_batch_packing_changed"] is True
+    assert protocol["scientific_scope"]["not_a_pure_packing_causal_test"] is True
+    assert protocol["schema_version"] in SUPPORTED_PROTOCOL_SCHEMAS
+
+
+def test_packing_sidecar_and_five_epoch_schedule_are_exact():
+    protocol = load_packing_protocol()
+    for section in (
+        "parent_experiment",
+        "preceding_gradient_audit",
+        "inputs",
+        "manifests",
+    ):
+        for spec in protocol[section].values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+
+    train_path = ROOT / protocol["manifests"]["train"]["path"]
+    dataset = CLIRTrajectoryDataset(
+        train_path,
+        check_finite=False,
+        require_correctness=True,
+        load_condition=False,
+        hidden_state_source="precomputed",
+    )
+    sidecar_path = ROOT / protocol["inputs"]["batch_packing_sidecar"]["path"]
+    pools = load_batch_packing_pools(sidecar_path, dataset)
+    assert list(pools) == [protocol["batch_packing"]["pool_id"]]
+    mechanism_indices = set(next(iter(pools.values())))
+    assert len(mechanism_indices) == 48
+    assert all(
+        "token_hallucination_target" in dataset.rows[index]
+        and "key_prior_target" in dataset.rows[index]
+        and "complete_prior_target" in dataset.rows[index]
+        and "semantic_id" not in dataset.rows[index]
+        and "style_id" not in dataset.rows[index]
+        for index in mechanism_indices
+    )
+
+    for epoch in range(1, 6):
+        sampler = SemanticGroupBatchSampler(
+            dataset,
+            batch_size=4,
+            shuffle=True,
+            seed=42,
+            packing_pools=pools,
+        )
+        sampler.epoch = epoch - 1
+        batches = list(sampler)
+        flattened = [index for batch in batches for index in batch]
+        assert len(batches) == 992
+        assert sorted(flattened) == list(range(3968))
+        mechanism_counts = [
+            sum(index in mechanism_indices for index in batch) for batch in batches
+        ]
+        assert set(mechanism_counts) <= {0, 4}
+        assert mechanism_counts.count(4) == 12
+
+
+def test_packing_outcome_classifier_requires_ranking_and_both_target_families():
+    assert (
+        classify_packing_outcome(
+            key_gates=True,
+            hallucination_gates=True,
+            ranking_gate=True,
+        )
+        == "packing_schedule_supported_at_seed42_followup_required"
+    )
+    assert (
+        classify_packing_outcome(
+            key_gates=True,
+            hallucination_gates=False,
+            ranking_gate=True,
+        )
+        == "packing_schedule_partially_supported_at_seed42"
+    )
+    assert (
+        classify_packing_outcome(
+            key_gates=True,
+            hallucination_gates=True,
+            ranking_gate=False,
+        )
+        == "packing_schedule_not_supported_at_frozen_gates_seed42"
+    )

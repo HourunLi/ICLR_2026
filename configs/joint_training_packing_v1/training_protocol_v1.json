@@ -1,0 +1,340 @@
+{
+  "schema_version": "clir-joint-training-packing-protocol-v1",
+  "status": "frozen_before_training",
+  "evidence_tier": "small-scale real integration pilot",
+  "purpose": "Test whether supervision-aware batch packing restores sparse hallucination and key-prior behavior in JPH while preserving the original CLIR objectives.",
+  "scientific_scope": {
+    "single_changed_factor_family": "packing/schedule and its induced effective auxiliary update budget",
+    "not_a_pure_packing_causal_test": true,
+    "reason": "Packing 48 mechanism rows into 12 four-row batches changes both within-batch reduction and the number/timing of auxiliary-active optimizer steps, although row exposure, total optimizer steps, loss formulas, and configured weights remain fixed.",
+    "formal_mechanism_claim_allowed": false
+  },
+  "parent_experiment": {
+    "protocol": {
+      "path": "configs/joint_training_drop_one_v1/training_protocol_v1.json",
+      "sha256": "ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128"
+    },
+    "result": {
+      "path": "configs/joint_training_drop_one_v1/training_result_v1.json",
+      "sha256": "5258d051129bdb480416a68f267229de249525fd664c498d68ab5511cdb3c289"
+    }
+  },
+  "preceding_gradient_audit": {
+    "protocol": {
+      "path": "configs/joint_gradient_interaction_v1/audit_protocol_v1.json",
+      "sha256": "3595dd8435dd2e889158da664775513ac1e251145547168653e08d1f0efbe45f"
+    },
+    "result": {
+      "path": "configs/joint_gradient_interaction_v1/audit_result_v1.json",
+      "sha256": "de368ef395de9032afd5453479ee71122328502e4d3ab72ec62a959bcdb8144b"
+    }
+  },
+  "frozen_controls": {
+    "seed": 42,
+    "cells": {
+      "jph_prior_plus_hallucination": {
+        "protocol_sha256": "ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128",
+        "training_code_commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+        "cell_result": {
+          "path": "run_artifacts/joint_training_drop_one_v1/seed42_v1/seed_42/jph_prior_plus_hallucination/cell_result.json",
+          "sha256": "e3c8dabcd4be1e715b4393a1fe5ed20c48977cde020e574a4fe8bd901b2a0f02"
+        },
+        "ranking_evaluation": {
+          "path": "run_artifacts/joint_training_drop_one_v1/seed42_v1/seed_42/jph_prior_plus_hallucination/ranking_evaluation.json",
+          "sha256": "bd31eb64a5574e164983566e119110849d38022619cf8936f1fc506f39a6b1ff"
+        }
+      },
+      "jp_original_prior": {
+        "protocol_sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053",
+        "training_code_commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+        "cell_result": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/cell_result.json",
+          "sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32"
+        },
+        "ranking_evaluation": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/ranking_evaluation.json",
+          "sha256": "1cb0f224ccfa5a5a6f5ad1927258b843c4b11384301b32a7ad856e4322d34dd3"
+        }
+      }
+    }
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [42],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": true,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 5,
+    "checkpoint_selection": "fixed final epoch 5",
+    "early_stopping": false,
+    "prior_phase_mode": "joint",
+    "train_rows": 3968,
+    "train_queries": 496,
+    "batches_per_epoch": 992,
+    "total_optimizer_steps": 4960,
+    "each_row_once_per_epoch": true,
+    "auxiliary_oversampling": false,
+    "feature_finite_scan_policy": "skip only after the frozen exhaustive feature-integrity report",
+    "constant_prior_failure_gate": false,
+    "initialization_match": "same seed and architecture as JP/JPH; deterministic initialization before any optimizer update",
+    "batch_order_match": "ordinary semantic packing remains enabled, but the 48 mechanism rows are removed from singleton packing and inserted as 12 exclusive full batches each epoch",
+    "control_mechanism_active_batches_by_epoch": [48, 47, 48, 45, 45],
+    "packed_mechanism_active_batches_by_epoch": [12, 12, 12, 12, 12],
+    "control_mechanism_active_steps_total": 233,
+    "packed_mechanism_active_steps_total": 60,
+    "mechanism_row_exposures_total_both": 240,
+    "loss_reduction_semantics": "unchanged implementation: sparse token/prior units are reduced jointly across the four mechanism rows in a packed batch, matching the existing batch-4 standalone path rather than the singleton-active JPH stream"
+  },
+  "batch_packing": {
+    "enabled": true,
+    "sidecar_schema": "id_and_packing_pool_id_jsonl",
+    "pool_id": "mechanism_explicit_hallucination_and_original_prior",
+    "rows": 48,
+    "pool_size": 48,
+    "exclusive_batch_size": 4,
+    "exclusive_batches_per_epoch": 12,
+    "reshuffle_membership_each_epoch": true,
+    "semantic_metadata_unchanged": true,
+    "sidecar_only_affects_sampler": true,
+    "sidecar_never_reaches_model_collate": true
+  },
+  "method": {
+    "consistency_margin": 0.2,
+    "hallucination_target_mode": "explicit",
+    "hallucination_positive_weight": 1.0,
+    "prior_fusion_alpha": 0.5,
+    "progress_score_weight": 0.0,
+    "negative_tail_margin": 0.5,
+    "relative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "dual_prior_formula": "direct key BCE + direct complete BCE + bidirectional stop-gradient mutual distillation at 0.25 + shared-gradient reward gate to detached 0.5/0.5 fused prior at 10.0",
+    "dual_prior_architecture_changed": false,
+    "mutual_distillation_changed": false,
+    "loss_formula_changed": false,
+    "loss_weight_scan_in_this_protocol": false,
+    "multistream_training_in_this_protocol": false,
+    "sampler_or_batch_packing_changed": true,
+    "main_branch_inspiration": "Generalize the original SemanticGroupBatchSampler principle: explicitly co-batch rows required by an auxiliary objective instead of relying on random collision; keep batching identity separate from semantic identity."
+  },
+  "losses": {
+    "shared": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "negative_consistency": 1.0,
+      "score_consistency": 0.1,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "relative_tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0,
+      "key_prior": 1.0,
+      "complete_prior": 1.0,
+      "prior_distill": 0.25,
+      "gate_prior": 10.0,
+      "reconstruction": 0.0
+    },
+    "disabled_in_every_cell": [
+      "consistency",
+      "mil",
+      "token_reward",
+      "tail",
+      "relative_tail",
+      "pseudo_tail",
+      "progress",
+      "reconstruction"
+    ],
+    "missing_supervision_policy": "mask and skip; do not synthesize targets"
+  },
+  "cells": {
+    "jph_supervision_packed": {
+      "description": "The frozen JPH objective with the same original dual prior and sparse explicit hallucination BCE, changing only mechanism-row packing/schedule.",
+      "loss_overrides": {
+        "hallucination": 1.0,
+        "prior": 1.0
+      }
+    }
+  },
+  "scoring": {
+    "batch_size": 2,
+    "amp_dtype": "none",
+    "compute_dtype": "float32",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "minimum_score_population_std": 0.0
+  },
+  "evaluation": {
+    "ranking_query_count": 500,
+    "ranking_candidates_per_query": 16,
+    "k": [1, 2, 4, 8, 16],
+    "primary_k": 16,
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 10000,
+    "confidence_level": 0.95,
+    "minimum_within_query_pairwise_accuracy": 0.0,
+    "consistency_relation_split": "training relations only; geometry diagnostic, not held-out evidence",
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "engineering_gates": {
+    "per_epoch_applicable_counts": {
+      "total": 3968,
+      "final": 3968,
+      "consistency_positive": 27,
+      "consistency_negative": 26,
+      "consistency_score": 27,
+      "consistency_total": 53,
+      "localization_token_bce": 6681,
+      "prior_key": 14307,
+      "prior_complete": 14307,
+      "prior_distill": 14307,
+      "prior_gate": 14307,
+      "prior_total": 14307
+    },
+    "per_epoch_active_batches": {
+      "final": 992,
+      "localization_token_bce": 12,
+      "prior_key": 12,
+      "prior_complete": 12,
+      "prior_distill": 12,
+      "prior_gate": 12,
+      "prior_total": 12
+    },
+    "active_supervision_logging_required": true,
+    "finite_losses_required": true,
+    "same_initialization_required": true,
+    "same_total_row_exposure_required": true,
+    "same_total_optimizer_steps_required": true,
+    "exact_exclusive_packing_required": true
+  },
+  "packing_decision_rules": {
+    "key_ap_min_recovery_vs_jph": 0.05,
+    "key_ap_max_drop_vs_jp": 0.05,
+    "hallucination_span_token_ap_min_exclusive": 0.39328067905143455,
+    "hallucination_claim_ap_min_exclusive": 0.42198767865054354,
+    "ranking_max_absolute_regression_vs_jp": 0.02,
+    "full_support_definition": "ranking guard passes, key AP improves by at least 0.05 over JPH and is within 0.05 of JP, and both hallucination AP metrics strictly exceed their frozen position baselines",
+    "partial_support_definition": "ranking guard passes and either both key gates or both hallucination gates pass, but not the full conjunction",
+    "no_support_definition": "neither targeted gate pair passes or the ranking guard fails",
+    "success_requires_budget_matched_followup": true,
+    "failure_authorizes_condition_branch_design_discussion_only": true,
+    "no_seed_expansion_from_this_diagnostic": true,
+    "automatic_loss_weight_tuning": false,
+    "automatic_gradient_surgery": false,
+    "automatic_stream_switch": false
+  },
+  "manifests": {
+    "train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+      "sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48",
+      "rows": 3968,
+      "queries": 496,
+      "candidates_per_query": 8,
+      "correctness_rows": 3968,
+      "consistency_rows": 54,
+      "mechanism_rows": 48
+    },
+    "mechanism_train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6",
+      "rows": 48,
+      "queries": 48
+    },
+    "mechanism_dev": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+      "sha256": "22b4dadc0c75cfe9422bc9805697028dd31e19fe129ac100ab5a10b69a16678d",
+      "rows": 16,
+      "queries": 16
+    },
+    "localization_train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6",
+      "rows": 48,
+      "queries": 48
+    },
+    "localization_dev": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+      "sha256": "22b4dadc0c75cfe9422bc9805697028dd31e19fe129ac100ab5a10b69a16678d",
+      "rows": 16,
+      "queries": 16
+    },
+    "ranking_validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16
+    }
+  },
+  "inputs": {
+    "data_protocol": {
+      "path": "configs/joint_training_pilot_v1/data_protocol_v1.json",
+      "sha256": "76dc414418f6961209ba38c4cf6c24c0a108774bcfde0a37c74b93e6590130c9"
+    },
+    "data_report": {
+      "path": "configs/joint_training_pilot_v1/data_report_v1.json",
+      "sha256": "b44bef69a0c8d522bd1ff3af85ebea206cedbe0c029151496e61bdc215481200"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    },
+    "gold_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+      "sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc"
+    },
+    "batch_packing_sidecar": {
+      "path": "configs/joint_training_packing_v1/mechanism_packing_pool_v1.jsonl",
+      "sha256": "c1f90884e206853fc1517ea17f561281b47fed72dd12a743922366d059d9351a",
+      "rows": 48
+    },
+    "batch_packing_report": {
+      "path": "configs/joint_training_packing_v1/packing_report_v1.json",
+      "sha256": "7e8681edf63bfb71dccbf77aa794e36223504e312d2c7c96a2025cba29b49981"
+    }
+  },
+  "execution": {
+    "runner": "scripts/run_joint_training_pilot_v1.py",
+    "hallucination_evaluator": "evaluate_hallucination_localization.py",
+    "prior_evaluator": "scripts/evaluate_dual_prior_gate_predictions_v1.py",
+    "consistency_evaluator": "scripts/evaluate_joint_consistency_v1.py",
+    "ranking_evaluator": "evaluate_clir.py",
+    "summarizer": "scripts/summarize_joint_training_packing_v1.py",
+    "output_root": "run_artifacts/joint_training_packing_v1/seed42_v1",
+    "result": "configs/joint_training_packing_v1/training_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "authorized_by_user": true
+  },
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

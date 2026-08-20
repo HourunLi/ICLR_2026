@@ -1,0 +1,130 @@
+{
+  "schema_version": "clir-joint-training-packing-report-v1",
+  "status": "passed",
+  "evidence_tier": "small-scale real integration pilot preparation",
+  "parent_protocol": "configs/joint_training_drop_one_v1/training_protocol_v1.json",
+  "parent_protocol_sha256": "ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128",
+  "train_manifest": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+  "train_manifest_sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48",
+  "sidecar": "configs/joint_training_packing_v1/mechanism_packing_pool_v1.jsonl",
+  "sidecar_sha256": "c1f90884e206853fc1517ea17f561281b47fed72dd12a743922366d059d9351a",
+  "sidecar_schema": "id_and_packing_pool_id_jsonl",
+  "pool_id": "mechanism_explicit_hallucination_and_original_prior",
+  "rows": 48,
+  "semantic_metadata_changed": false,
+  "loss_targets_changed": false,
+  "epoch_reports": [
+    {
+      "epoch": 1,
+      "batches": 992,
+      "mechanism_active_batches": 12,
+      "mechanism_batch_row_counts": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "consistency_positive_pairs": 27,
+      "consistency_negative_pairs": 26
+    },
+    {
+      "epoch": 2,
+      "batches": 992,
+      "mechanism_active_batches": 12,
+      "mechanism_batch_row_counts": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "consistency_positive_pairs": 27,
+      "consistency_negative_pairs": 26
+    },
+    {
+      "epoch": 3,
+      "batches": 992,
+      "mechanism_active_batches": 12,
+      "mechanism_batch_row_counts": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "consistency_positive_pairs": 27,
+      "consistency_negative_pairs": 26
+    },
+    {
+      "epoch": 4,
+      "batches": 992,
+      "mechanism_active_batches": 12,
+      "mechanism_batch_row_counts": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "consistency_positive_pairs": 27,
+      "consistency_negative_pairs": 26
+    },
+    {
+      "epoch": 5,
+      "batches": 992,
+      "mechanism_active_batches": 12,
+      "mechanism_batch_row_counts": [
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4,
+        4
+      ],
+      "consistency_positive_pairs": 27,
+      "consistency_negative_pairs": 26
+    }
+  ],
+  "code": {
+    "commit": "836aae968665e2da51a47d07d6348d56ff58529a",
+    "dirty": false
+  },
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false
+}
