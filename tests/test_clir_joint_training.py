@@ -69,6 +69,9 @@ CONDITION_ROUTING_RESULT_PATH = (
 CONDITION_ROUTING_TRAINING_PROTOCOL_PATH = (
     ROOT / "configs/joint_condition_routing_v1/training_protocol_v1.json"
 )
+CONDITION_ROUTING_TRAINING_RESULT_PATH = (
+    ROOT / "configs/joint_condition_routing_v1/training_result_v1.json"
+)
 
 
 def load_protocol():
@@ -653,6 +656,46 @@ def test_condition_routing_outcome_requires_targets_and_preservation():
         )
         == "condition_route_not_supported_at_frozen_gates_seed42"
     )
+
+
+def test_condition_routing_real_training_result_is_frozen_negative():
+    result = json.loads(
+        CONDITION_ROUTING_TRAINING_RESULT_PATH.read_text(encoding="utf-8")
+    )
+    assert (
+        result["schema_version"]
+        == "clir-joint-training-condition-routing-result-v1"
+    )
+    assert result["status"] == "completed_seed42_condition_routing_diagnostic"
+    assert result["protocol_sha256"] == file_sha256(
+        CONDITION_ROUTING_TRAINING_PROTOCOL_PATH
+    )
+    assert result["new_training_commit"] == (
+        "df33e7bde351f35677d21a5acd1cfdbcfa922c94"
+    )
+    decision = result["decision"]
+    assert (
+        decision["classification"]
+        == "condition_route_not_supported_at_frozen_gates_seed42"
+    )
+    assert decision["ranking"]["guard_pass"] is True
+    assert decision["complete"]["guard_pass"] is True
+    assert decision["key"]["both_gates_pass"] is False
+    assert decision["hallucination"]["both_gates_pass"] is False
+    assert result["route_engineering"] == {
+        "hallucination_condition_stop_gradient": True,
+        "ordinary_jph_sampler_preserved": True,
+        "original_dual_prior_preserved": True,
+        "bidirectional_mutual_distillation_preserved": True,
+        "shared_gradient_reward_gate_preserved": True,
+        "loss_formulas_or_weights_changed": False,
+    }
+    assert result["automatic_loss_weight_tuning_performed"] is False
+    assert result["automatic_gradient_surgery_performed"] is False
+    assert result["automatic_sampler_or_stream_change_performed"] is False
+    assert result["expand_to_additional_seeds_authorized"] is False
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False
 
 
 def test_condition_routing_gradient_difference_handles_blocked_parameters():

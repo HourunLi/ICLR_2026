@@ -1,0 +1,143 @@
+{
+  "schema_version": "clir-joint-training-condition-routing-result-v1",
+  "status": "completed_seed42_condition_routing_diagnostic",
+  "evidence_tier": "small-scale real integration pilot",
+  "protocol": "configs/joint_condition_routing_v1/training_protocol_v1.json",
+  "protocol_sha256": "5532bb787d20eb2b049158fdb7c131a1394e094d574aba53a0bce9929d5c528b",
+  "seed": 42,
+  "cells": {
+    "jph_h_condition_stopgrad": {
+      "result_sha256": "ec058815d30b9e34d339de060e2d43633332eeaf1bc571fc288b91603d7105f3",
+      "bon_at_primary_k": 0.912,
+      "pairwise_accuracy": 0.680382970055001,
+      "score_population_std": 2.6224898879636567,
+      "hallucination_span_token_ap": 0.24735658250265,
+      "hallucination_claim_mean_ap": 0.23497235849571133,
+      "key_unit_ap": 0.3367690465028783,
+      "complete_unit_ap": 0.9286716113512975,
+      "consistency_mean_cosine_gap": 0.02368711983716043,
+      "code": {
+        "commit": "df33e7bde351f35677d21a5acd1cfdbcfa922c94",
+        "dirty": false
+      }
+    },
+    "jph_prior_plus_hallucination": {
+      "result_sha256": "e3c8dabcd4be1e715b4393a1fe5ed20c48977cde020e574a4fe8bd901b2a0f02",
+      "bon_at_primary_k": 0.92,
+      "pairwise_accuracy": 0.6862904868608678,
+      "score_population_std": 2.11733011466739,
+      "hallucination_span_token_ap": 0.3190437655958111,
+      "hallucination_claim_mean_ap": 0.3382286662203997,
+      "key_unit_ap": 0.3135744485036375,
+      "complete_unit_ap": 0.9275592904044775,
+      "consistency_mean_cosine_gap": 0.011447003424337465,
+      "code": {
+        "commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+        "dirty": false
+      }
+    },
+    "jp_original_prior": {
+      "result_sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32",
+      "bon_at_primary_k": 0.918,
+      "pairwise_accuracy": 0.7001425952332451,
+      "score_population_std": 2.721782554452695,
+      "hallucination_span_token_ap": 0.19178346571995392,
+      "hallucination_claim_mean_ap": 0.17205157544496402,
+      "key_unit_ap": 0.43196465946788765,
+      "complete_unit_ap": 0.9462837038723717,
+      "consistency_mean_cosine_gap": 0.023034116481444156,
+      "code": {
+        "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+        "dirty": false
+      }
+    }
+  },
+  "artifact_roles": {
+    "jph_h_condition_stopgrad": "new_single_factor_cell",
+    "jph_prior_plus_hallucination": "immutable_direct_control",
+    "jp_original_prior": "immutable_prior_only_reference"
+  },
+  "primary_ranking": {
+    "k": 16,
+    "query_count": 500,
+    "paired_comparisons": {
+      "candidate_minus_jph": {
+        "query_count": 500,
+        "mean_delta": -0.008,
+        "bootstrap_ci": [
+          -0.024,
+          0.008
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      },
+      "candidate_minus_jp": {
+        "query_count": 500,
+        "mean_delta": -0.006,
+        "bootstrap_ci": [
+          -0.022,
+          0.008
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      }
+    }
+  },
+  "decision": {
+    "classification": "condition_route_not_supported_at_frozen_gates_seed42",
+    "key": {
+      "candidate_minus_jph": 0.023194597999240785,
+      "candidate_minus_jp": -0.09519561296500934,
+      "minimum_recovery_vs_jph": 0.05,
+      "maximum_drop_vs_jp": 0.05,
+      "improves_vs_jph": false,
+      "near_jp": false,
+      "both_gates_pass": false
+    },
+    "complete": {
+      "candidate_minus_jph": 0.0011123209468200113,
+      "maximum_drop_vs_jph": 0.05,
+      "guard_pass": true
+    },
+    "hallucination": {
+      "candidate_minus_jph_span_ap": -0.0716871830931611,
+      "candidate_minus_jph_claim_ap": -0.10325630772468838,
+      "span_position_baseline": 0.39328067905143455,
+      "claim_position_baseline": 0.42198767865054354,
+      "span_pass": false,
+      "claim_pass": false,
+      "both_gates_pass": false
+    },
+    "ranking": {
+      "candidate_minus_jp_bon": -0.006000000000000005,
+      "maximum_regression_vs_jp": 0.02,
+      "guard_pass": true
+    },
+    "scope": "one predeclared seed-42 single-factor diagnostic; point estimates and paired validation bootstrap are not a formal efficacy claim"
+  },
+  "route_engineering": {
+    "hallucination_condition_stop_gradient": true,
+    "ordinary_jph_sampler_preserved": true,
+    "original_dual_prior_preserved": true,
+    "bidirectional_mutual_distillation_preserved": true,
+    "shared_gradient_reward_gate_preserved": true,
+    "loss_formulas_or_weights_changed": false
+  },
+  "automatic_loss_weight_tuning_performed": false,
+  "automatic_gradient_surgery_performed": false,
+  "automatic_sampler_or_stream_change_performed": false,
+  "expand_to_additional_seeds_authorized": false,
+  "new_training_commit": "df33e7bde351f35677d21a5acd1cfdbcfa922c94",
+  "summary_code": {
+    "commit": "df33e7bde351f35677d21a5acd1cfdbcfa922c94",
+    "dirty": false
+  },
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false,
+  "next_action_requires_user_approval": true
+}

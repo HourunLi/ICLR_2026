@@ -112,8 +112,10 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   48 mechanism rows 和 initialization/JP epoch-5 两个状态。24/24 batches 中 forward、loss、H
   非目标梯度与 final/direct/mutual/gate 梯度差异均精确为 0；只有 H→
   `condition_query/key/value + condition_fusion` 从非零变为 0。原双向 mutual 和 detached-target gate
-  路由均保留，参数无更新。用户随后已批准唯一的 seed-42 训练格，训练前协议和四类效果门现已冻结；
-  尚未产生训练结果或效果结论。
+  路由均保留，参数无更新。随后唯一的 seed-42 训练格已从 clean commit `df33e7b` 完成：BoN@16
+  `.912`、complete AP `.929` 通过保护门，但 key AP `.337` 只比 JPH 恢复 `.023`，H span/claim AP
+  `.247/.235` 反而比 JPH 下降 `.072/.103`。分类为
+  `condition_route_not_supported_at_frozen_gates_seed42`，不进入保留方案、不扩 seeds。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
@@ -124,8 +126,9 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
 JPH condition-branch gradient-routing 的 no-update gate 已通过：H 仍使用 condition forward，但不更新
 `condition_query/key/value` 与 `condition_fusion`；final 和项目原 prior 的全部梯度保留，direct
 targets、双向 mutual `.25` 和 shared-gradient gate `10` 不变。唯一的 seed-42
-`JPH + H-condition-stopgrad` 5-epoch cell 已获授权并在训练前冻结；结果同时受 H span/claim、
-key/complete prior 与 BoN@16 四类门约束，仍不引入 blanket PCGrad、不扩 seeds。
+`JPH + H-condition-stopgrad` 5-epoch cell 已完成且冻结门失败：ranking/complete 守住，但 H 两门和
+key 两门都失败。因此 targeted stop-gradient 与 packing 一样不进入保留方案，仍不引入 blanket PCGrad、
+不扩 seeds；下一次结构或训练日程改动需重新讨论并在训练前冻结。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -146,7 +149,8 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 [JPH Supervision-Aware Packing v1](docs/joint_training_packing_v1.md)，机器结果为
 `configs/joint_training_packing_v1/training_result_v1.json`；targeted gradient route 审计见
 [JPH Hallucination-to-Condition Gradient Routing v1](docs/joint_condition_routing_v1.md)，机器结果为
-`configs/joint_condition_routing_v1/audit_result_v1.json`。
+`configs/joint_condition_routing_v1/audit_result_v1.json` 与
+`configs/joint_condition_routing_v1/training_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、

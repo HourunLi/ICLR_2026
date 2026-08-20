@@ -310,26 +310,33 @@ protocol/audit 中，不在本 handoff 重复展开。
   24/24 batches 的 forward/loss/H-nonblocked/final/direct/mutual/gate 差异全为 `0`，blocked 梯度从
   非零变为 `0`；参数 checksum 不变且无 `.grad` buffer。详见
   `docs/joint_condition_routing_v1.md` 和 `configs/joint_condition_routing_v1/audit_result_v1.json`。
+- 唯一的 seed-42 `JPH + H-condition-stopgrad` 训练格已从 clean commit `df33e7b` 完成。五轮
+  H/prior active batches 为 `[48,47,48,45,45]`，原 sampler、direct targets、双向 mutual `.25`、
+  shared-gradient gate `10` 和所有 loss weights 均未改。结果 BoN@16 `.912`、complete AP `.929`
+  通过保护门，但 key AP `.337` 只比 JPH 恢复 `.023`，H span/claim AP `.247/.235` 比 JPH
+  下降 `.072/.103`；分类为 `condition_route_not_supported_at_frozen_gates_seed42`。完整机器结果见
+  `configs/joint_condition_routing_v1/training_result_v1.json`。
 
 ## 4. 下一步
 
 不要再重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing seeds，或放宽历史失败门。当前恢复
 原 JPH ordinary single-stream sampler；packing 代码只作 optional diagnostic，不要默认启用。
 
-路由工程 gate 已通过，用户已批准并冻结最小训练实验 `JPH + H-condition-stopgrad`：
+路由工程 gate 虽通过，但真实 `JPH + H-condition-stopgrad` 效果门已失败：
 
 1. forward 仍使用 problem condition，H BCE 仍更新 hallucination head、trajectory encoder 与共享 token
    representation；
 2. 仅阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；final 与原 prior 对这些参数的
    梯度保留，原 direct targets、双向 stop-gradient mutual `.25`、shared-gradient gate `10` 不变；
-3. no-update routing audit 已证明仅 H→condition 路由被截断；训练协议现已冻结一个 seed-42
-   5-epoch cell，并预注册 H、key、complete 与 BoN@16 结果门；
+3. no-update routing audit 证明实现没有误伤其他路由，但真实训练说明这不等于有效修复；key 只小幅
+   回升而 H 定位明显变差；
 4. 不采用 blanket PCGrad，不修改 C cross-stream pressure，不扩 seeds 43/44，不读取
    `pilot_test/final_test`。
 
-执行入口为 `scripts/run_joint_training_pilot_v1.py --protocol
-configs/joint_condition_routing_v1/training_protocol_v1.json --cell jph_h_condition_stopgrad --seed 42
---execute`。完成后只运行 `scripts/summarize_joint_condition_routing_v1.py`；无论结果如何都不自动扩种子或调参。
+因此不要扩跑这个 stop-gradient 的 seeds，也不要把它设成默认。当前保留项目原 direct key/complete、
+双向 stop-gradient mutual `.25` 和 shared-gradient gate `10`；packing 与 targeted stop-gradient 都只保留为
+负诊断。下一步若继续解决联合 H/prior 干扰，应先和用户讨论新的单因素设计，并在训练前冻结；不能由本结果
+自动授权调权重、切 multistream、拆 branch 或做 gradient surgery。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

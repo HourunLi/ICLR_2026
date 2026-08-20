@@ -2,7 +2,7 @@
 
 最后更新：2026-08-20
 
-状态：`training_protocol_frozen_after_no_update_audit_passed`
+状态：`completed_seed42_condition_route_not_supported`
 
 ## 1. 目的与边界
 
@@ -100,7 +100,30 @@ localization 或 ranking。
 这些门在训练前写入 `training_protocol_v1.json`。本格仍只是一个 seed 的 small-scale real diagnostic；
 即使全门通过，也只授权讨论后续复验，不构成正式效果结论。
 
-## 6. Artifact
+## 6. 真实训练结果
+
+训练从 clean commit `df33e7b` 完成 seed 42 × 5 epochs，5 个 epoch 都是 3968 rows / 992
+batches，H/prior active batches 精确为 `[48,47,48,45,45]`，与原 JPH ordinary sampler 日程一致。
+全部 loss 有限，final checkpoint 配置与冻结协议一致。
+
+| 指标 | JP | 原 JPH | Stopgrad candidate | Candidate − JPH | 冻结门 |
+|---|---:|---:|---:|---:|---|
+| BoN@16 | `.918` | `.920` | `.912` | `-.008` | 通过：相对 JP `-.006 ≥ -.02` |
+| H span token AP | `.192` | `.319` | `.247` | `-.0717` | 失败：未超过 `.3933` |
+| H claim mean AP | `.172` | `.338` | `.235` | `-.1033` | 失败：未超过 `.4220` |
+| key unit AP | `.432` | `.314` | `.337` | `+.0232` | 失败：恢复不足 `.05`，且距 JP `.0952` |
+| complete unit AP | `.946` | `.928` | `.929` | `+.0011` | 通过：未比 JPH 下降 `.05` |
+
+BoN@16 的 paired 500-query bootstrap 中，candidate−JP 为 `-.006`，95% CI
+`[-.022,+.008]`；candidate−JPH 为 `-.008`，95% CI `[-.024,+.008]`。这没有建立稳定 ranking
+差异，但点估计通过预注册保护门。
+
+最终分类固定为 `condition_route_not_supported_at_frozen_gates_seed42`。工程审计证明路由实现准确，
+但效果结果说明局部负梯度 cosine 不能直接推出“切断这条梯度会更好”：阻断 H 更新 condition parameters
+只带来小幅 key 回升，同时明显伤害 H localization。该开关不进入保留训练方案，不扩 seeds、不调权重；
+原 direct key/complete、双向 mutual `.25` 和 shared-gradient gate `10` 本轮从未被修改，后续仍以原实现为准。
+
+## 7. Artifact
 
 - 冻结协议：`configs/joint_condition_routing_v1/audit_protocol_v1.json`
 - 协议 SHA256：`18c017833c4241d896ccca6bf86fc322632a1c8c174672e2c23416a479f2a89a`
@@ -109,7 +132,11 @@ localization 或 ranking。
 - 审计代码：`scripts/audit_joint_condition_routing_v1.py`
 - clean 代码 commit：`a5bf692b12590bfc439127dd527dc8c5da5901c2`
 - 冻结训练协议：`configs/joint_condition_routing_v1/training_protocol_v1.json`
+- 训练协议 SHA256：`5532bb787d20eb2b049158fdb7c131a1394e094d574aba53a0bce9929d5c528b`
 - 训练运行器：`scripts/run_joint_training_pilot_v1.py`
 - 结果汇总器：`scripts/summarize_joint_condition_routing_v1.py`
+- 训练结果：`configs/joint_condition_routing_v1/training_result_v1.json`
+- 训练结果 SHA256：`7ad80a766d872f95f2a48c8ce81daddbabb1d5883ed5fb6f103e7373da157163`
+- final checkpoint SHA256：`9b98ccd64d7c1fd92faa94dbb4de9c6461718ec43dcd7685ca448d29c4dfd1ef`
 
 `pilot_test/final_test` 均未访问。
