@@ -128,4 +128,6 @@ control：
 - 恢复原 JPH 普通 sampler 和约 45–48 个 active steps，先做 no-update routing audit，再决定是否
   训练单个 seed-42 cell。
 
-这是基于已观测局部信号的 targeted ablation，仍需用户批准后单独冻结；它当前不是保留方法。
+该 no-update routing audit 后续已在全 48 rows 上通过；结果见
+`docs/joint_condition_routing_v1.md`。它只授权讨论单个 seed-42 训练格，尚未成为保留方法，也不构成
+效果证据。

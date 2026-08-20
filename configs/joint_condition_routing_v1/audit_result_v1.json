@@ -1,0 +1,2248 @@
+{
+  "schema_version": "clir-joint-condition-routing-result-v1",
+  "protocol": "configs/joint_condition_routing_v1/audit_protocol_v1.json",
+  "protocol_sha256": "18c017833c4241d896ccca6bf86fc322632a1c8c174672e2c23416a479f2a89a",
+  "device": "cuda",
+  "output": "/prodcpfs/user/panzhixin/ICLR_2027/configs/joint_condition_routing_v1/audit_result_v1.json",
+  "model_states": [
+    "initialization_seed42",
+    "jp_epoch5"
+  ],
+  "code": {
+    "commit": "a5bf692b12590bfc439127dd527dc8c5da5901c2",
+    "dirty": false
+  },
+  "status": "completed_no_update_routing_audit",
+  "evidence_tier": "small-scale real",
+  "route_contract": {
+    "config_field": "hallucination_condition_stop_gradient",
+    "baseline_flag": false,
+    "candidate_flag": true,
+    "blocked_parameter_prefixes": [
+      "condition_query.",
+      "condition_key.",
+      "condition_value.",
+      "condition_fusion."
+    ],
+    "hallucination_required_nonzero_prefixes": {
+      "trajectory_and_condition_encoder": [
+        "input_encoder."
+      ],
+      "shared_feature_norm": [
+        "feature_norm."
+      ],
+      "hallucination_head": [
+        "hallucination_head."
+      ]
+    },
+    "feature_norm_blocked": false,
+    "condition_forward_value_changed": false,
+    "dual_prior_architecture_or_loss_changed": false,
+    "gate_fused_prior_target_remains_detached": true,
+    "bidirectional_mutual_updates_both_prior_heads": true,
+    "ordinary_jph_sampler_restored_for_any_future_training": true,
+    "packing_enabled": false
+  },
+  "decision_rules": {
+    "forward_max_abs_tolerance": 0.0,
+    "objective_loss_max_abs_tolerance": 0.0,
+    "blocked_hallucination_gradient_l2_tolerance": 0.0,
+    "baseline_blocked_hallucination_gradient_must_be_positive": true,
+    "required_hallucination_routes_must_be_positive": true,
+    "gradient_max_abs_difference_tolerance": 1e-05,
+    "gradient_relative_l2_difference_tolerance": 1e-05,
+    "all_controlled_batches_must_pass": true,
+    "no_parameter_update_required": true,
+    "optimizer_grad_buffers_must_remain_absent": true,
+    "automatic_training_authorized": false,
+    "automatic_loss_weight_tuning_authorized": false,
+    "automatic_sampler_change_authorized": false
+  },
+  "controlled_batches": {
+    "rows": 48,
+    "batch_size": 4,
+    "batches": 12,
+    "coverage": "all frozen mechanism-train rows in manifest order",
+    "row_mean_objectives": true
+  },
+  "model_state_results": {
+    "initialization_seed42": {
+      "state": "initialization_seed42",
+      "provenance": {
+        "kind": "deterministic_initialization",
+        "parameter_checksum": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace"
+      },
+      "parameter_checksum_before": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace",
+      "parameter_checksum_after": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace",
+      "no_parameter_update": true,
+      "optimizer_grad_buffers_absent": true,
+      "controlled_rows": 48,
+      "controlled_batches": 12,
+      "summary": {
+        "maximum_forward_abs_difference": 0.0,
+        "maximum_objective_loss_abs_difference": 0.0,
+        "minimum_baseline_blocked_condition_l2": 0.8036566365484409,
+        "maximum_routed_blocked_condition_l2": 0.0,
+        "maximum_hallucination_nonblocked_relative_l2_difference": 0.0,
+        "maximum_hallucination_nonblocked_max_abs_difference": 0.0,
+        "minimum_required_hallucination_route_norms": {
+          "trajectory_and_condition_encoder": 5.738848114299526,
+          "shared_feature_norm": 0.04877340469247734,
+          "hallucination_head": 1.772051853860357
+        },
+        "maximum_invariant_objective_relative_l2_differences": {
+          "final": 0.0,
+          "prior_key": 0.0,
+          "prior_complete": 0.0,
+          "prior_distill": 0.0,
+          "prior_gate": 0.0
+        },
+        "maximum_invariant_objective_max_abs_differences": {
+          "final": 0.0,
+          "prior_key": 0.0,
+          "prior_complete": 0.0,
+          "prior_distill": 0.0,
+          "prior_gate": 0.0
+        },
+        "maximum_gate_gradient_to_key_head_l2": 0.0,
+        "maximum_gate_gradient_to_complete_head_l2": 0.0,
+        "minimum_mutual_gradient_to_key_head_l2": 0.0013119737899678814,
+        "minimum_mutual_gradient_to_complete_head_l2": 0.00118666955642232,
+        "minimum_gate_gradient_to_reward_head_l2": 0.0321928178607255
+      },
+      "batch_records": [
+        {
+          "batch": 1,
+          "rows": [
+            "gsm8k-train-04355-cand-006",
+            "gsm8k-train-00333-cand-003",
+            "gsm8k-train-04210-cand-000",
+            "gsm8k-train-03562-cand-007"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 3.0847244458933005,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 21.52424542825101,
+              "candidate_l2_norm": 21.52424542825101,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 20.449418720737317,
+              "shared_feature_norm": 0.21375138269780317,
+              "hallucination_head": 6.713324480906423
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 10.800579777581524,
+              "candidate_l2_norm": 10.800579777581524,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 22.444402333386137,
+              "candidate_l2_norm": 22.444402333386137,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 12.174859896362925,
+              "candidate_l2_norm": 12.174859896362925,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.00567457257206628,
+              "candidate_l2_norm": 0.00567457257206628,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.07379785475315959,
+              "candidate_l2_norm": 0.07379785475315959,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0016757905830100891,
+            "mutual_complete_head_l2": 0.001423920867128482,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.0321928178607255
+          },
+          "passed": true
+        },
+        {
+          "batch": 2,
+          "rows": [
+            "gsm8k-train-02867-cand-003",
+            "gsm8k-train-07439-cand-007",
+            "gsm8k-train-03751-cand-004",
+            "gsm8k-train-01164-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 3.5825716700271384,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 25.2464024315299,
+              "candidate_l2_norm": 25.2464024315299,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 23.992239621274198,
+              "shared_feature_norm": 0.252120963830041,
+              "hallucination_head": 7.854279642953693
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 33.79318758608209,
+              "candidate_l2_norm": 33.79318758608209,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 21.83356036669378,
+              "candidate_l2_norm": 21.83356036669378,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 14.442794857042939,
+              "candidate_l2_norm": 14.442794857042939,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.005788434818633052,
+              "candidate_l2_norm": 0.005788434818633052,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.11045785838553338,
+              "candidate_l2_norm": 0.11045785838553338,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.001575170403848069,
+            "mutual_complete_head_l2": 0.0014918338031773687,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.04802476485174861
+          },
+          "passed": true
+        },
+        {
+          "batch": 3,
+          "rows": [
+            "gsm8k-train-01052-cand-001",
+            "gsm8k-train-06918-cand-003",
+            "gsm8k-train-02735-cand-003",
+            "gsm8k-train-02214-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 4.764102189307428,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 33.0828597012782,
+              "candidate_l2_norm": 33.0828597012782,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 31.409236520031218,
+              "shared_feature_norm": 0.33122100703196283,
+              "hallucination_head": 10.383918330172639
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 13.484228334873011,
+              "candidate_l2_norm": 13.484228334873011,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 23.2125198132182,
+              "candidate_l2_norm": 23.2125198132182,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 15.636566607476306,
+              "candidate_l2_norm": 15.636566607476306,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.005279915685572585,
+              "candidate_l2_norm": 0.005279915685572585,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.09285412460362237,
+              "candidate_l2_norm": 0.09285412460362237,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0015295248135817569,
+            "mutual_complete_head_l2": 0.0013357384245684303,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.04033392707332647
+          },
+          "passed": true
+        },
+        {
+          "batch": 4,
+          "rows": [
+            "gsm8k-train-06555-cand-000",
+            "gsm8k-train-03989-cand-002",
+            "gsm8k-train-00228-cand-000",
+            "gsm8k-train-05851-cand-006"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 2.8803424213472004,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 19.798377548692777,
+              "candidate_l2_norm": 19.798377548692777,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 18.792883533027922,
+              "shared_feature_norm": 0.19873539873986143,
+              "hallucination_head": 6.226057044062315
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 33.648036257886574,
+              "candidate_l2_norm": 33.648036257886574,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 24.52512804637301,
+              "candidate_l2_norm": 24.52512804637301,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 18.664663685741875,
+              "candidate_l2_norm": 18.664663685741875,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.0062668526876844015,
+              "candidate_l2_norm": 0.0062668526876844015,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.10645013123138919,
+              "candidate_l2_norm": 0.10645013123138919,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.001759844263351021,
+            "mutual_complete_head_l2": 0.0016436873567425238,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.04705006781880796
+          },
+          "passed": true
+        },
+        {
+          "batch": 5,
+          "rows": [
+            "gsm8k-train-01074-cand-007",
+            "gsm8k-train-01068-cand-005",
+            "gsm8k-train-03486-cand-002",
+            "gsm8k-train-03160-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 5.202020232411398,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 36.11698359052564,
+              "candidate_l2_norm": 36.11698359052564,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 34.30301995167108,
+              "shared_feature_norm": 0.36043937254184966,
+              "hallucination_head": 11.296433478415892
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 36.76822760819128,
+              "candidate_l2_norm": 36.76822760819128,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 22.91136887185786,
+              "candidate_l2_norm": 22.91136887185786,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 24.787126521739538,
+              "candidate_l2_norm": 24.787126521739538,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.008581533487211055,
+              "candidate_l2_norm": 0.008581533487211055,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.1268993168599081,
+              "candidate_l2_norm": 0.1268993168599081,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0026786049685485957,
+            "mutual_complete_head_l2": 0.002270393820737525,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.05505206154257765
+          },
+          "passed": true
+        },
+        {
+          "batch": 6,
+          "rows": [
+            "gsm8k-train-04583-cand-000",
+            "gsm8k-train-07455-cand-001",
+            "gsm8k-train-04695-cand-000",
+            "gsm8k-train-06355-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 2.0948081761094706,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 15.059991563844592,
+              "candidate_l2_norm": 15.059991563844592,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 14.352103470978411,
+              "shared_feature_norm": 0.14622732178705478,
+              "hallucination_head": 4.560601871657149
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 14.802708050921668,
+              "candidate_l2_norm": 14.802708050921668,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 23.54405453745209,
+              "candidate_l2_norm": 23.54405453745209,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 13.666056064348425,
+              "candidate_l2_norm": 13.666056064348425,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.007029245338985161,
+              "candidate_l2_norm": 0.007029245338985161,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.08189618131633236,
+              "candidate_l2_norm": 0.08189618131633236,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0019516939076846679,
+            "mutual_complete_head_l2": 0.0016826870541885028,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.03571005002424126
+          },
+          "passed": true
+        },
+        {
+          "batch": 7,
+          "rows": [
+            "gsm8k-train-02014-cand-007",
+            "gsm8k-train-03225-cand-005",
+            "gsm8k-train-05789-cand-001",
+            "gsm8k-train-06820-cand-004"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 5.03908389050399,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 35.30108882215556,
+              "candidate_l2_norm": 35.30108882215556,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 33.547103444941484,
+              "shared_feature_norm": 0.3518203637373788,
+              "hallucination_head": 10.983394052649276
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 36.90349517775479,
+              "candidate_l2_norm": 36.90349517775479,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 21.377600623485044,
+              "candidate_l2_norm": 21.377600623485044,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 20.35183706278512,
+              "candidate_l2_norm": 20.35183706278512,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.006198680218321099,
+              "candidate_l2_norm": 0.006198680218321099,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.09089672283131377,
+              "candidate_l2_norm": 0.09089672283131377,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0018138478733390135,
+            "mutual_complete_head_l2": 0.0016735637235730514,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.039515950177422696
+          },
+          "passed": true
+        },
+        {
+          "batch": 8,
+          "rows": [
+            "gsm8k-train-01849-cand-001",
+            "gsm8k-train-01756-cand-001",
+            "gsm8k-train-05298-cand-003",
+            "gsm8k-train-06647-cand-007"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.8036566365484409,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 6.006406937327378,
+              "candidate_l2_norm": 6.006406937327378,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 5.738848114299526,
+              "shared_feature_norm": 0.04877340469247734,
+              "hallucination_head": 1.772051853860357
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 10.803474861662087,
+              "candidate_l2_norm": 10.803474861662087,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 22.73182117960215,
+              "candidate_l2_norm": 22.73182117960215,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 22.48518472733198,
+              "candidate_l2_norm": 22.48518472733198,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.007398299795245071,
+              "candidate_l2_norm": 0.007398299795245071,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.11148029591646505,
+              "candidate_l2_norm": 0.11148029591646505,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0020684947540481084,
+            "mutual_complete_head_l2": 0.0018121126403959826,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.047765258037574164
+          },
+          "passed": true
+        },
+        {
+          "batch": 9,
+          "rows": [
+            "gsm8k-train-04890-cand-002",
+            "gsm8k-train-06870-cand-003",
+            "gsm8k-train-04066-cand-006",
+            "gsm8k-train-07238-cand-005"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 4.756963696127684,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 33.91150561225839,
+              "candidate_l2_norm": 33.91150561225839,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 32.296096057657294,
+              "shared_feature_norm": 0.3356247044496283,
+              "hallucination_head": 10.336331476039668
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 60.3521360284443,
+              "candidate_l2_norm": 60.3521360284443,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 24.339120910416195,
+              "candidate_l2_norm": 24.339120910416195,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 22.473615718810763,
+              "candidate_l2_norm": 22.473615718810763,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.0046640098173252225,
+              "candidate_l2_norm": 0.0046640098173252225,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.078637414812696,
+              "candidate_l2_norm": 0.078637414812696,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0013119737899678814,
+            "mutual_complete_head_l2": 0.00118666955642232,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.03381393295455198
+          },
+          "passed": true
+        },
+        {
+          "batch": 10,
+          "rows": [
+            "gsm8k-train-03931-cand-001",
+            "gsm8k-train-03538-cand-003",
+            "gsm8k-train-06776-cand-007",
+            "gsm8k-train-06960-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 1.7123345244674935,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 11.467224276437516,
+              "candidate_l2_norm": 11.467224276437516,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 10.842525372722559,
+              "shared_feature_norm": 0.11343623115943861,
+              "hallucination_head": 3.73148876046087
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 35.1543908320216,
+              "candidate_l2_norm": 35.1543908320216,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 23.577348416516802,
+              "candidate_l2_norm": 23.577348416516802,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 19.053184580307384,
+              "candidate_l2_norm": 19.053184580307384,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.006696897955816287,
+              "candidate_l2_norm": 0.006696897955816287,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.09202457211664707,
+              "candidate_l2_norm": 0.09202457211664707,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0019283578844580612,
+            "mutual_complete_head_l2": 0.0018236921229187494,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.04043460844218005
+          },
+          "passed": true
+        },
+        {
+          "batch": 11,
+          "rows": [
+            "gsm8k-train-06339-cand-007",
+            "gsm8k-train-02050-cand-007",
+            "gsm8k-train-00287-cand-007",
+            "gsm8k-train-04590-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 3.1276472324542994,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 21.55532399288425,
+              "candidate_l2_norm": 21.55532399288425,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 20.460352597959925,
+              "shared_feature_norm": 0.21823869707529872,
+              "hallucination_head": 6.779257767371354
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 13.841074645513014,
+              "candidate_l2_norm": 13.841074645513014,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 24.313332914037034,
+              "candidate_l2_norm": 24.313332914037034,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 21.963384180463244,
+              "candidate_l2_norm": 21.963384180463244,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.00604240728738482,
+              "candidate_l2_norm": 0.00604240728738482,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.09027007505487691,
+              "candidate_l2_norm": 0.09027007505487691,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0017256840187209472,
+            "mutual_complete_head_l2": 0.0016626278571187972,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.0396253962229036
+          },
+          "passed": true
+        },
+        {
+          "batch": 12,
+          "rows": [
+            "gsm8k-train-05019-cand-000",
+            "gsm8k-train-01238-cand-002",
+            "gsm8k-train-00321-cand-003",
+            "gsm8k-train-06610-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 3.0710537817590953,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 21.500018889312884,
+              "candidate_l2_norm": 21.500018889312884,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 20.43735101785083,
+              "shared_feature_norm": 0.21290211252839297,
+              "hallucination_head": 6.6723435391504955
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 32.94459586553325,
+              "candidate_l2_norm": 32.94459586553325,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 23.860207657437982,
+              "candidate_l2_norm": 23.860207657437982,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 14.336089028782334,
+              "candidate_l2_norm": 14.336089028782334,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.005581250284669086,
+              "candidate_l2_norm": 0.005581250284669086,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.0812785892418884,
+              "candidate_l2_norm": 0.0812785892418884,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0015975593378688665,
+            "mutual_complete_head_l2": 0.001396471166322731,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.035454066665239786
+          },
+          "passed": true
+        }
+      ],
+      "passed": true
+    },
+    "jp_epoch5": {
+      "state": "jp_epoch5",
+      "provenance": {
+        "kind": "checkpoint",
+        "checkpoint": "/prodcpfs/user/panzhixin/ICLR_2027/run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+        "checkpoint_sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+        "completed_epoch": 5,
+        "training_code": {
+          "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+          "dirty": false
+        },
+        "parameter_checksum": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f"
+      },
+      "parameter_checksum_before": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f",
+      "parameter_checksum_after": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f",
+      "no_parameter_update": true,
+      "optimizer_grad_buffers_absent": true,
+      "controlled_rows": 48,
+      "controlled_batches": 12,
+      "summary": {
+        "maximum_forward_abs_difference": 0.0,
+        "maximum_objective_loss_abs_difference": 0.0,
+        "minimum_baseline_blocked_condition_l2": 0.36745072816201485,
+        "maximum_routed_blocked_condition_l2": 0.0,
+        "maximum_hallucination_nonblocked_relative_l2_difference": 0.0,
+        "maximum_hallucination_nonblocked_max_abs_difference": 0.0,
+        "minimum_required_hallucination_route_norms": {
+          "trajectory_and_condition_encoder": 0.8650754669104821,
+          "shared_feature_norm": 0.12178850451659777,
+          "hallucination_head": 4.713303308800476
+        },
+        "maximum_invariant_objective_relative_l2_differences": {
+          "final": 0.0,
+          "prior_key": 0.0,
+          "prior_complete": 0.0,
+          "prior_distill": 0.0,
+          "prior_gate": 0.0
+        },
+        "maximum_invariant_objective_max_abs_differences": {
+          "final": 0.0,
+          "prior_key": 0.0,
+          "prior_complete": 0.0,
+          "prior_distill": 0.0,
+          "prior_gate": 0.0
+        },
+        "maximum_gate_gradient_to_key_head_l2": 0.0,
+        "maximum_gate_gradient_to_complete_head_l2": 0.0,
+        "minimum_mutual_gradient_to_key_head_l2": 0.0040731690196083095,
+        "minimum_mutual_gradient_to_complete_head_l2": 0.0031350779421260035,
+        "minimum_gate_gradient_to_reward_head_l2": 0.026883061549761243
+      },
+      "batch_records": [
+        {
+          "batch": 1,
+          "rows": [
+            "gsm8k-train-04355-cand-006",
+            "gsm8k-train-00333-cand-003",
+            "gsm8k-train-04210-cand-000",
+            "gsm8k-train-03562-cand-007"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.48245471588336647,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 7.76402986378494,
+              "candidate_l2_norm": 7.76402986378494,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.383897235673774,
+              "shared_feature_norm": 0.24342440261424717,
+              "hallucination_head": 7.635819060654252
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 27.145884125182814,
+              "candidate_l2_norm": 27.145884125182814,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.5715075865617812,
+              "candidate_l2_norm": 0.5715075865617812,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 2.7107713889592873,
+              "candidate_l2_norm": 2.7107713889592873,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.006727397931606299,
+              "candidate_l2_norm": 0.006727397931606299,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.17768990191830908,
+              "candidate_l2_norm": 0.17768990191830908,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.004480889091302198,
+            "mutual_complete_head_l2": 0.003909690188087995,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.028825348895496365
+          },
+          "passed": true
+        },
+        {
+          "batch": 2,
+          "rows": [
+            "gsm8k-train-02867-cand-003",
+            "gsm8k-train-07439-cand-007",
+            "gsm8k-train-03751-cand-004",
+            "gsm8k-train-01164-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.5912975722408712,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 7.515708828329113,
+              "candidate_l2_norm": 7.515708828329113,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.4108120570567255,
+              "shared_feature_norm": 0.2518270162165204,
+              "hallucination_head": 7.37780940969547
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 15.34393343245388,
+              "candidate_l2_norm": 15.34393343245388,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.5619029707883268,
+              "candidate_l2_norm": 0.5619029707883268,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 1.2087235773281713,
+              "candidate_l2_norm": 1.2087235773281713,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.014142404622503334,
+              "candidate_l2_norm": 0.014142404622503334,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.252944211219879,
+              "candidate_l2_norm": 0.252944211219879,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.00942219606928879,
+            "mutual_complete_head_l2": 0.008481012349866254,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.19940405062987163
+          },
+          "passed": true
+        },
+        {
+          "batch": 3,
+          "rows": [
+            "gsm8k-train-01052-cand-001",
+            "gsm8k-train-06918-cand-003",
+            "gsm8k-train-02735-cand-003",
+            "gsm8k-train-02214-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.6323508298846207,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 11.02456191380331,
+              "candidate_l2_norm": 11.02456191380331,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 2.014881720088188,
+              "shared_feature_norm": 0.36755177001035244,
+              "hallucination_head": 10.832641540349206
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 15.142330929292527,
+              "candidate_l2_norm": 15.142330929292527,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.36797825768034703,
+              "candidate_l2_norm": 0.36797825768034703,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.8585610593427814,
+              "candidate_l2_norm": 0.8585610593427814,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.01047093466573627,
+              "candidate_l2_norm": 0.01047093466573627,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.3023909700622138,
+              "candidate_l2_norm": 0.3023909700622138,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.00675181157654295,
+            "mutual_complete_head_l2": 0.006735138358925249,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.03744249793621716
+          },
+          "passed": true
+        },
+        {
+          "batch": 4,
+          "rows": [
+            "gsm8k-train-06555-cand-000",
+            "gsm8k-train-03989-cand-002",
+            "gsm8k-train-00228-cand-000",
+            "gsm8k-train-05851-cand-006"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.5538980842237881,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 5.752717533664666,
+              "candidate_l2_norm": 5.752717533664666,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.1925165203124504,
+              "shared_feature_norm": 0.21583597851334224,
+              "hallucination_head": 5.623617892539815
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 23.074580989216727,
+              "candidate_l2_norm": 23.074580989216727,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.5263206658972059,
+              "candidate_l2_norm": 0.5263206658972059,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 1.0909528180802226,
+              "candidate_l2_norm": 1.0909528180802226,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.011069562838172852,
+              "candidate_l2_norm": 0.011069562838172852,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.49218486224604924,
+              "candidate_l2_norm": 0.49218486224604924,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.007598465454502166,
+            "mutual_complete_head_l2": 0.006473925103505873,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.3364259418105142
+          },
+          "passed": true
+        },
+        {
+          "batch": 5,
+          "rows": [
+            "gsm8k-train-01074-cand-007",
+            "gsm8k-train-01068-cand-005",
+            "gsm8k-train-03486-cand-002",
+            "gsm8k-train-03160-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.9952231527198033,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 11.056593842185919,
+              "candidate_l2_norm": 11.056593842185919,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.9109589837618774,
+              "shared_feature_norm": 0.3744590553149957,
+              "hallucination_head": 10.883762381150001
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 0.009311268382258008,
+              "candidate_l2_norm": 0.009311268382258008,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.48314834271004903,
+              "candidate_l2_norm": 0.48314834271004903,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.768566565618189,
+              "candidate_l2_norm": 0.768566565618189,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.01355089783666424,
+              "candidate_l2_norm": 0.01355089783666424,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.2279108868356532,
+              "candidate_l2_norm": 0.2279108868356532,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.008339601790132224,
+            "mutual_complete_head_l2": 0.00894773165834479,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.13957427129461308
+          },
+          "passed": true
+        },
+        {
+          "batch": 6,
+          "rows": [
+            "gsm8k-train-04583-cand-000",
+            "gsm8k-train-07455-cand-001",
+            "gsm8k-train-04695-cand-000",
+            "gsm8k-train-06355-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.36745072816201485,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 6.379820444835396,
+              "candidate_l2_norm": 6.379820444835396,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.0990606779813243,
+              "shared_feature_norm": 0.19511600623856729,
+              "hallucination_head": 6.281409418161219
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 21.96229793626743,
+              "candidate_l2_norm": 21.96229793626743,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.8476396004219432,
+              "candidate_l2_norm": 0.8476396004219432,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.7141010721302302,
+              "candidate_l2_norm": 0.7141010721302302,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.08261952150619369,
+              "candidate_l2_norm": 0.08261952150619369,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.18295201154984583,
+              "candidate_l2_norm": 0.18295201154984583,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.00692572315468513,
+            "mutual_complete_head_l2": 0.0031350779421260035,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.026883061549761243
+          },
+          "passed": true
+        },
+        {
+          "batch": 7,
+          "rows": [
+            "gsm8k-train-02014-cand-007",
+            "gsm8k-train-03225-cand-005",
+            "gsm8k-train-05789-cand-001",
+            "gsm8k-train-06820-cand-004"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.8240090636246526,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 11.337289719131718,
+              "candidate_l2_norm": 11.337289719131718,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 2.160834848860735,
+              "shared_feature_norm": 0.38862011914732686,
+              "hallucination_head": 11.122675277759063
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 0.009206479392021247,
+              "candidate_l2_norm": 0.009206479392021247,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.31722658466210985,
+              "candidate_l2_norm": 0.31722658466210985,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.5389734618532367,
+              "candidate_l2_norm": 0.5389734618532367,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.007246185074435959,
+              "candidate_l2_norm": 0.007246185074435959,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.09674667960358818,
+              "candidate_l2_norm": 0.09674667960358818,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.004116619998771444,
+            "mutual_complete_head_l2": 0.00435844312615959,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.07322199225156455
+          },
+          "passed": true
+        },
+        {
+          "batch": 8,
+          "rows": [
+            "gsm8k-train-01849-cand-001",
+            "gsm8k-train-01756-cand-001",
+            "gsm8k-train-05298-cand-003",
+            "gsm8k-train-06647-cand-007"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.3804551101765574,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 4.79358071633641,
+              "candidate_l2_norm": 4.79358071633641,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 0.8650754669104821,
+              "shared_feature_norm": 0.12178850451659777,
+              "hallucination_head": 4.713303308800476
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 3.1444621246437845,
+              "candidate_l2_norm": 3.1444621246437845,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.6998053392733002,
+              "candidate_l2_norm": 0.6998053392733002,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 1.3357513194795667,
+              "candidate_l2_norm": 1.3357513194795667,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 1.589551016302476,
+              "candidate_l2_norm": 1.589551016302476,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.6299040909054198,
+              "candidate_l2_norm": 0.6299040909054198,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.1984946518828554,
+            "mutual_complete_head_l2": 0.03319639778151845,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.274442245352999
+          },
+          "passed": true
+        },
+        {
+          "batch": 9,
+          "rows": [
+            "gsm8k-train-04890-cand-002",
+            "gsm8k-train-06870-cand-003",
+            "gsm8k-train-04066-cand-006",
+            "gsm8k-train-07238-cand-005"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 1.0615605740224023,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 8.126781627635442,
+              "candidate_l2_norm": 8.126781627635442,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 2.2446563719865735,
+              "shared_feature_norm": 0.2870189822881803,
+              "hallucination_head": 7.80536466148631
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 17.8330127458848,
+              "candidate_l2_norm": 17.8330127458848,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 1.5324348865348427,
+              "candidate_l2_norm": 1.5324348865348427,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.7825704540533712,
+              "candidate_l2_norm": 0.7825704540533712,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.40754285769481086,
+              "candidate_l2_norm": 0.40754285769481086,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.14212377736875956,
+              "candidate_l2_norm": 0.14212377736875956,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.026484284619996582,
+            "mutual_complete_head_l2": 0.004214827703716165,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.050057111031455895
+          },
+          "passed": true
+        },
+        {
+          "batch": 10,
+          "rows": [
+            "gsm8k-train-03931-cand-001",
+            "gsm8k-train-03538-cand-003",
+            "gsm8k-train-06776-cand-007",
+            "gsm8k-train-06960-cand-002"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.42469947131479835,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 5.575886284487777,
+              "candidate_l2_norm": 5.575886284487777,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.0370068472671221,
+              "shared_feature_norm": 0.16020195006595722,
+              "hallucination_head": 5.47626332378704
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 15.356137493686234,
+              "candidate_l2_norm": 15.356137493686234,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.8909176986411339,
+              "candidate_l2_norm": 0.8909176986411339,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 1.0997517662303455,
+              "candidate_l2_norm": 1.0997517662303455,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.013424178127255494,
+              "candidate_l2_norm": 0.013424178127255494,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.30457192880205,
+              "candidate_l2_norm": 0.30457192880205,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.009640526069639492,
+            "mutual_complete_head_l2": 0.00512497926455218,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.16588916449951713
+          },
+          "passed": true
+        },
+        {
+          "batch": 11,
+          "rows": [
+            "gsm8k-train-06339-cand-007",
+            "gsm8k-train-02050-cand-007",
+            "gsm8k-train-00287-cand-007",
+            "gsm8k-train-04590-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.6073841046131738,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 8.085607622165304,
+              "candidate_l2_norm": 8.085607622165304,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.5564125808328013,
+              "shared_feature_norm": 0.26833732131226684,
+              "hallucination_head": 7.929856592639869
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 3.7888587082433824,
+              "candidate_l2_norm": 3.7888587082433824,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.7057477486455572,
+              "candidate_l2_norm": 0.7057477486455572,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.5618385033797038,
+              "candidate_l2_norm": 0.5618385033797038,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.007292101062234059,
+              "candidate_l2_norm": 0.007292101062234059,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.22504974796749946,
+              "candidate_l2_norm": 0.22504974796749946,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.0040731690196083095,
+            "mutual_complete_head_l2": 0.005385780798350867,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.05910593969750435
+          },
+          "passed": true
+        },
+        {
+          "batch": 12,
+          "rows": [
+            "gsm8k-train-05019-cand-000",
+            "gsm8k-train-01238-cand-002",
+            "gsm8k-train-00321-cand-003",
+            "gsm8k-train-06610-cand-003"
+          ],
+          "forward_max_abs_differences": {
+            "scores": 0.0,
+            "hallucination_logits": 0.0,
+            "token_features": 0.0,
+            "key_prior": 0.0,
+            "complete_prior": 0.0,
+            "gates": 0.0
+          },
+          "objective_loss_abs_differences": {
+            "hallucination": 0.0,
+            "final": 0.0,
+            "prior_key": 0.0,
+            "prior_complete": 0.0,
+            "prior_distill": 0.0,
+            "prior_gate": 0.0
+          },
+          "hallucination": {
+            "baseline_blocked_condition_l2": 0.3936184800430083,
+            "routed_blocked_condition_l2": 0.0,
+            "nonblocked_gradient_difference": {
+              "reference_l2_norm": 7.016422181853396,
+              "candidate_l2_norm": 7.016422181853396,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "required_routed_gradient_norms": {
+              "trajectory_and_condition_encoder": 1.2874745509047163,
+              "shared_feature_norm": 0.23007867016428168,
+              "hallucination_head": 6.8934500303050354
+            }
+          },
+          "invariant_objective_gradient_differences": {
+            "final": {
+              "reference_l2_norm": 16.151566337896572,
+              "candidate_l2_norm": 16.151566337896572,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_key": {
+              "reference_l2_norm": 0.6011636032333473,
+              "candidate_l2_norm": 0.6011636032333473,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_complete": {
+              "reference_l2_norm": 0.8201586776347545,
+              "candidate_l2_norm": 0.8201586776347545,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_distill": {
+              "reference_l2_norm": 0.008436340113347061,
+              "candidate_l2_norm": 0.008436340113347061,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            },
+            "prior_gate": {
+              "reference_l2_norm": 0.20876796232240544,
+              "candidate_l2_norm": 0.20876796232240544,
+              "difference_l2_norm": 0.0,
+              "relative_l2_difference": 0.0,
+              "max_abs_difference": 0.0
+            }
+          },
+          "original_prior_routes": {
+            "mutual_key_head_l2": 0.005661349726728538,
+            "mutual_complete_head_l2": 0.005446993489193489,
+            "gate_key_head_l2": 0.0,
+            "gate_complete_head_l2": 0.0,
+            "gate_reward_head_l2": 0.17724489574185137
+          },
+          "passed": true
+        }
+      ],
+      "passed": true
+    }
+  },
+  "no_parameter_update": true,
+  "optimizer_grad_buffers_absent": true,
+  "original_dual_prior_preserved": true,
+  "additional_training_performed": false,
+  "automatic_loss_weight_tuning_performed": false,
+  "automatic_sampler_change_performed": false,
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false,
+  "next_training_requires_user_approval": true,
+  "passed": true
+}

@@ -60,6 +60,9 @@ PACKING_PROTOCOL_PATH = (
 CONDITION_ROUTING_PROTOCOL_PATH = (
     ROOT / "configs/joint_condition_routing_v1/audit_protocol_v1.json"
 )
+CONDITION_ROUTING_RESULT_PATH = (
+    ROOT / "configs/joint_condition_routing_v1/audit_result_v1.json"
+)
 
 
 def load_protocol():
@@ -562,3 +565,55 @@ def test_condition_routing_gradient_difference_handles_blocked_parameters():
     assert full["difference_l2_norm"] > 0.0
     assert nonblocked["difference_l2_norm"] == 0.0
     assert nonblocked["relative_l2_difference"] == 0.0
+
+
+def test_condition_routing_real_result_is_exact_no_update_and_no_training():
+    result = json.loads(CONDITION_ROUTING_RESULT_PATH.read_text(encoding="utf-8"))
+    assert result["schema_version"] == "clir-joint-condition-routing-result-v1"
+    assert result["status"] == "completed_no_update_routing_audit"
+    assert result["passed"] is True
+    assert result["protocol_sha256"] == file_sha256(
+        CONDITION_ROUTING_PROTOCOL_PATH
+    )
+    assert result["code"]["commit"] == "a5bf692b12590bfc439127dd527dc8c5da5901c2"
+    assert result["code"]["dirty"] is False
+    assert result["no_parameter_update"] is True
+    assert result["optimizer_grad_buffers_absent"] is True
+    assert result["original_dual_prior_preserved"] is True
+    assert result["additional_training_performed"] is False
+    assert result["next_training_requires_user_approval"] is True
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False
+    assert set(result["model_state_results"]) == {
+        "initialization_seed42",
+        "jp_epoch5",
+    }
+    for state in result["model_state_results"].values():
+        assert state["passed"] is True
+        assert state["controlled_rows"] == 48
+        assert state["controlled_batches"] == 12
+        assert state["parameter_checksum_before"] == state["parameter_checksum_after"]
+        assert state["no_parameter_update"] is True
+        assert state["optimizer_grad_buffers_absent"] is True
+        summary = state["summary"]
+        assert summary["maximum_forward_abs_difference"] == 0.0
+        assert summary["maximum_objective_loss_abs_difference"] == 0.0
+        assert summary["minimum_baseline_blocked_condition_l2"] > 0.0
+        assert summary["maximum_routed_blocked_condition_l2"] == 0.0
+        assert summary["maximum_hallucination_nonblocked_relative_l2_difference"] == 0.0
+        assert all(
+            value == 0.0
+            for value in summary[
+                "maximum_invariant_objective_relative_l2_differences"
+            ].values()
+        )
+        assert all(
+            value > 0.0
+            for value in summary[
+                "minimum_required_hallucination_route_norms"
+            ].values()
+        )
+        assert summary["maximum_gate_gradient_to_key_head_l2"] == 0.0
+        assert summary["maximum_gate_gradient_to_complete_head_l2"] == 0.0
+        assert summary["minimum_mutual_gradient_to_key_head_l2"] > 0.0
+        assert summary["minimum_mutual_gradient_to_complete_head_l2"] > 0.0

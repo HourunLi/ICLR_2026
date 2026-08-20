@@ -304,20 +304,26 @@ protocol/audit 中，不在本 handoff 重复展开。
   H/prior 是 per-row/per-token objective，直接打包没有新增 relational loss，只把 auxiliary-active
   optimizer opportunities 从约 48 次压缩为 12 次。packing 因此不进入当前保留方案；完整记录见
   `docs/joint_training_packing_v1.md` 和 `configs/joint_training_packing_v1/training_result_v1.json`。
+- `H-condition-stopgrad` 已完成全 48-row、2-state no-update 路由审计。实现不 detach 整个
+  conditioned feature，而是以 detached weights 重算 H branch，因而只阻断 H BCE→
+  `condition_query/key/value + condition_fusion` 参数梯度；input encoder、`feature_norm`、H head 梯度保留。
+  24/24 batches 的 forward/loss/H-nonblocked/final/direct/mutual/gate 差异全为 `0`，blocked 梯度从
+  非零变为 `0`；参数 checksum 不变且无 `.grad` buffer。详见
+  `docs/joint_condition_routing_v1.md` 和 `configs/joint_condition_routing_v1/audit_result_v1.json`。
 
 ## 4. 下一步
 
 不要再重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing seeds，或放宽历史失败门。当前恢复
 原 JPH ordinary single-stream sampler；packing 代码只作 optional diagnostic，不要默认启用。
 
-下一个待用户拍板的最小实验是 `JPH + H-condition-stopgrad`：
+路由工程 gate 已通过。下一个仍待用户拍板的最小训练实验是 `JPH + H-condition-stopgrad`：
 
 1. forward 仍使用 problem condition，H BCE 仍更新 hallucination head、trajectory encoder 与共享 token
    representation；
 2. 仅阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；final 与原 prior 对这些参数的
    梯度保留，原 direct targets、双向 stop-gradient mutual `.25`、shared-gradient gate `10` 不变；
-3. 先做 no-update routing audit，证明仅 H→condition 路由被截断，其他原方法路由不变；通过后再冻结一个
-   seed-42 5-epoch cell；
+3. no-update routing audit 已证明仅 H→condition 路由被截断，其他原方法路由不变；获用户批准后
+   再另发协议，冻结一个 seed-42 5-epoch cell 和结果门；
 4. 不采用 blanket PCGrad，不修改 C cross-stream pressure，不扩 seeds 43/44，不读取
    `pilot_test/final_test`。
 
