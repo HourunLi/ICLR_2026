@@ -22,8 +22,8 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | progress | primary 暂时固定 `progress_weight=0` 且 `progress_score_weight=0` | 没有真实 `progress_targets`；稳定版 main 的 `progress_score_weight=.5` 只作 matched control，不解释为已学习的推理进度 |
 | complete reconstruction | primary 暂时固定 `reconstruction_weight=0` | 这是推迟而非删除；只有发布独立、冻结的 768-d 外部 target 和新版协议后才能重开，禁止 same-candidate pooling |
 
-三个模块的 standalone pilot 已按 consistency → hallucination localization → dual prior 顺序完成。当前进入
-第一轮 single-stream 联合训练：只合并已经保留的 Route-A consistency、T0/S1 sparse token BCE 和项目原始
+三个模块的 standalone pilot 已按 consistency → hallucination localization → dual prior 顺序完成。第一轮
+single-stream 联合训练已经完成：它只合并保留的 Route-A consistency、T0/S1 sparse token BCE 和项目原始
 dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续关闭。
 
 ## 当前状态与证据边界
@@ -88,22 +88,24 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `[-.01933,+.00200]`，所以没有建立稳定 ranking 增益，也没有证明稳定负效应。与此同时 gate-objective
   MSE 平均下降 `.00643`，complete/key unit AP 平均提高 `.02150/.03084`：原 gate 确实学到 prior，但当前
   48 条 Gold 的 localization signal 没有转化成 held-out ranking 收益。原方法继续保留，head-only 未运行。
+- Joint training v1 的 J0/JP/JALL 三格已从 clean commit `5a0b5d3` 完成 seed 42 × 5 epochs，数据、梯度路由、
+  有限 loss 和精确监督计数全部通过。JALL 的 BoN@16 为 `.912`，相对 J0 `.920`/JP `.918` 的回退在冻结
+  `.02` 保护线内，训练 relation cosine gap 为 `.789`；但 H span/claim AP 只有 `.272/.289`，低于位置基线
+  `.393/.422`，key AP `.314` 相对 JP `.432` 下降 `.118`。因此状态为
+  `completed_seed42_expansion_gates_failed`，不扩 seeds 43/44，不自动调权重或切换 multistream。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-当前门是 `joint_training_pilot_v1` 的 seed-42 三格联合训练，而不是继续单独调模块。统一 train 有 3968 条：
-3866 条 correctness-only、54 条 correctness+consistency（27 对）、48 条
-correctness+sparse-hallucination+dual-prior；另有 query-disjoint mechanism-dev 16 条和固定 500×16 ranking
-validation。三格为 J0 correctness、JP correctness+原始 dual prior、JALL 全部保留模块；同一初始化、同一
-semantic-group batch 顺序、batch 4、5 epochs。先通过 manifest/data gate、无更新梯度路由审计和真实 GPU
-batch，再并行训练与评分。只有 JALL 的 localization/prior/geometry 门通过，且 BoN@16 相对 J0/JP 均不回退
-超过 2 个百分点，才另发 seeds 43/44 扩跑协议；单 seed 通过只代表扩大资格，不是方法效果结论。
+`joint_training_pilot_v1` 已完成且未获多 seed 扩跑资格。当前待拍板的门是一个不调权重的 seed-42 drop-one
+诊断：补 JPH（correctness+原始 prior+H）和 JPC（correctness+原始 prior+consistency），复用冻结 JP/JALL
+对照，从而区分 H、consistency 与二者交互。新两格必须保持相同初始化、manifest、semantic-group batch
+顺序、single stream、batch 4、5 epochs 和原始 prior 实现；执行前另发冻结协议。
 
-本轮固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调权重或
-切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
+下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
+权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
 same-candidate pooling。原始 dual-prior v2 完整结果见
 [Dual-Prior Original Scale v2](docs/dual_prior_original_scale_v2.md)，机器结果为
 `configs/dual_prior_original_scale_v2/training_result_v2.json`。完整 direct-target 结果见
@@ -112,6 +114,8 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 [Dual-Prior Original Mutual-Distillation Pilot v1](docs/dual_prior_mutual_distillation_pilot_v1.md)，机器结果为
 `configs/dual_prior_mutual_distillation_v1/training_result_v1.json`；首个 gate 结果见
 [Dual-Prior Reward-Gate Integration Pilot v1](docs/dual_prior_reward_gate_pilot_v1.md)。
+联合训练的完整结果与失败边界见 [Joint Training Pilot v1](docs/joint_training_pilot_v1.md)，机器结果为
+`configs/joint_training_pilot_v1/training_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
@@ -197,6 +201,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   reward-gate integration 的量级审计、三种子失败与 head-only repair 方向
 - [docs/dual_prior_original_scale_v2.md](docs/dual_prior_original_scale_v2.md)：保留原始 shared-gradient 方法后的
   mixed-supervision 放大训练与 500×16 paired ranking 协议
+- [docs/joint_training_pilot_v1.md](docs/joint_training_pilot_v1.md)：第一轮 single-stream 联合训练、冻结失败门、
+  batching confound 与 drop-one 归因方案
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

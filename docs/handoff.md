@@ -262,21 +262,33 @@ protocol/audit 中，不在本 handoff 重复展开。
 - 训练前必须通过真实 feature 的 no-update gradient routing audit；日志同时保留全 epoch coverage-weighted loss、
   active-supervision batch mean、active batch 数和精确 row/pair/token count；
 - 结果等级固定为 `small-scale real integration pilot`。Consistency 没有 held-out relation，只报告训练关系几何；
-  seed 42 通过只授权另发 seeds 43/44 协议。
+  seed 42 通过只会授权另发 seeds 43/44 协议；实际结果没有通过。
+- 三格均从 clean commit `5a0b5d3` 完成 5 epochs；无 OOM/NaN/运行时失败，真实 feature 梯度路由审计、每
+  epoch 3968 rows、27/26 consistency pairs、6681 sparse tokens、14307 prior units 全部匹配冻结协议；
+- J0/JP/JALL 的 BoN@16 为 `.920/.918/.912`；JALL 相对两个 control 的回退都在 `.02` 内，consistency
+  training-relation gap 为 `.789`，complete AP `.931`；
+- 扩展门失败项为：H span AP `.272 < .393` position、H claim AP `.289 < .422` position、key AP
+  `.314` 相对 JP `.432` 回退 `.118 > .05`。状态固定为 `completed_seed42_expansion_gates_failed`，seeds
+  43/44 未授权；
+- standalone S1 在相同 48/16 mechanism split 上曾达到 span/claim AP `.416/.464`，而 JALL active H BCE
+  五 epoch 始终高于 standalone；同时 JALL prior 拟合与 key AP 弱于 JP。因此这是联合优化/混合问题的信号，
+  不能归因为“代码没接上”或“标签必然无效”；
+- 当前 JALL 相对 JP 同时增加 H 与 consistency，不能识别谁造成回退。完整机器结果、loss 轨迹、batching
+  confound 与因果边界见 `configs/joint_training_pilot_v1/failure_diagnostic_v1.json` 和
+  `docs/joint_training_pilot_v1.md`。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。当前按以下顺序执行：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。联合三格已经完成且失败，当前顺序改为：
 
-1. 物化并审计 unified train、mechanism train/dev，确认 3968/54/48、exact-token identity、provenance、
-   query disjointness 与 sampler 27/26 pair count；
-2. 在 JALL 配置上运行 no-update gradient audit，逐项确认 final、consistency、sparse hallucination、direct
-   key/complete、mutual 与 detached-fused-prior gate 的有限非零梯度及目标路由；
-3. 从同一 seed-42 初始化并行运行 J0/JP/JALL，各 5 epochs；只在 epoch 5 做冻结 mechanism/ranking 比较；
-4. JALL 必须超过 hallucination token/claim 位置基线、key/complete prior 位置基线，prior AP 相对 JP 回退不
-   超过 `.05`，训练 relation cosine gap 为正，且 BoN@16 相对 J0、JP 均不回退超过 `.02`；
-5. 全部门通过才另发 seeds 43/44 扩跑协议。任一门失败先做归因或 drop-one，不自动调 loss weight、不切换
-   multistream、不读取 pilot/final test。
+1. 征得用户批准后，另发冻结 drop-one 协议，只补 JPH（prior+H）和 JPC（prior+consistency）；
+2. 两格继续使用 seed 42、相同初始化、manifest、semantic-group batch order、single stream、batch 4、5
+   epochs、final epoch 5 以及所有现有 loss 权重；JP/JALL 作为已冻结对照；
+3. 若 JPC 单独复现 key drop，则 consistency 已足够；若 JPH 单独复现，则 H 已足够；若二者单独不复现而
+   JALL 复现，则定位为 H×consistency interaction；
+4. 若 JPH 的 H AP 仍失败，再发布当前 singleton-scattered 与 supervision-aware packing 的 matched 比较，
+   保持每行每 epoch 一次；在此之前不扫 loss weight、不切 multistream；
+5. drop-one 只作失败归因，不自动授权 seeds 43/44，不读取 pilot/final test。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

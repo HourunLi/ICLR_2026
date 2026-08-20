@@ -264,8 +264,14 @@ def main() -> None:
         "automatic_loss_weight_tuning_performed": False,
         "automatic_multistream_switch_performed": False,
         "interpretation": (
-            "One-seed small-scale real integration pilot; passing establishes expansion "
-            "eligibility, not CLIR efficacy. Consistency geometry is in-training only."
+            "One-seed small-scale real integration pilot; all frozen gates passed, so "
+            "seeds 43/44 are expansion-eligible, but this is not CLIR efficacy evidence. "
+            "Consistency geometry is in-training only."
+            if expansion_authorized
+            else "One-seed small-scale real integration pilot; at least one frozen gate "
+            "failed, so seeds 43/44 are not authorized. Diagnose or preregister a "
+            "drop-one comparison without post-hoc weight tuning. Consistency geometry "
+            "is in-training only."
         ),
         "code": git_state(ROOT),
         "pilot_test_accessed": False,

@@ -1,0 +1,242 @@
+{
+  "schema_version": "clir-joint-training-failure-diagnostic-v1",
+  "status": "posthoc_diagnosis_complete_drop_one_pending_approval",
+  "evidence_tier": "small-scale real integration pilot",
+  "scope": "Explain the frozen seed-42 joint-training gate failure without changing the trained checkpoints, tuning a loss weight, switching streams, or accessing pilot/final test.",
+  "inputs": {
+    "joint_protocol": {
+      "path": "configs/joint_training_pilot_v1/training_protocol_v1.json",
+      "sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053"
+    },
+    "joint_result": {
+      "path": "configs/joint_training_pilot_v1/training_result_v1.json",
+      "sha256": "2cf16fa4d97c68a90a67e975ebb8b683e462200e08537c70182a9ebbbc80dd30"
+    },
+    "joint_metrics": {
+      "j0_correctness": {
+        "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/j0_correctness/metrics.jsonl",
+        "sha256": "d8b3e29ca66201b639d9fec478e0d7fc089d754fd3aba8b4e211e994f78048b1"
+      },
+      "jp_original_prior": {
+        "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/metrics.jsonl",
+        "sha256": "335aeefdedb186105a04b53dac81b339a5b9e6cc689ebdbc16b17ce7531856ac"
+      },
+      "jall_full_retained": {
+        "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jall_full_retained/metrics.jsonl",
+        "sha256": "97b210b65a98bf8ee6fe5bda08cc48142e7a5f2239a512189a0b528543584c4b"
+      }
+    },
+    "standalone_sparse_hallucination_result": {
+      "path": "configs/hallucination_localization_v2/training_result_v2.json",
+      "sha256": "4520ee0aba3995c434792324dda08ae78157959b2777b279fc6875337367d354"
+    },
+    "standalone_sparse_hallucination_metrics": {
+      "path": "run_artifacts/hallucination_localization_v2/pilot_span_v2/s1_span_bce/metrics.jsonl",
+      "sha256": "a5c6d3eebac20e32cebbb8522fb7183e42064dfcddab77922837b6d45177a27f"
+    },
+    "original_dual_prior_scale_result": {
+      "path": "configs/dual_prior_original_scale_v2/training_result_v2.json",
+      "sha256": "4630f5d402d0017cb6277e2628b0769e781ddfa442229af6513f20edb79fe7db"
+    }
+  },
+  "engineering_findings": {
+    "all_cells_completed": true,
+    "finite_training": true,
+    "oom_or_runtime_failure": false,
+    "same_initialization_and_batch_order": true,
+    "gradient_routing_audit_passed_before_training": true,
+    "exact_per_epoch_applicable_counts_matched_protocol": true,
+    "epochs_completed_per_cell": 5,
+    "batches_per_epoch": 992,
+    "train_rows_per_epoch": 3968,
+    "interpretation": "The integration path and supervision routing worked. The expansion failure is an optimization/evaluation result, not evidence that an auxiliary objective was silently absent."
+  },
+  "frozen_seed42_outcome": {
+    "j0_correctness": {
+      "bon_at_16": 0.92,
+      "hallucination_span_token_ap": 0.1689090225042722,
+      "hallucination_claim_mean_ap": 0.42129400735380784,
+      "key_unit_ap": 0.09792009775548485,
+      "complete_unit_ap": 0.2767424244440692,
+      "consistency_mean_cosine_gap": 0.000009594140229385317
+    },
+    "jp_original_prior": {
+      "bon_at_16": 0.918,
+      "hallucination_span_token_ap": 0.19178346571995392,
+      "hallucination_claim_mean_ap": 0.17205157544496402,
+      "key_unit_ap": 0.43196465946788765,
+      "complete_unit_ap": 0.9462837038723717,
+      "consistency_mean_cosine_gap": 0.023034116481444156
+    },
+    "jall_full_retained": {
+      "bon_at_16": 0.912,
+      "hallucination_span_token_ap": 0.27175631364157604,
+      "hallucination_claim_mean_ap": 0.2894712940521396,
+      "key_unit_ap": 0.31400383679930893,
+      "complete_unit_ap": 0.9313784834402661,
+      "consistency_mean_cosine_gap": 0.7890257575838399
+    },
+    "failed_expansion_checks": {
+      "hallucination_span_token_ap": {
+        "observed": 0.27175631364157604,
+        "required_exclusive_minimum": 0.39328067905143455
+      },
+      "hallucination_claim_mean_ap": {
+        "observed": 0.2894712940521396,
+        "required_exclusive_minimum": 0.42198767865054354
+      },
+      "key_unit_ap_drop_jall_minus_jp": {
+        "observed": -0.11796082266857872,
+        "minimum_allowed": -0.05
+      }
+    },
+    "passed_protection_checks": [
+      "all cells completed",
+      "key AP above position baseline",
+      "complete AP above position baseline",
+      "complete AP drop versus JP within 0.05",
+      "positive consistency cosine gap",
+      "JALL BoN@16 regression versus J0 within 0.02",
+      "JALL BoN@16 regression versus JP within 0.02"
+    ],
+    "seed_43_44_expansion_authorized": false
+  },
+  "diagnostic_evidence": {
+    "standalone_sparse_hallucination": {
+      "same_labeled_train_rows": 48,
+      "same_labeled_dev_rows": 16,
+      "epochs": 5,
+      "batch_size": 4,
+      "batches_per_epoch": 12,
+      "hallucination_bce_by_epoch": [
+        0.5006164299945036,
+        0.42623743663231534,
+        0.3887362430493037,
+        0.4763835482299328,
+        0.3919311010589202
+      ],
+      "dev_span_token_ap": 0.41557585999610835,
+      "dev_claim_mean_ap": 0.4644269435571306,
+      "implication": "The sparse labels and head previously produced a signal above both position baselines; the JALL failure cannot be attributed solely to unusable labels."
+    },
+    "jall_sparse_hallucination": {
+      "labeled_rows_per_epoch": 48,
+      "labeled_tokens_per_epoch": 6681,
+      "active_batches_by_epoch": [48, 47, 48, 45, 45],
+      "active_hallucination_bce_by_epoch": [
+        0.6556922633123273,
+        0.6251405206449488,
+        0.5412453872462114,
+        0.5883075750122467,
+        0.5361837338242266
+      ],
+      "implication": "The joint run fit the sparse objective materially less well than the standalone S1 run."
+    },
+    "joint_prior": {
+      "jp_active_key_bce_by_epoch": [
+        0.2900742075095574,
+        0.257080299423096,
+        0.24450316233560443,
+        0.23982023381524617,
+        0.22941649506489437
+      ],
+      "jall_active_key_bce_by_epoch": [
+        0.29379732875774306,
+        0.26703961700835127,
+        0.26450522352630895,
+        0.2600013183222877,
+        0.24932608587874305
+      ],
+      "jp_active_complete_bce_by_epoch": [
+        0.5585118324185411,
+        0.42958193954001084,
+        0.39627902132148546,
+        0.3364093572729164,
+        0.3305278936194049
+      ],
+      "jall_active_complete_bce_by_epoch": [
+        0.590386780599753,
+        0.44852748465664843,
+        0.4202374597080052,
+        0.39424629045857323,
+        0.38032225833998784
+      ],
+      "implication": "The original prior objective remained active and learned in both cells, but JALL fit it less well and lost held-out key AP relative to JP. The original mutual and shared-gradient gate were not replaced."
+    },
+    "joint_consistency": {
+      "jall_active_negative_loss_by_epoch": [
+        0.7854567307692307,
+        0.6670673076923077,
+        0.6334134615384616,
+        0.49486365685096156,
+        0.44809194711538464
+      ],
+      "jall_final_train_relation_cosine_gap": 0.7890257575838399,
+      "implication": "The consistency objective strongly changed the representation geometry, but only on training relations; this is not held-out semantic-equivalence evidence."
+    },
+    "batching_difference": {
+      "standalone_hallucination": "48 mechanism rows are the complete dataset and form 12 ordinary batches per epoch.",
+      "joint_single_stream": "The same 48 rows are singleton semantic groups interleaved with the 3968-row correctness stream and appear in 45-48 active batches per epoch.",
+      "controlled": "Every row is still exposed exactly once per epoch in all joint cells.",
+      "not_controlled_against_standalone": "Auxiliary batch packing, optimizer-step context, and the number of intervening correctness-only updates differ from the standalone localization run."
+    }
+  },
+  "causal_boundary": {
+    "identified": [
+      "The full retained objective failed the frozen localization and key-prior expansion gates at seed 42.",
+      "The failure is compatible with optimization interference or supervision-mixing effects.",
+      "The current result does not authorize seeds 43 and 44."
+    ],
+    "not_identified": [
+      "Whether hallucination supervision alone is sufficient to cause the key-prior drop.",
+      "Whether consistency supervision alone is sufficient to cause the key-prior drop.",
+      "Whether the failure is caused by either objective individually or only their interaction.",
+      "Whether changing loss weights, batch packing, or stream structure would repair the result."
+    ],
+    "reason": "Relative to JP, JALL adds hallucination and consistency at the same time, so the existing three-cell matrix cannot separate their effects."
+  },
+  "recommended_next_protocol": {
+    "type": "matched_seed42_drop_one_diagnosis",
+    "approval_status": "pending_user_approval",
+    "new_cells": {
+      "jph_prior_plus_hallucination": {
+        "prior_outer_weight": 1.0,
+        "hallucination_outer_weight": 1.0,
+        "consistency_outer_weight": 0.0
+      },
+      "jpc_prior_plus_consistency": {
+        "prior_outer_weight": 1.0,
+        "hallucination_outer_weight": 0.0,
+        "consistency_outer_weight": 1.0
+      }
+    },
+    "reuse_as_frozen_controls": [
+      "jp_original_prior",
+      "jall_full_retained"
+    ],
+    "must_hold_fixed": [
+      "seed 42",
+      "initialization",
+      "data manifests and hashes",
+      "semantic-group batch order",
+      "single optimizer and single stream",
+      "batch size 4",
+      "five epochs and final-epoch selection",
+      "all existing loss weights",
+      "the project's original direct plus bidirectional stop-gradient mutual plus shared-gradient gate prior objective",
+      "mechanism and ranking evaluation sets"
+    ],
+    "interpretation_table": {
+      "jpc_key_drop": "Consistency is sufficient, conditional on the original prior, to reproduce key-prior degradation.",
+      "jph_key_drop": "Sparse hallucination supervision is sufficient, conditional on the original prior, to reproduce key-prior degradation.",
+      "neither_drop_but_jall_drops": "The failure requires an interaction between hallucination and consistency under this protocol.",
+      "jph_hallucination_passes": "Consistency is implicated in the JALL hallucination-localization failure.",
+      "jph_hallucination_fails": "First compare current semantic-group packing with preregistered supervision-aware packing while preserving one exposure per row; do not infer a loss-weight fix yet."
+    },
+    "automatic_weight_tuning": false,
+    "automatic_stream_switch": false,
+    "pilot_test_access": false,
+    "final_test_access": false
+  },
+  "decision": "Keep the original dual-prior method and all disabled-module decisions unchanged. Do not expand JALL to more seeds. Seek approval for the two-cell matched drop-one diagnosis before changing weights or batching."
+}
