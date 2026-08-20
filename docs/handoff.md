@@ -276,21 +276,28 @@ protocol/audit 中，不在本 handoff 重复展开。
 - 当前 JALL 相对 JP 同时增加 H 与 consistency，不能识别谁造成回退。完整机器结果、loss 轨迹、batching
   confound 与因果边界见 `configs/joint_training_pilot_v1/failure_diagnostic_v1.json` 和
   `docs/joint_training_pilot_v1.md`。
+- drop-one JPH/JPC 已从 clean commit `55155d2` 完成。JPH/JPC 的 BoN@16 为 `.920/.918`，相对 JP
+  `+.002/.000`，均通过 ranking 保护门；key AP 为 `.314/.275`，相对 JP 分别下降 `.118/.157`，两格都
+  复现预注册 key drop。因此在当前 seed-42 条件下，H 和 C 各自都已足够，不是只有 H×C 交互才会失败；
+- JPH 的 H span/claim AP 为 `.319/.338`，相对 JALL 恢复约 `.047/.049`，但仍低于 `.393/.422` 位置
+  基线。JPC 的 H loss 为 0，却得到 `.435/.442`，必须解释为 16-row dev 对共享表示变化敏感，禁止声称 C
+  学会了 H localization；
+- drop-one 状态为 `completed_seed42_drop_one_diagnosis`，仍不授权多 seed。完整结果和证据边界见
+  `docs/joint_training_drop_one_v1.md` 与
+  `configs/joint_training_drop_one_v1/training_result_v1.json`。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。联合三格已经完成且失败，当前顺序改为：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。drop-one 已完成，下一步尚待用户批准：
 
-1. 用户已经批准并已另发冻结 drop-one 协议
-   `configs/joint_training_drop_one_v1/training_protocol_v1.json`，只补 JPH（prior+H）和
-   JPC（prior+consistency）；
-2. 两格继续使用 seed 42、相同初始化、manifest、semantic-group batch order、single stream、batch 4、5
-   epochs、final epoch 5 以及所有现有 loss 权重；JP/JALL 作为已冻结对照；
-3. 若 JPC 单独复现 key drop，则 consistency 已足够；若 JPH 单独复现，则 H 已足够；若二者单独不复现而
-   JALL 复现，则定位为 H×consistency interaction；
-4. 若 JPH 的 H AP 仍失败，再发布当前 singleton-scattered 与 supervision-aware packing 的 matched 比较，
-   保持每行每 epoch 一次；在此之前不扫 loss weight、不切 multistream；
-5. drop-one 只作失败归因，不自动授权 seeds 43/44，不读取 pilot/final test。
+1. 先另发冻结的 no-update shared-gradient interaction audit，在相同初始化和/或冻结 JP checkpoint 上测 H、
+   C、final、key、complete、prior-total 对共享 encoder 的梯度 cosine、norm 与分层分布；
+2. 若 H/C 与 prior 存在稳定负夹角，再预注册只处理共享 encoder 冲突的 repair 对照，不能替换原始 direct、
+   双向 stop-gradient mutual、shared-gradient gate 或它们的 head gradient；
+3. 若没有稳定冲突，再做 singleton-scattered 与 supervision-aware packing 的 matched 比较，每行每 epoch
+   仍只出现一次；
+4. 在诊断前不扫 loss weight、不切 multistream、不采用 PCGrad 类方法、不扩 seeds 43/44，也不读取
+   `pilot_test/final_test`。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

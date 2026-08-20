@@ -1,0 +1,173 @@
+{
+  "schema_version": "clir-joint-training-drop-one-result-v1",
+  "status": "completed_seed42_drop_one_diagnosis",
+  "evidence_tier": "small-scale real integration pilot",
+  "protocol": "configs/joint_training_drop_one_v1/training_protocol_v1.json",
+  "protocol_sha256": "ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128",
+  "seed": 42,
+  "cells": {
+    "jph_prior_plus_hallucination": {
+      "result_sha256": "e3c8dabcd4be1e715b4393a1fe5ed20c48977cde020e574a4fe8bd901b2a0f02",
+      "bon_at_primary_k": 0.92,
+      "pairwise_accuracy": 0.6862904868608678,
+      "score_population_std": 2.11733011466739,
+      "hallucination_span_token_ap": 0.3190437655958111,
+      "hallucination_claim_mean_ap": 0.3382286662203997,
+      "key_unit_ap": 0.3135744485036375,
+      "complete_unit_ap": 0.9275592904044775,
+      "consistency_mean_cosine_gap": 0.011447003424337465,
+      "code": {
+        "commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+        "dirty": false
+      }
+    },
+    "jpc_prior_plus_consistency": {
+      "result_sha256": "5269b933cd39b3f8ebe83e710138b5ae0d0d949f956a8de98512672a3dce285f",
+      "bon_at_primary_k": 0.918,
+      "pairwise_accuracy": 0.6864941943369322,
+      "score_population_std": 2.4177003658532925,
+      "hallucination_span_token_ap": 0.43499536564865093,
+      "hallucination_claim_mean_ap": 0.4423989083961268,
+      "key_unit_ap": 0.27460938244479516,
+      "complete_unit_ap": 0.9378050957973474,
+      "consistency_mean_cosine_gap": 0.818074252104859,
+      "code": {
+        "commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+        "dirty": false
+      }
+    },
+    "jp_original_prior": {
+      "result_sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32",
+      "bon_at_primary_k": 0.918,
+      "pairwise_accuracy": 0.7001425952332451,
+      "score_population_std": 2.721782554452695,
+      "hallucination_span_token_ap": 0.19178346571995392,
+      "hallucination_claim_mean_ap": 0.17205157544496402,
+      "key_unit_ap": 0.43196465946788765,
+      "complete_unit_ap": 0.9462837038723717,
+      "consistency_mean_cosine_gap": 0.023034116481444156,
+      "code": {
+        "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+        "dirty": false
+      }
+    },
+    "jall_full_retained": {
+      "result_sha256": "f8ca0329b277e37a96ecb0b2f8327aa310d3aeafeaf265a62ed47bc92595390c",
+      "bon_at_primary_k": 0.912,
+      "pairwise_accuracy": 0.6814015074353229,
+      "score_population_std": 2.292899980740412,
+      "hallucination_span_token_ap": 0.27175631364157604,
+      "hallucination_claim_mean_ap": 0.2894712940521396,
+      "key_unit_ap": 0.31400383679930893,
+      "complete_unit_ap": 0.9313784834402661,
+      "consistency_mean_cosine_gap": 0.7890257575838399,
+      "code": {
+        "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+        "dirty": false
+      }
+    }
+  },
+  "artifact_roles": {
+    "jph_prior_plus_hallucination": "new_drop_one_cell",
+    "jpc_prior_plus_consistency": "new_drop_one_cell",
+    "jp_original_prior": "immutable_parent_control",
+    "jall_full_retained": "immutable_parent_control"
+  },
+  "primary_ranking": {
+    "k": 16,
+    "query_count": 500,
+    "paired_comparisons": {
+      "jph_minus_jp": {
+        "query_count": 500,
+        "mean_delta": 0.002,
+        "bootstrap_ci": [
+          -0.014,
+          0.018
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      },
+      "jpc_minus_jp": {
+        "query_count": 500,
+        "mean_delta": 0.0,
+        "bootstrap_ci": [
+          -0.018,
+          0.018
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      },
+      "jall_minus_jph": {
+        "query_count": 500,
+        "mean_delta": -0.008,
+        "bootstrap_ci": [
+          -0.026,
+          0.01
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      },
+      "jall_minus_jpc": {
+        "query_count": 500,
+        "mean_delta": -0.006,
+        "bootstrap_ci": [
+          -0.022,
+          0.01
+        ],
+        "replicates": 10000,
+        "confidence_level": 0.95,
+        "bootstrap_unit": "query",
+        "right_minus_left": true
+      }
+    }
+  },
+  "key_prior_attribution": {
+    "drop_threshold_vs_jp": 0.05,
+    "strict_definition": "cell_key_AP - JP_key_AP < -threshold",
+    "jall_minus_jp": -0.11796082266857871,
+    "jph_minus_jp": -0.11839021096425012,
+    "jpc_minus_jp": -0.1573552770230925,
+    "jph_reproduces_drop": true,
+    "jpc_reproduces_drop": true,
+    "classification": "both_auxiliaries_individually_sufficient_at_seed42",
+    "scope": "conditional seed-42 attribution under the frozen single-stream protocol; not a general causal or efficacy claim"
+  },
+  "hallucination_attribution": {
+    "span_position_baseline": 0.39328067905143455,
+    "claim_position_baseline": 0.42198767865054354,
+    "jph_span_pass": false,
+    "jph_claim_pass": false,
+    "jph_recovers_both": false,
+    "jph_minus_jall_span_ap": 0.04728745195423506,
+    "jph_minus_jall_claim_ap": 0.048757372168260094,
+    "classification": "failure_persists_without_consistency_mixing_or_prior_unresolved_seed42",
+    "scope": "conditional seed-42 attribution; JPH still differs from standalone S1 in correctness/prior mixing and batch packing"
+  },
+  "ranking_protection": {
+    "maximum_regression_vs_jp": 0.02,
+    "jph_minus_jp": 0.0020000000000000018,
+    "jpc_minus_jp": 0.0,
+    "checks": {
+      "jph_within_regression_tolerance_vs_jp": true,
+      "jpc_within_regression_tolerance_vs_jp": true
+    }
+  },
+  "automatic_loss_weight_tuning_performed": false,
+  "automatic_sampler_or_stream_change_performed": false,
+  "expand_to_additional_seeds_authorized": false,
+  "new_training_commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+  "summary_code": {
+    "commit": "55155d295073b219a70386fc2920b66c53bcf55a",
+    "dirty": false
+  },
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false,
+  "next_action_requires_user_approval": true
+}

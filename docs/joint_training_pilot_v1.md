@@ -98,9 +98,9 @@ groups 每 epoch 分散在 45–48 个 active batches，并穿插在 3968-row co
 但 auxiliary batch packing、optimizer-step 上下文以及相邻 correctness-only 更新数与 standalone 不同。这是一个
 真实的 mixing confound，尚不能和梯度冲突区分。
 
-## 5. 下一步：只补两个 drop-one cell
+## 5. 后续 drop-one 已完成
 
-在任何调权重、改 sampler 或切 multistream 之前，最小可识别实验是：
+在任何调权重、改 sampler 或切 multistream 之前，已执行的最小可识别实验是：
 
 | 新 cell | Prior | H | Consistency | 回答的问题 |
 |---|---:|---:|---:|---|
@@ -111,7 +111,7 @@ JP 和 JALL 直接作为已冻结对照。新两格继续使用 seed 42、相同
 batch 4、5 epochs、所有原 loss 权重与 final-epoch selection；不自动调 loss，不更换原始 mutual/gate，不访问
 pilot/final test。
 
-解释规则预先写死：
+解释规则在训练前写死：
 
 - JPC 复现 key drop：consistency 在 prior 条件下已足以造成该问题；
 - JPH 复现 key drop：H 在 prior 条件下已足以造成该问题；
@@ -120,8 +120,10 @@ pilot/final test。
 - JPH 的 H AP 仍失败：下一步才比较当前 packing 与 supervision-aware packing，并保持每行每 epoch 一次，
   不能直接跳到扫 loss weight。
 
-这一 drop-one 只是失败归因，不是新方法效果实验。用户已批准执行，冻结协议为
-`configs/joint_training_drop_one_v1/training_protocol_v1.json`；它不修改或覆盖本轮任何 artifact。
+两格现已完成：JPH/JPC 的 key AP 相对 JP 分别下降 `.118/.157`，所以两者均单独复现 key drop；JPH 的 H
+span/claim AP 为 `.319/.338`，仍未超过冻结位置基线。完整结果、ranking 区间和 JPC 未训练 H 却出现高 AP
+的解释警告见 `docs/joint_training_drop_one_v1.md`。这一 drop-one 只作失败归因，不是新方法效果实验；冻结
+协议为 `configs/joint_training_drop_one_v1/training_protocol_v1.json`，且未修改或覆盖本轮任何 artifact。
 
 ## 6. 可复核 artifact
 
@@ -130,5 +132,7 @@ pilot/final test。
 - 失败诊断：`configs/joint_training_pilot_v1/failure_diagnostic_v1.json`
 - 梯度审计：`run_artifacts/joint_training_pilot_v1/audits/gradient_routing_v1.json`
 - 三格训练目录：`run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/`
+- 后续 drop-one 结果：`configs/joint_training_drop_one_v1/training_result_v1.json`
+- 后续 drop-one 记录：`docs/joint_training_drop_one_v1.md`
 
 当前没有读取 `pilot_test` 或 `final_test`，也没有基于结果修改冻结 checkpoint 或历史门槛。

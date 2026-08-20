@@ -93,17 +93,21 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `.02` 保护线内，训练 relation cosine gap 为 `.789`；但 H span/claim AP 只有 `.272/.289`，低于位置基线
   `.393/.422`，key AP `.314` 相对 JP `.432` 下降 `.118`。因此状态为
   `completed_seed42_expansion_gates_failed`，不扩 seeds 43/44，不自动调权重或切换 multistream。
+- Seed-42 drop-one 的 JPH/JPC 已从 clean commit `55155d2` 完成。二者的 BoN@16 为 `.920/.918`，均通过
+  ranking 保护门；但 key AP 相对 JP 分别下降 `.118/.157`，所以 H 与 C 在当前冻结条件下都单独足以复现
+  key drop。JPH 的 H span/claim AP 为 `.319/.338`，仍低于位置基线；去掉 C 不能单独解决 localization。
+  JPC 未启用 H loss 却得到 `.435/.442`，只能视为小 dev 对共享表示变化敏感，不能称为学会 H。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-`joint_training_pilot_v1` 已完成且未获多 seed 扩跑资格。用户已批准不调权重的 seed-42 drop-one 诊断：补
-JPH（correctness+原始 prior+H）和 JPC（correctness+原始 prior+consistency），复用冻结 JP/JALL 对照，
-从而区分 H、consistency 与二者交互。新两格保持相同初始化、manifest、semantic-group batch 顺序、single
-stream、batch 4、5 epochs 和原始 prior 实现；冻结协议为
-`configs/joint_training_drop_one_v1/training_protocol_v1.json`。
+`joint_training_drop_one_v1` 已完成且排除了“只有 H×C 交互才造成 key drop”；当前仍无法区分共享梯度冲突
+与 sparse mechanism rows 在大 single stream 中的 packing/更新时序稀释。建议下一道门先做不更新参数的
+shared-gradient interaction audit：在相同初始化和/或冻结 JP checkpoint 上比较 H、C、final、key、complete
+及 prior-total 对共享 encoder 的梯度 cosine、norm 和分层分布。该审计需要用户单独批准并另发冻结协议；
+在此之前不自动引入 PCGrad 类修复、改 packing、扫权重或扩 seeds。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -116,7 +120,9 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 `configs/dual_prior_mutual_distillation_v1/training_result_v1.json`；首个 gate 结果见
 [Dual-Prior Reward-Gate Integration Pilot v1](docs/dual_prior_reward_gate_pilot_v1.md)。
 联合训练的完整结果与失败边界见 [Joint Training Pilot v1](docs/joint_training_pilot_v1.md)，机器结果为
-`configs/joint_training_pilot_v1/training_result_v1.json`。
+`configs/joint_training_pilot_v1/training_result_v1.json`；drop-one 归因见
+[Joint Training Drop-One Diagnosis v1](docs/joint_training_drop_one_v1.md)，机器结果为
+`configs/joint_training_drop_one_v1/training_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
