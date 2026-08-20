@@ -285,19 +285,29 @@ protocol/audit 中，不在本 handoff 重复展开。
 - drop-one 状态为 `completed_seed42_drop_one_diagnosis`，仍不授权多 seed。完整结果和证据边界见
   `docs/joint_training_drop_one_v1.md` 与
   `configs/joint_training_drop_one_v1/training_result_v1.json`。
+- clean commit `74f7583` 的 no-update gradient interaction audit 已完成。H↔prior-total 的 init/JP shared
+  cosine 为 `-.024/+.126`，C↔prior-total 为 `+.133/+.268`，所以不授权 blanket shared-encoder
+  gradient surgery；H↔prior 的 condition branch 局部为稳定负向，保留为后续 diagnostic；
+- C↔mutual 为 `-.400/-.536`、C↔H 为 `-.110/-.200`，但 frozen 5-epoch stream 的 C 与 H/prior batch
+  overlap 是 `0/0/0/0/0`。它们是 cross-step pressure，不是 simultaneous conflict，普通 per-batch PCGrad
+  无法处理；
+- JP 状态 H/C shared norm 为 `1.250/1.713`，prior-total 仅 `.536`。这支持先查 late-stage
+  schedule/effective budget，而不是删除或替换原 mutual/gate。完整结果见
+  `docs/joint_gradient_interaction_v1.md` 与
+  `configs/joint_gradient_interaction_v1/audit_result_v1.json`。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。drop-one 已完成，下一步尚待用户批准：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。梯度审计已完成，下一格尚待用户批准：
 
-1. 先另发冻结的 no-update shared-gradient interaction audit，在相同初始化和/或冻结 JP checkpoint 上测 H、
-   C、final、key、complete、prior-total 对共享 encoder 的梯度 cosine、norm 与分层分布；
-2. 若 H/C 与 prior 存在稳定负夹角，再预注册只处理共享 encoder 冲突的 repair 对照，不能替换原始 direct、
-   双向 stop-gradient mutual、shared-gradient gate 或它们的 head gradient；
-3. 若没有稳定冲突，再做 singleton-scattered 与 supervision-aware packing 的 matched 比较，每行每 epoch
-   仍只出现一次；
-4. 在诊断前不扫 loss weight、不切 multistream、不采用 PCGrad 类方法、不扩 seeds 43/44，也不读取
-   `pilot_test/final_test`。
+1. 只增加一个 JPH supervision-aware packing/schedule cell，复用冻结 JPH：48 条 mechanism rows 集中为
+   12 个 4-row batches，C 仍关闭；
+2. 每行每 epoch 仍恰好一次，保持 seed 42、初始化、3968-row manifest、5 epochs、final checkpoint、所有
+   loss 权重与原始 direct/mutual/gate 不变；
+3. 明确记录 active auxiliary steps 从约 48 降到 12，所以这是 packing+effective-budget test，不宣称纯
+   packing 因果；
+4. 当前不采用 blanket PCGrad，不处理 C cross-stream pressure，不扩 seeds 43/44，也不读取
+   `pilot_test/final_test`。若 JPH-pack 仍失败，才评估 condition branch targeted repair。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

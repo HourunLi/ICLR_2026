@@ -1,0 +1,3978 @@
+{
+  "schema_version": "clir-joint-gradient-interaction-result-v1",
+  "protocol": "configs/joint_gradient_interaction_v1/audit_protocol_v1.json",
+  "protocol_sha256": "3595dd8435dd2e889158da664775513ac1e251145547168653e08d1f0efbe45f",
+  "device": "cuda",
+  "output": "/prodcpfs/user/panzhixin/ICLR_2027/configs/joint_gradient_interaction_v1/audit_result_v1.json",
+  "model_states": [
+    "initialization_seed42",
+    "jp_epoch5"
+  ],
+  "code": {
+    "commit": "74f758366ae4a070f042f47332aaf2e8ed8701e4",
+    "dirty": false
+  },
+  "status": "completed_no_update_diagnostic",
+  "evidence_tier": "small-scale real",
+  "stream_structure": {
+    "epochs": [
+      {
+        "epoch": 1,
+        "batches": 992,
+        "mechanism_active_batches": 48,
+        "consistency_active_batches": 14,
+        "mechanism_consistency_overlap_batches": 0
+      },
+      {
+        "epoch": 2,
+        "batches": 992,
+        "mechanism_active_batches": 47,
+        "consistency_active_batches": 14,
+        "mechanism_consistency_overlap_batches": 0
+      },
+      {
+        "epoch": 3,
+        "batches": 992,
+        "mechanism_active_batches": 48,
+        "consistency_active_batches": 14,
+        "mechanism_consistency_overlap_batches": 0
+      },
+      {
+        "epoch": 4,
+        "batches": 992,
+        "mechanism_active_batches": 45,
+        "consistency_active_batches": 14,
+        "mechanism_consistency_overlap_batches": 0
+      },
+      {
+        "epoch": 5,
+        "batches": 992,
+        "mechanism_active_batches": 45,
+        "consistency_active_batches": 14,
+        "mechanism_consistency_overlap_batches": 0
+      }
+    ],
+    "passed": true
+  },
+  "controlled_batches": {
+    "mechanism_batch_rows": [
+      [
+        "gsm8k-train-04355-cand-006",
+        "gsm8k-train-00333-cand-003",
+        "gsm8k-train-04210-cand-000",
+        "gsm8k-train-03562-cand-007"
+      ],
+      [
+        "gsm8k-train-02867-cand-003",
+        "gsm8k-train-07439-cand-007",
+        "gsm8k-train-03751-cand-004",
+        "gsm8k-train-01164-cand-003"
+      ],
+      [
+        "gsm8k-train-01052-cand-001",
+        "gsm8k-train-06918-cand-003",
+        "gsm8k-train-02735-cand-003",
+        "gsm8k-train-02214-cand-002"
+      ],
+      [
+        "gsm8k-train-06555-cand-000",
+        "gsm8k-train-03989-cand-002",
+        "gsm8k-train-00228-cand-000",
+        "gsm8k-train-05851-cand-006"
+      ],
+      [
+        "gsm8k-train-01074-cand-007",
+        "gsm8k-train-01068-cand-005",
+        "gsm8k-train-03486-cand-002",
+        "gsm8k-train-03160-cand-003"
+      ],
+      [
+        "gsm8k-train-04583-cand-000",
+        "gsm8k-train-07455-cand-001",
+        "gsm8k-train-04695-cand-000",
+        "gsm8k-train-06355-cand-002"
+      ],
+      [
+        "gsm8k-train-02014-cand-007",
+        "gsm8k-train-03225-cand-005",
+        "gsm8k-train-05789-cand-001",
+        "gsm8k-train-06820-cand-004"
+      ],
+      [
+        "gsm8k-train-01849-cand-001",
+        "gsm8k-train-01756-cand-001",
+        "gsm8k-train-05298-cand-003",
+        "gsm8k-train-06647-cand-007"
+      ],
+      [
+        "gsm8k-train-04890-cand-002",
+        "gsm8k-train-06870-cand-003",
+        "gsm8k-train-04066-cand-006",
+        "gsm8k-train-07238-cand-005"
+      ],
+      [
+        "gsm8k-train-03931-cand-001",
+        "gsm8k-train-03538-cand-003",
+        "gsm8k-train-06776-cand-007",
+        "gsm8k-train-06960-cand-002"
+      ],
+      [
+        "gsm8k-train-06339-cand-007",
+        "gsm8k-train-02050-cand-007",
+        "gsm8k-train-00287-cand-007",
+        "gsm8k-train-04590-cand-003"
+      ],
+      [
+        "gsm8k-train-05019-cand-000",
+        "gsm8k-train-01238-cand-002",
+        "gsm8k-train-00321-cand-003",
+        "gsm8k-train-06610-cand-003"
+      ]
+    ],
+    "consistency_batch_rows": [
+      [
+        "gsm8k-train-07162-cand-000",
+        "gsm8k-train-07162-cand-007",
+        "gsm8k-train-00862-cand-001",
+        "gsm8k-train-00862-cand-004"
+      ],
+      [
+        "gsm8k-train-06698-cand-006",
+        "gsm8k-train-06698-cand-001",
+        "gsm8k-train-04307-cand-003",
+        "gsm8k-train-04307-cand-004"
+      ],
+      [
+        "gsm8k-train-06312-cand-000",
+        "gsm8k-train-06312-cand-007",
+        "gsm8k-train-03205-cand-001",
+        "gsm8k-train-03205-cand-007"
+      ],
+      [
+        "gsm8k-train-03248-cand-006",
+        "gsm8k-train-03248-cand-002",
+        "gsm8k-train-03161-cand-002",
+        "gsm8k-train-03161-cand-005"
+      ],
+      [
+        "gsm8k-train-05862-cand-000",
+        "gsm8k-train-05862-cand-007",
+        "gsm8k-train-03753-cand-002",
+        "gsm8k-train-03753-cand-006"
+      ],
+      [
+        "gsm8k-train-03938-cand-007",
+        "gsm8k-train-03938-cand-006"
+      ],
+      [
+        "gsm8k-train-06644-cand-001",
+        "gsm8k-train-06644-cand-000",
+        "gsm8k-train-01914-cand-007",
+        "gsm8k-train-01914-cand-000"
+      ],
+      [
+        "gsm8k-train-06453-cand-001",
+        "gsm8k-train-06453-cand-006",
+        "gsm8k-train-04439-cand-004",
+        "gsm8k-train-04439-cand-005"
+      ],
+      [
+        "gsm8k-train-01770-cand-000",
+        "gsm8k-train-01770-cand-004",
+        "gsm8k-train-01458-cand-000",
+        "gsm8k-train-01458-cand-007"
+      ],
+      [
+        "gsm8k-train-05032-cand-002",
+        "gsm8k-train-05032-cand-007",
+        "gsm8k-train-03457-cand-005",
+        "gsm8k-train-03457-cand-000"
+      ],
+      [
+        "gsm8k-train-04207-cand-007",
+        "gsm8k-train-04207-cand-000",
+        "gsm8k-train-05189-cand-001",
+        "gsm8k-train-05189-cand-000"
+      ],
+      [
+        "gsm8k-train-04225-cand-005",
+        "gsm8k-train-04225-cand-002",
+        "gsm8k-train-01740-cand-004",
+        "gsm8k-train-01740-cand-003"
+      ],
+      [
+        "gsm8k-train-04700-cand-000",
+        "gsm8k-train-04700-cand-001",
+        "gsm8k-train-03341-cand-004",
+        "gsm8k-train-03341-cand-005"
+      ],
+      [
+        "gsm8k-train-07373-cand-005",
+        "gsm8k-train-07373-cand-001",
+        "gsm8k-train-01660-cand-007",
+        "gsm8k-train-01660-cand-002"
+      ]
+    ],
+    "mechanism_rows": 48,
+    "consistency_rows": 54,
+    "positive_pairs": 27,
+    "negative_pairs": 26,
+    "passed": true
+  },
+  "model_state_results": {
+    "initialization_seed42": {
+      "state": "initialization_seed42",
+      "provenance": {
+        "kind": "deterministic_initialization",
+        "parameter_checksum": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace"
+      },
+      "parameter_checksum_before": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace",
+      "parameter_checksum_after": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace",
+      "no_parameter_update": true,
+      "optimizer_grad_buffers_absent": true,
+      "shared_parameter_groups": {
+        "shared_all": {
+          "parameter_tensors": 49,
+          "parameter_elements": 8162306
+        },
+        "input_encoder_all": {
+          "parameter_tensors": 38,
+          "parameter_elements": 3433728
+        },
+        "input_projection": {
+          "parameter_tensors": 6,
+          "parameter_elements": 802304
+        },
+        "transformer_block_0": {
+          "parameter_tensors": 12,
+          "parameter_elements": 789760
+        },
+        "transformer_block_1": {
+          "parameter_tensors": 12,
+          "parameter_elements": 789760
+        },
+        "layer_pool": {
+          "parameter_tensors": 4,
+          "parameter_elements": 263168
+        },
+        "encoder_output": {
+          "parameter_tensors": 4,
+          "parameter_elements": 788736
+        },
+        "condition_all": {
+          "parameter_tensors": 11,
+          "parameter_elements": 4728578
+        },
+        "condition_attention": {
+          "parameter_tensors": 3,
+          "parameter_elements": 1769472
+        },
+        "condition_fusion": {
+          "parameter_tensors": 8,
+          "parameter_elements": 2959106
+        }
+      },
+      "objective_batch_counts": {
+        "final_mechanism": 12,
+        "hallucination": 12,
+        "prior_key": 12,
+        "prior_complete": 12,
+        "prior_distill": 12,
+        "prior_gate": 12,
+        "prior_total": 12,
+        "final_consistency": 14,
+        "consistency": 14
+      },
+      "aggregate_gradient_norms": {
+        "final_mechanism": {
+          "shared_all": 7.999865531921387,
+          "input_encoder_all": 7.902068614959717,
+          "input_projection": 6.5407609939575195,
+          "transformer_block_0": 1.3926326036453247,
+          "transformer_block_1": 1.2506083250045776,
+          "layer_pool": 2.2228875160217285,
+          "encoder_output": 3.3490991592407227,
+          "condition_all": 1.2470577955245972,
+          "condition_attention": 0.2887153923511505,
+          "condition_fusion": 1.2131761312484741
+        },
+        "hallucination": {
+          "shared_all": 16.902807235717773,
+          "input_encoder_all": 16.7125186920166,
+          "input_projection": 14.040502548217773,
+          "transformer_block_0": 3.102982997894287,
+          "transformer_block_1": 2.72385573387146,
+          "layer_pool": 4.599635601043701,
+          "encoder_output": 6.630837440490723,
+          "condition_all": 2.5291619300842285,
+          "condition_attention": 0.5886807441711426,
+          "condition_fusion": 2.45969820022583
+        },
+        "prior_key": {
+          "shared_all": 21.833778381347656,
+          "input_encoder_all": 21.529272079467773,
+          "input_projection": 17.67170524597168,
+          "transformer_block_0": 3.756917953491211,
+          "transformer_block_1": 3.2181901931762695,
+          "layer_pool": 6.216119289398193,
+          "encoder_output": 9.386635780334473,
+          "condition_all": 3.633784055709839,
+          "condition_attention": 0.8895690441131592,
+          "condition_fusion": 3.523216485977173
+        },
+        "prior_complete": {
+          "shared_all": 16.904682159423828,
+          "input_encoder_all": 16.588998794555664,
+          "input_projection": 12.811333656311035,
+          "transformer_block_0": 2.887826681137085,
+          "transformer_block_1": 2.805654525756836,
+          "layer_pool": 5.228568077087402,
+          "encoder_output": 8.216777801513672,
+          "condition_all": 3.2516770362854004,
+          "condition_attention": 0.7736866474151611,
+          "condition_fusion": 3.158292770385742
+        },
+        "prior_distill": {
+          "shared_all": 0.00536338472738862,
+          "input_encoder_all": 0.005268981214612722,
+          "input_projection": 0.004060753155499697,
+          "transformer_block_0": 0.0009495383128523827,
+          "transformer_block_1": 0.0009008674533106387,
+          "layer_pool": 0.001641696086153388,
+          "encoder_output": 0.0026199412532150745,
+          "condition_all": 0.0010018646717071533,
+          "condition_attention": 0.00019372573297005147,
+          "condition_fusion": 0.0009829563787207007
+        },
+        "prior_gate": {
+          "shared_all": 0.08305129408836365,
+          "input_encoder_all": 0.08121667802333832,
+          "input_projection": 0.05600655451416969,
+          "transformer_block_0": 0.013520799577236176,
+          "transformer_block_1": 0.013116384856402874,
+          "layer_pool": 0.02698945440351963,
+          "encoder_output": 0.04874559864401817,
+          "condition_all": 0.01735999807715416,
+          "condition_attention": 0.0030421309638768435,
+          "condition_fusion": 0.01709137111902237
+        },
+        "prior_total": {
+          "shared_all": 27.753398895263672,
+          "input_encoder_all": 27.278919219970703,
+          "input_projection": 21.638092041015625,
+          "transformer_block_0": 4.6635918617248535,
+          "transformer_block_1": 4.159768581390381,
+          "layer_pool": 8.40054988861084,
+          "encoder_output": 12.896139144897461,
+          "condition_all": 5.109955310821533,
+          "condition_attention": 1.2792195081710815,
+          "condition_fusion": 4.9472455978393555
+        },
+        "final_consistency": {
+          "shared_all": 35.66447067260742,
+          "input_encoder_all": 35.220088958740234,
+          "input_projection": 29.034406661987305,
+          "transformer_block_0": 6.211132526397705,
+          "transformer_block_1": 5.614248275756836,
+          "layer_pool": 10.006426811218262,
+          "encoder_output": 15.07419204711914,
+          "condition_all": 5.612483024597168,
+          "condition_attention": 1.3086034059524536,
+          "condition_fusion": 5.457794666290283
+        },
+        "consistency": {
+          "shared_all": 0.5158776044845581,
+          "input_encoder_all": 0.5136735439300537,
+          "input_projection": 0.4720889627933502,
+          "transformer_block_0": 0.09468510001897812,
+          "transformer_block_1": 0.07494447380304337,
+          "layer_pool": 0.10714002698659897,
+          "encoder_output": 0.1221950352191925,
+          "condition_all": 0.047635968774557114,
+          "condition_attention": 0.011306066066026688,
+          "condition_fusion": 0.0462748147547245
+        }
+      },
+      "aggregate_pairs": {
+        "hallucination__prior_total": {
+          "shared_all": {
+            "cosine": -0.02367623895406723,
+            "dot": -11.106768608093262,
+            "left_norm": 16.902807235717773,
+            "right_norm": 27.753398895263672
+          },
+          "input_encoder_all": {
+            "cosine": -0.02105967327952385,
+            "dot": -9.601093292236328,
+            "left_norm": 16.7125186920166,
+            "right_norm": 27.278919219970703
+          },
+          "input_projection": {
+            "cosine": -0.00800840463489294,
+            "dot": -2.4330310821533203,
+            "left_norm": 14.040502548217773,
+            "right_norm": 21.638092041015625
+          },
+          "transformer_block_0": {
+            "cosine": -0.018299143761396408,
+            "dot": -0.2648077607154846,
+            "left_norm": 3.102982997894287,
+            "right_norm": 4.6635918617248535
+          },
+          "transformer_block_1": {
+            "cosine": -0.10732275247573853,
+            "dot": -1.2160321474075317,
+            "left_norm": 2.72385573387146,
+            "right_norm": 4.159768581390381
+          },
+          "layer_pool": {
+            "cosine": -0.06902144849300385,
+            "dot": -2.666952133178711,
+            "left_norm": 4.599635601043701,
+            "right_norm": 8.40054988861084
+          },
+          "encoder_output": {
+            "cosine": -0.0353197380900383,
+            "dot": -3.020268440246582,
+            "left_norm": 6.630837440490723,
+            "right_norm": 12.896139144897461
+          },
+          "condition_all": {
+            "cosine": -0.11650318652391434,
+            "dot": -1.505676031112671,
+            "left_norm": 2.5291619300842285,
+            "right_norm": 5.109955310821533
+          },
+          "condition_attention": {
+            "cosine": -0.13929474353790283,
+            "dot": -0.1048961654305458,
+            "left_norm": 0.5886807441711426,
+            "right_norm": 1.2792195081710815
+          },
+          "condition_fusion": {
+            "cosine": -0.11511306464672089,
+            "dot": -1.4007798433303833,
+            "left_norm": 2.45969820022583,
+            "right_norm": 4.9472455978393555
+          }
+        },
+        "hallucination__prior_key": {
+          "shared_all": {
+            "cosine": -0.03749571368098259,
+            "dot": -13.837873458862305,
+            "left_norm": 16.902807235717773,
+            "right_norm": 21.833778381347656
+          },
+          "input_encoder_all": {
+            "cosine": -0.0375102162361145,
+            "dot": -13.496488571166992,
+            "left_norm": 16.7125186920166,
+            "right_norm": 21.529272079467773
+          },
+          "input_projection": {
+            "cosine": -0.04657772555947304,
+            "dot": -11.55684757232666,
+            "left_norm": 14.040502548217773,
+            "right_norm": 17.67170524597168
+          },
+          "transformer_block_0": {
+            "cosine": -0.006875618826597929,
+            "dot": -0.08015357702970505,
+            "left_norm": 3.102982997894287,
+            "right_norm": 3.756917953491211
+          },
+          "transformer_block_1": {
+            "cosine": -0.03045899048447609,
+            "dot": -0.2670000195503235,
+            "left_norm": 2.72385573387146,
+            "right_norm": 3.2181901931762695
+          },
+          "layer_pool": {
+            "cosine": -0.013771334663033485,
+            "dot": -0.39374837279319763,
+            "left_norm": 4.599635601043701,
+            "right_norm": 6.216119289398193
+          },
+          "encoder_output": {
+            "cosine": -0.019259577617049217,
+            "dot": -1.1987403631210327,
+            "left_norm": 6.630837440490723,
+            "right_norm": 9.386635780334473
+          },
+          "condition_all": {
+            "cosine": -0.03714556246995926,
+            "dot": -0.3413836359977722,
+            "left_norm": 2.5291619300842285,
+            "right_norm": 3.633784055709839
+          },
+          "condition_attention": {
+            "cosine": -0.050388626754283905,
+            "dot": -0.02638712152838707,
+            "left_norm": 0.5886807441711426,
+            "right_norm": 0.8895690441131592
+          },
+          "condition_fusion": {
+            "cosine": -0.03634834289550781,
+            "dot": -0.31499651074409485,
+            "left_norm": 2.45969820022583,
+            "right_norm": 3.523216485977173
+          }
+        },
+        "hallucination__prior_complete": {
+          "shared_all": {
+            "cosine": 0.010100631974637508,
+            "dot": 2.886119842529297,
+            "left_norm": 16.902807235717773,
+            "right_norm": 16.904682159423828
+          },
+          "input_encoder_all": {
+            "cosine": 0.014610044658184052,
+            "dot": 4.050546646118164,
+            "left_norm": 16.7125186920166,
+            "right_norm": 16.588998794555664
+          },
+          "input_projection": {
+            "cosine": 0.05148080736398697,
+            "dot": 9.260242462158203,
+            "left_norm": 14.040502548217773,
+            "right_norm": 12.811333656311035
+          },
+          "transformer_block_0": {
+            "cosine": -0.019921615719795227,
+            "dot": -0.17851515114307404,
+            "left_norm": 3.102982997894287,
+            "right_norm": 2.887826681137085
+          },
+          "transformer_block_1": {
+            "cosine": -0.1236567273736,
+            "dot": -0.9450092315673828,
+            "left_norm": 2.72385573387146,
+            "right_norm": 2.805654525756836
+          },
+          "layer_pool": {
+            "cosine": -0.09425840526819229,
+            "dot": -2.2668681144714355,
+            "left_norm": 4.599635601043701,
+            "right_norm": 5.228568077087402
+          },
+          "encoder_output": {
+            "cosine": -0.03339153155684471,
+            "dot": -1.8193081617355347,
+            "left_norm": 6.630837440490723,
+            "right_norm": 8.216777801513672
+          },
+          "condition_all": {
+            "cosine": -0.14158852398395538,
+            "dot": -1.164426565170288,
+            "left_norm": 2.5291619300842285,
+            "right_norm": 3.2516770362854004
+          },
+          "condition_attention": {
+            "cosine": -0.1724766045808792,
+            "dot": -0.07855523377656937,
+            "left_norm": 0.5886807441711426,
+            "right_norm": 0.7736866474151611
+          },
+          "condition_fusion": {
+            "cosine": -0.1397797167301178,
+            "dot": -1.0858713388442993,
+            "left_norm": 2.45969820022583,
+            "right_norm": 3.158292770385742
+          }
+        },
+        "hallucination__prior_distill": {
+          "shared_all": {
+            "cosine": 0.03692295402288437,
+            "dot": 0.0033472967334091663,
+            "left_norm": 16.902807235717773,
+            "right_norm": 0.00536338472738862
+          },
+          "input_encoder_all": {
+            "cosine": 0.037778209894895554,
+            "dot": 0.003326671663671732,
+            "left_norm": 16.7125186920166,
+            "right_norm": 0.005268981214612722
+          },
+          "input_projection": {
+            "cosine": 0.05467289313673973,
+            "dot": 0.003117176005616784,
+            "left_norm": 14.040502548217773,
+            "right_norm": 0.004060753155499697
+          },
+          "transformer_block_0": {
+            "cosine": 0.03040621243417263,
+            "dot": 8.95889024832286e-05,
+            "left_norm": 3.102982997894287,
+            "right_norm": 0.0009495383128523827
+          },
+          "transformer_block_1": {
+            "cosine": -0.01364273764193058,
+            "dot": -3.347699748701416e-05,
+            "left_norm": 2.72385573387146,
+            "right_norm": 0.0009008674533106387
+          },
+          "layer_pool": {
+            "cosine": -0.00756746344268322,
+            "dot": -5.7143461162922904e-05,
+            "left_norm": 4.599635601043701,
+            "right_norm": 0.001641696086153388
+          },
+          "encoder_output": {
+            "cosine": 0.0121185053139925,
+            "dot": 0.00021052757801953703,
+            "left_norm": 6.630837440490723,
+            "right_norm": 0.0026199412532150745
+          },
+          "condition_all": {
+            "cosine": 0.008139930665493011,
+            "dot": 2.06255899684038e-05,
+            "left_norm": 2.5291619300842285,
+            "right_norm": 0.0010018646717071533
+          },
+          "condition_attention": {
+            "cosine": -0.005049071740359068,
+            "dot": -5.758093379881757e-07,
+            "left_norm": 0.5886807441711426,
+            "right_norm": 0.00019372573297005147
+          },
+          "condition_fusion": {
+            "cosine": 0.008768967352807522,
+            "dot": 2.1201398340053856e-05,
+            "left_norm": 2.45969820022583,
+            "right_norm": 0.0009829563787207007
+          }
+        },
+        "hallucination__prior_gate": {
+          "shared_all": {
+            "cosine": -0.11280426383018494,
+            "dot": -0.15835462510585785,
+            "left_norm": 16.902807235717773,
+            "right_norm": 0.08305129408836365
+          },
+          "input_encoder_all": {
+            "cosine": -0.11674933135509491,
+            "dot": -0.15846797823905945,
+            "left_norm": 16.7125186920166,
+            "right_norm": 0.08121667802333832
+          },
+          "input_projection": {
+            "cosine": -0.177451491355896,
+            "dot": -0.13954077661037445,
+            "left_norm": 14.040502548217773,
+            "right_norm": 0.05600655451416969
+          },
+          "transformer_block_0": {
+            "cosine": -0.1484604924917221,
+            "dot": -0.006228632293641567,
+            "left_norm": 3.102982997894287,
+            "right_norm": 0.013520799577236176
+          },
+          "transformer_block_1": {
+            "cosine": -0.11166711151599884,
+            "dot": -0.003989546559751034,
+            "left_norm": 2.72385573387146,
+            "right_norm": 0.013116384856402874
+          },
+          "layer_pool": {
+            "cosine": -0.050574950873851776,
+            "dot": -0.006278458051383495,
+            "left_norm": 4.599635601043701,
+            "right_norm": 0.02698945440351963
+          },
+          "encoder_output": {
+            "cosine": -0.007519728038460016,
+            "dot": -0.002430557506158948,
+            "left_norm": 6.630837440490723,
+            "right_norm": 0.04874559864401817
+          },
+          "condition_all": {
+            "cosine": 0.0025812219828367233,
+            "dot": 0.00011333176371408626,
+            "left_norm": 2.5291619300842285,
+            "right_norm": 0.01735999807715416
+          },
+          "condition_attention": {
+            "cosine": 0.026116639375686646,
+            "dot": 4.677082324633375e-05,
+            "left_norm": 0.5886807441711426,
+            "right_norm": 0.0030421309638768435
+          },
+          "condition_fusion": {
+            "cosine": 0.0015832909848541021,
+            "dot": 6.656094046775252e-05,
+            "left_norm": 2.45969820022583,
+            "right_norm": 0.01709137111902237
+          }
+        },
+        "final_mechanism__hallucination": {
+          "shared_all": {
+            "cosine": 0.11726245284080505,
+            "dot": 15.856250762939453,
+            "left_norm": 7.999865531921387,
+            "right_norm": 16.902807235717773
+          },
+          "input_encoder_all": {
+            "cosine": 0.11995696276426315,
+            "dot": 15.841933250427246,
+            "left_norm": 7.902068614959717,
+            "right_norm": 16.7125186920166
+          },
+          "input_projection": {
+            "cosine": 0.15966367721557617,
+            "dot": 14.662805557250977,
+            "left_norm": 6.5407609939575195,
+            "right_norm": 14.040502548217773
+          },
+          "transformer_block_0": {
+            "cosine": 0.0906895101070404,
+            "dot": 0.391897976398468,
+            "left_norm": 1.3926326036453247,
+            "right_norm": 3.102982997894287
+          },
+          "transformer_block_1": {
+            "cosine": 0.0352657176554203,
+            "dot": 0.12013185024261475,
+            "left_norm": 1.2506083250045776,
+            "right_norm": 2.72385573387146
+          },
+          "layer_pool": {
+            "cosine": 0.022121699526906013,
+            "dot": 0.2261827141046524,
+            "left_norm": 2.2228875160217285,
+            "right_norm": 4.599635601043701
+          },
+          "encoder_output": {
+            "cosine": 0.019854487851262093,
+            "dot": 0.44091519713401794,
+            "left_norm": 3.3490991592407227,
+            "right_norm": 6.630837440490723
+          },
+          "condition_all": {
+            "cosine": 0.004539630841463804,
+            "dot": 0.014318045228719711,
+            "left_norm": 1.2470577955245972,
+            "right_norm": 2.5291619300842285
+          },
+          "condition_attention": {
+            "cosine": 0.007495191879570484,
+            "dot": 0.0012738917721435428,
+            "left_norm": 0.2887153923511505,
+            "right_norm": 0.5886807441711426
+          },
+          "condition_fusion": {
+            "cosine": 0.004371296148747206,
+            "dot": 0.013044153340160847,
+            "left_norm": 1.2131761312484741,
+            "right_norm": 2.45969820022583
+          }
+        },
+        "final_mechanism__prior_total": {
+          "shared_all": {
+            "cosine": -0.11440569162368774,
+            "dot": -25.400747299194336,
+            "left_norm": 7.999865531921387,
+            "right_norm": 27.753398895263672
+          },
+          "input_encoder_all": {
+            "cosine": -0.11753123998641968,
+            "dot": -25.33502197265625,
+            "left_norm": 7.902068614959717,
+            "right_norm": 27.278919219970703
+          },
+          "input_projection": {
+            "cosine": -0.15828444063663483,
+            "dot": -22.401931762695312,
+            "left_norm": 6.5407609939575195,
+            "right_norm": 21.638092041015625
+          },
+          "transformer_block_0": {
+            "cosine": -0.12450901418924332,
+            "dot": -0.8086449503898621,
+            "left_norm": 1.3926326036453247,
+            "right_norm": 4.6635918617248535
+          },
+          "transformer_block_1": {
+            "cosine": -0.098981112241745,
+            "dot": -0.514923632144928,
+            "left_norm": 1.2506083250045776,
+            "right_norm": 4.159768581390381
+          },
+          "layer_pool": {
+            "cosine": -0.07337836176156998,
+            "dot": -1.3702291250228882,
+            "left_norm": 2.2228875160217285,
+            "right_norm": 8.40054988861084
+          },
+          "encoder_output": {
+            "cosine": -0.0055403560400009155,
+            "dot": -0.23929046094417572,
+            "left_norm": 3.3490991592407227,
+            "right_norm": 12.896139144897461
+          },
+          "condition_all": {
+            "cosine": -0.010314809158444405,
+            "dot": -0.06573019176721573,
+            "left_norm": 1.2470577955245972,
+            "right_norm": 5.109955310821533
+          },
+          "condition_attention": {
+            "cosine": -0.008842570707201958,
+            "dot": -0.0032658299896866083,
+            "left_norm": 0.2887153923511505,
+            "right_norm": 1.2792195081710815
+          },
+          "condition_fusion": {
+            "cosine": -0.010407465510070324,
+            "dot": -0.062464360147714615,
+            "left_norm": 1.2131761312484741,
+            "right_norm": 4.9472455978393555
+          }
+        },
+        "final_consistency__consistency": {
+          "shared_all": {
+            "cosine": 0.05755189433693886,
+            "dot": 1.058868646621704,
+            "left_norm": 35.66447067260742,
+            "right_norm": 0.5158776044845581
+          },
+          "input_encoder_all": {
+            "cosine": 0.05997418239712715,
+            "dot": 1.0850305557250977,
+            "left_norm": 35.220088958740234,
+            "right_norm": 0.5136735439300537
+          },
+          "input_projection": {
+            "cosine": 0.08515383303165436,
+            "dot": 1.1671885251998901,
+            "left_norm": 29.034406661987305,
+            "right_norm": 0.4720889627933502
+          },
+          "transformer_block_0": {
+            "cosine": 0.04802430048584938,
+            "dot": 0.02824317291378975,
+            "left_norm": 6.211132526397705,
+            "right_norm": 0.09468510001897812
+          },
+          "transformer_block_1": {
+            "cosine": 0.07635124027729034,
+            "dot": 0.032125309109687805,
+            "left_norm": 5.614248275756836,
+            "right_norm": 0.07494447380304337
+          },
+          "layer_pool": {
+            "cosine": -0.01931394264101982,
+            "dot": -0.020706262439489365,
+            "left_norm": 10.006426811218262,
+            "right_norm": 0.10714002698659897
+          },
+          "encoder_output": {
+            "cosine": -0.06613504886627197,
+            "dot": -0.12182019650936127,
+            "left_norm": 15.07419204711914,
+            "right_norm": 0.1221950352191925
+          },
+          "condition_all": {
+            "cosine": -0.09785453975200653,
+            "dot": -0.026162004098296165,
+            "left_norm": 5.612483024597168,
+            "right_norm": 0.047635968774557114
+          },
+          "condition_attention": {
+            "cosine": -0.08904901146888733,
+            "dot": -0.0013174940831959248,
+            "left_norm": 1.3086034059524536,
+            "right_norm": 0.011306066066026688
+          },
+          "condition_fusion": {
+            "cosine": -0.09837133437395096,
+            "dot": -0.024844510480761528,
+            "left_norm": 5.457794666290283,
+            "right_norm": 0.0462748147547245
+          }
+        },
+        "consistency__prior_total": {
+          "shared_all": {
+            "cosine": 0.13294857740402222,
+            "dot": 1.9034723043441772,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 27.753398895263672
+          },
+          "input_encoder_all": {
+            "cosine": 0.13491708040237427,
+            "dot": 1.8905199766159058,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 27.278919219970703
+          },
+          "input_projection": {
+            "cosine": 0.177169531583786,
+            "dot": 1.8098052740097046,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 21.638092041015625
+          },
+          "transformer_block_0": {
+            "cosine": 0.09571081399917603,
+            "dot": 0.04226328060030937,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 4.6635918617248535
+          },
+          "transformer_block_1": {
+            "cosine": 0.04249154031276703,
+            "dot": 0.0132468082010746,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 4.159768581390381
+          },
+          "layer_pool": {
+            "cosine": -0.012808539904654026,
+            "dot": -0.01152813620865345,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 8.40054988861084
+          },
+          "encoder_output": {
+            "cosine": 0.023309994488954544,
+            "dot": 0.03673291951417923,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 12.896139144897461
+          },
+          "condition_all": {
+            "cosine": 0.05321047082543373,
+            "dot": 0.012952368706464767,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 5.109955310821533
+          },
+          "condition_attention": {
+            "cosine": 0.04606404900550842,
+            "dot": 0.0006662216037511826,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 1.2792195081710815
+          },
+          "condition_fusion": {
+            "cosine": 0.05366702750325203,
+            "dot": 0.012286147102713585,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 4.9472455978393555
+          }
+        },
+        "consistency__prior_key": {
+          "shared_all": {
+            "cosine": 0.04195193946361542,
+            "dot": 0.4725280702114105,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 21.833778381347656
+          },
+          "input_encoder_all": {
+            "cosine": 0.04209383204579353,
+            "dot": 0.46551641821861267,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 21.529272079467773
+          },
+          "input_projection": {
+            "cosine": 0.057620979845523834,
+            "dot": 0.4807097613811493,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 17.67170524597168
+          },
+          "transformer_block_0": {
+            "cosine": 0.020757179707288742,
+            "dot": 0.0073838303796947,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 3.756917953491211
+          },
+          "transformer_block_1": {
+            "cosine": -0.010104062967002392,
+            "dot": -0.0024369542952626944,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 3.2181901931762695
+          },
+          "layer_pool": {
+            "cosine": -0.04003101959824562,
+            "dot": -0.026660466566681862,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 6.216119289398193
+          },
+          "encoder_output": {
+            "cosine": 0.005684607196599245,
+            "dot": 0.006520246155560017,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 9.386635780334473
+          },
+          "condition_all": {
+            "cosine": 0.04050667956471443,
+            "dot": 0.007011658512055874,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 3.633784055709839
+          },
+          "condition_attention": {
+            "cosine": 0.06567845493555069,
+            "dot": 0.000660562829580158,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 0.8895690441131592
+          },
+          "condition_fusion": {
+            "cosine": 0.03895512595772743,
+            "dot": 0.006351095624268055,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 3.523216485977173
+          }
+        },
+        "consistency__prior_complete": {
+          "shared_all": {
+            "cosine": 0.16459795832633972,
+            "dot": 1.4354171752929688,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 16.904682159423828
+          },
+          "input_encoder_all": {
+            "cosine": 0.16775089502334595,
+            "dot": 1.4294607639312744,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 16.588998794555664
+          },
+          "input_projection": {
+            "cosine": 0.22044533491134644,
+            "dot": 1.3332730531692505,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 12.811333656311035
+          },
+          "transformer_block_0": {
+            "cosine": 0.12805397808551788,
+            "dot": 0.035014331340789795,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 2.887826681137085
+          },
+          "transformer_block_1": {
+            "cosine": 0.07491563260555267,
+            "dot": 0.015752382576465607,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 2.805654525756836
+          },
+          "layer_pool": {
+            "cosine": 0.02708888053894043,
+            "dot": 0.01517489179968834,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 5.228568077087402
+          },
+          "encoder_output": {
+            "cosine": 0.030123963952064514,
+            "dot": 0.03024594858288765,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 8.216777801513672
+          },
+          "condition_all": {
+            "cosine": 0.038453925400972366,
+            "dot": 0.0059563894756138325,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 3.2516770362854004
+          },
+          "condition_attention": {
+            "cosine": 0.0007135217892937362,
+            "dot": 6.241426490305457e-06,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 0.7736866474151611
+          },
+          "condition_fusion": {
+            "cosine": 0.04071277752518654,
+            "dot": 0.005950148217380047,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 3.158292770385742
+          }
+        },
+        "consistency__prior_distill": {
+          "shared_all": {
+            "cosine": -0.3999042809009552,
+            "dot": -0.0011064752470701933,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 0.00536338472738862
+          },
+          "input_encoder_all": {
+            "cosine": -0.4073605537414551,
+            "dot": -0.0011025361018255353,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 0.005268981214612722
+          },
+          "input_projection": {
+            "cosine": -0.5130223631858826,
+            "dot": -0.0009834826923906803,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 0.004060753155499697
+          },
+          "transformer_block_0": {
+            "cosine": -0.4045889377593994,
+            "dot": -3.6375429772306234e-05,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 0.0009495383128523827
+          },
+          "transformer_block_1": {
+            "cosine": -0.3175695538520813,
+            "dot": -2.144072095688898e-05,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 0.0009008674533106387
+          },
+          "layer_pool": {
+            "cosine": -0.23243986070156097,
+            "dot": -4.0884162444854155e-05,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 0.001641696086153388
+          },
+          "encoder_output": {
+            "cosine": -0.06357567012310028,
+            "dot": -2.0353358195279725e-05,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 0.0026199412532150745
+          },
+          "condition_all": {
+            "cosine": -0.0825384184718132,
+            "dot": -3.939129328500712e-06,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 0.0010018646717071533
+          },
+          "condition_attention": {
+            "cosine": -0.14836084842681885,
+            "dot": -3.249511735248234e-07,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 0.00019372573297005147
+          },
+          "condition_fusion": {
+            "cosine": -0.07945672422647476,
+            "dot": -3.614178694988368e-06,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 0.0009829563787207007
+          }
+        },
+        "consistency__prior_gate": {
+          "shared_all": {
+            "cosine": -0.07855910807847977,
+            "dot": -0.0033658102620393038,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 0.08305129408836365
+          },
+          "input_encoder_all": {
+            "cosine": -0.08039698004722595,
+            "dot": -0.0033540702424943447,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 0.08121667802333832
+          },
+          "input_projection": {
+            "cosine": -0.12079378962516785,
+            "dot": -0.0031937970779836178,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 0.05600655451416969
+          },
+          "transformer_block_0": {
+            "cosine": -0.0769365206360817,
+            "dot": -9.849553316598758e-05,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 0.013520799577236176
+          },
+          "transformer_block_1": {
+            "cosine": -0.047995127737522125,
+            "dot": -4.71792409371119e-05,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 0.013116384856402874
+          },
+          "layer_pool": {
+            "cosine": -0.0005796016193926334,
+            "dot": -1.67600546774338e-06,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 0.02698945440351963
+          },
+          "encoder_output": {
+            "cosine": -0.002169353421777487,
+            "dot": -1.2921688721689861e-05,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 0.04874559864401817
+          },
+          "condition_all": {
+            "cosine": -0.014196814969182014,
+            "dot": -1.1740202353394125e-05,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 0.01735999807715416
+          },
+          "condition_attention": {
+            "cosine": -0.007491282187402248,
+            "dot": -2.576591384695348e-07,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 0.0030421309638768435
+          },
+          "condition_fusion": {
+            "cosine": -0.01451832428574562,
+            "dot": -1.1482543413876556e-05,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 0.01709137111902237
+          }
+        },
+        "consistency__hallucination": {
+          "shared_all": {
+            "cosine": -0.11048071086406708,
+            "dot": -0.9633674621582031,
+            "left_norm": 0.5158776044845581,
+            "right_norm": 16.902807235717773
+          },
+          "input_encoder_all": {
+            "cosine": -0.1118868887424469,
+            "dot": -0.9605242013931274,
+            "left_norm": 0.5136735439300537,
+            "right_norm": 16.7125186920166
+          },
+          "input_projection": {
+            "cosine": -0.15287019312381744,
+            "dot": -1.013279676437378,
+            "left_norm": 0.4720889627933502,
+            "right_norm": 14.040502548217773
+          },
+          "transformer_block_0": {
+            "cosine": -0.07640507817268372,
+            "dot": -0.022448290139436722,
+            "left_norm": 0.09468510001897812,
+            "right_norm": 3.102982997894287
+          },
+          "transformer_block_1": {
+            "cosine": 0.06016065552830696,
+            "dot": 0.012281072326004505,
+            "left_norm": 0.07494447380304337,
+            "right_norm": 2.72385573387146
+          },
+          "layer_pool": {
+            "cosine": 0.0625033751130104,
+            "dot": 0.030801981687545776,
+            "left_norm": 0.10714002698659897,
+            "right_norm": 4.599635601043701
+          },
+          "encoder_output": {
+            "cosine": 0.03964262083172798,
+            "dot": 0.03212064877152443,
+            "left_norm": 0.1221950352191925,
+            "right_norm": 6.630837440490723
+          },
+          "condition_all": {
+            "cosine": -0.023599950596690178,
+            "dot": -0.0028433003462851048,
+            "left_norm": 0.047635968774557114,
+            "right_norm": 2.5291619300842285
+          },
+          "condition_attention": {
+            "cosine": -0.03071904554963112,
+            "dot": -0.00020445561676751822,
+            "left_norm": 0.011306066066026688,
+            "right_norm": 0.5886807441711426
+          },
+          "condition_fusion": {
+            "cosine": -0.023183943703770638,
+            "dot": -0.002638844773173332,
+            "left_norm": 0.0462748147547245,
+            "right_norm": 2.45969820022583
+          }
+        }
+      },
+      "batch_shared_cosines": {
+        "hallucination__prior_total": {
+          "count": 12,
+          "mean": -0.017359732805440824,
+          "median": -0.027652356773614883,
+          "minimum": -0.03943629935383797,
+          "maximum": 0.04701295495033264,
+          "negative_fraction": 0.8333333333333334,
+          "at_or_below_threshold_fraction": 0.0
+        },
+        "hallucination__prior_key": {
+          "count": 12,
+          "mean": -0.02948211187807222,
+          "median": -0.04018433019518852,
+          "minimum": -0.048108749091625214,
+          "maximum": 0.059556618332862854,
+          "negative_fraction": 0.9166666666666666,
+          "at_or_below_threshold_fraction": 0.0
+        },
+        "hallucination__prior_complete": {
+          "count": 12,
+          "mean": 0.01127228825741137,
+          "median": 0.008091387338936329,
+          "minimum": 0.0014339664485305548,
+          "maximum": 0.03477015718817711,
+          "negative_fraction": 0.0,
+          "at_or_below_threshold_fraction": 0.0
+        },
+        "hallucination__prior_distill": {
+          "count": 12,
+          "mean": 0.029675862247434754,
+          "median": 0.0354609377682209,
+          "minimum": -0.040756408125162125,
+          "maximum": 0.07246948778629303,
+          "negative_fraction": 0.16666666666666666,
+          "at_or_below_threshold_fraction": 0.0
+        },
+        "hallucination__prior_gate": {
+          "count": 12,
+          "mean": -0.08879672052959602,
+          "median": -0.11221280321478844,
+          "minimum": -0.12377867847681046,
+          "maximum": 0.11824603378772736,
+          "negative_fraction": 0.9166666666666666,
+          "at_or_below_threshold_fraction": 0.9166666666666666
+        },
+        "final_mechanism__hallucination": {
+          "count": 12,
+          "mean": -0.003972326094905536,
+          "median": -0.01559409499168396,
+          "minimum": -0.12569773197174072,
+          "maximum": 0.11628755927085876,
+          "negative_fraction": 0.5,
+          "at_or_below_threshold_fraction": 0.5
+        },
+        "final_mechanism__prior_total": {
+          "count": 12,
+          "mean": -0.02091306634247303,
+          "median": -0.10738816484808922,
+          "minimum": -0.11847098171710968,
+          "maximum": 0.11916632205247879,
+          "negative_fraction": 0.5833333333333334,
+          "at_or_below_threshold_fraction": 0.5833333333333334
+        },
+        "final_consistency__consistency": {
+          "count": 14,
+          "mean": 0.033947087957390716,
+          "median": 0.03703395277261734,
+          "minimum": -0.030105210840702057,
+          "maximum": 0.055946651846170425,
+          "negative_fraction": 0.07142857142857142,
+          "at_or_below_threshold_fraction": 0.0
+        }
+      },
+      "batch_records": {
+        "mechanism": [
+          {
+            "position": 1,
+            "rows": [
+              "gsm8k-train-04355-cand-006",
+              "gsm8k-train-00333-cand-003",
+              "gsm8k-train-04210-cand-000",
+              "gsm8k-train-03562-cand-007"
+            ],
+            "losses": {
+              "final_mechanism": 0.7139493823051453,
+              "hallucination": 0.6782962083816528,
+              "prior_key": 0.6019980907440186,
+              "prior_complete": 0.738083004951477,
+              "prior_distill": 0.00024852517526596785,
+              "prior_gate": 0.0018185132648795843,
+              "prior_total": 1.3421481847763062
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.03943629935383797,
+              "hallucination__prior_key": -0.048108749091625214,
+              "hallucination__prior_complete": 0.0066217826679348946,
+              "hallucination__prior_distill": 0.02550373040139675,
+              "hallucination__prior_gate": -0.11420787870883942,
+              "final_mechanism__hallucination": 0.10440274327993393,
+              "final_mechanism__prior_total": -0.10818563401699066
+            }
+          },
+          {
+            "position": 2,
+            "rows": [
+              "gsm8k-train-02867-cand-003",
+              "gsm8k-train-07439-cand-007",
+              "gsm8k-train-03751-cand-004",
+              "gsm8k-train-01164-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.7875221967697144,
+              "hallucination": 0.6542068719863892,
+              "prior_key": 0.6028462052345276,
+              "prior_complete": 0.7652603387832642,
+              "prior_distill": 0.0002533508522901684,
+              "prior_gate": 0.0024866231251507998,
+              "prior_total": 1.3708465099334717
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.030735425651073456,
+              "hallucination__prior_key": -0.038874294608831406,
+              "hallucination__prior_complete": 0.004041153006255627,
+              "hallucination__prior_distill": 0.07246948778629303,
+              "hallucination__prior_gate": -0.11248132586479187,
+              "final_mechanism__hallucination": 0.11518074572086334,
+              "final_mechanism__prior_total": -0.11297300457954407
+            }
+          },
+          {
+            "position": 3,
+            "rows": [
+              "gsm8k-train-01052-cand-001",
+              "gsm8k-train-06918-cand-003",
+              "gsm8k-train-02735-cand-003",
+              "gsm8k-train-02214-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 0.6135887503623962,
+              "hallucination": 0.5989632606506348,
+              "prior_key": 0.6194627285003662,
+              "prior_complete": 0.7770015001296997,
+              "prior_distill": 0.00022704644652549177,
+              "prior_gate": 0.0020521206315606833,
+              "prior_total": 1.3987433910369873
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.019862515851855278,
+              "hallucination__prior_key": -0.0358206182718277,
+              "hallucination__prior_complete": 0.01857660710811615,
+              "hallucination__prior_distill": 0.06568554043769836,
+              "hallucination__prior_gate": -0.10397444665431976,
+              "final_mechanism__hallucination": -0.11003715544939041,
+              "final_mechanism__prior_total": 0.1107182428240776
+            }
+          },
+          {
+            "position": 4,
+            "rows": [
+              "gsm8k-train-06555-cand-000",
+              "gsm8k-train-03989-cand-002",
+              "gsm8k-train-00228-cand-000",
+              "gsm8k-train-05851-cand-006"
+            ],
+            "losses": {
+              "final_mechanism": 0.8054337501525879,
+              "hallucination": 0.6992663145065308,
+              "prior_key": 0.5728247165679932,
+              "prior_complete": 0.8033555150032043,
+              "prior_distill": 0.0002488875179551542,
+              "prior_gate": 0.0024214275181293488,
+              "prior_total": 1.3788504600524902
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.0326676145195961,
+              "hallucination__prior_key": -0.04172312095761299,
+              "hallucination__prior_complete": 0.0015702852979302406,
+              "hallucination__prior_distill": 0.04139747470617294,
+              "hallucination__prior_gate": -0.10463516414165497,
+              "final_mechanism__hallucination": 0.11579953879117966,
+              "final_mechanism__prior_total": -0.10946975648403168
+            }
+          },
+          {
+            "position": 5,
+            "rows": [
+              "gsm8k-train-01074-cand-007",
+              "gsm8k-train-01068-cand-005",
+              "gsm8k-train-03486-cand-002",
+              "gsm8k-train-03160-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.47916126251220703,
+              "hallucination": 0.6804414987564087,
+              "prior_key": 0.5813926458358765,
+              "prior_complete": 0.8844671845436096,
+              "prior_distill": 0.0003445153124630451,
+              "prior_gate": 0.0030456501990556717,
+              "prior_total": 1.4692500829696655
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.02772512473165989,
+              "hallucination__prior_key": -0.04149436578154564,
+              "hallucination__prior_complete": 0.0014339664485305548,
+              "hallucination__prior_distill": -0.01328867208212614,
+              "hallucination__prior_gate": -0.12036217004060745,
+              "final_mechanism__hallucination": -0.11393040418624878,
+              "final_mechanism__prior_total": 0.09546784311532974
+            }
+          },
+          {
+            "position": 6,
+            "rows": [
+              "gsm8k-train-04583-cand-000",
+              "gsm8k-train-07455-cand-001",
+              "gsm8k-train-04695-cand-000",
+              "gsm8k-train-06355-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 0.641815185546875,
+              "hallucination": 0.6753695607185364,
+              "prior_key": 0.5700808763504028,
+              "prior_complete": 0.743166446685791,
+              "prior_distill": 0.0002705963561311364,
+              "prior_gate": 0.0020243055187165737,
+              "prior_total": 1.315542221069336
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.032395023852586746,
+              "hallucination__prior_key": -0.04781355708837509,
+              "hallucination__prior_complete": 0.018479986116290092,
+              "hallucination__prior_distill": 0.030730171129107475,
+              "hallucination__prior_gate": -0.0713755190372467,
+              "final_mechanism__hallucination": -0.10918397456407547,
+              "final_mechanism__prior_total": 0.11916632205247879
+            }
+          },
+          {
+            "position": 7,
+            "rows": [
+              "gsm8k-train-02014-cand-007",
+              "gsm8k-train-03225-cand-005",
+              "gsm8k-train-05789-cand-001",
+              "gsm8k-train-06820-cand-004"
+            ],
+            "losses": {
+              "final_mechanism": 0.47787436842918396,
+              "hallucination": 0.6541197299957275,
+              "prior_key": 0.5774371027946472,
+              "prior_complete": 0.8308186531066895,
+              "prior_distill": 0.00025434227427467704,
+              "prior_gate": 0.0020613656379282475,
+              "prior_total": 1.410571575164795
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.027579588815569878,
+              "hallucination__prior_key": -0.04656575992703438,
+              "hallucination__prior_complete": 0.009560992009937763,
+              "hallucination__prior_distill": 0.00259195314720273,
+              "hallucination__prior_gate": -0.11258294433355331,
+              "final_mechanism__hallucination": -0.11952008306980133,
+              "final_mechanism__prior_total": 0.09934327006340027
+            }
+          },
+          {
+            "position": 8,
+            "rows": [
+              "gsm8k-train-01849-cand-001",
+              "gsm8k-train-01756-cand-001",
+              "gsm8k-train-05298-cand-003",
+              "gsm8k-train-06647-cand-007"
+            ],
+            "losses": {
+              "final_mechanism": 0.6894074082374573,
+              "hallucination": 0.7058477401733398,
+              "prior_key": 0.6000336408615112,
+              "prior_complete": 0.8558788299560547,
+              "prior_distill": 0.0002983159210998565,
+              "prior_gate": 0.00258479081094265,
+              "prior_total": 1.4587955474853516
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.016975456848740578,
+              "hallucination__prior_key": -0.009383727796375751,
+              "hallucination__prior_complete": 0.03477015718817711,
+              "hallucination__prior_distill": 0.035529810935258865,
+              "hallucination__prior_gate": -0.12165068089962006,
+              "final_mechanism__hallucination": 0.07799578458070755,
+              "final_mechanism__prior_total": -0.10659069567918777
+            }
+          },
+          {
+            "position": 9,
+            "rows": [
+              "gsm8k-train-04890-cand-002",
+              "gsm8k-train-06870-cand-003",
+              "gsm8k-train-04066-cand-006",
+              "gsm8k-train-07238-cand-005"
+            ],
+            "losses": {
+              "final_mechanism": 0.9557080864906311,
+              "hallucination": 0.7591266632080078,
+              "prior_key": 0.5759170651435852,
+              "prior_complete": 0.8378311395645142,
+              "prior_distill": 0.00020484434207901359,
+              "prior_gate": 0.0018846280872821808,
+              "prior_total": 1.4158376455307007
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.04701295495033264,
+              "hallucination__prior_key": 0.059556618332862854,
+              "hallucination__prior_complete": 0.004199839197099209,
+              "hallucination__prior_distill": -0.040756408125162125,
+              "hallucination__prior_gate": 0.11824603378772736,
+              "final_mechanism__hallucination": -0.11325183510780334,
+              "final_mechanism__prior_total": -0.11192744970321655
+            }
+          },
+          {
+            "position": 10,
+            "rows": [
+              "gsm8k-train-03931-cand-001",
+              "gsm8k-train-03538-cand-003",
+              "gsm8k-train-06776-cand-007",
+              "gsm8k-train-06960-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 0.8533807992935181,
+              "hallucination": 0.6824830174446106,
+              "prior_key": 0.5937900543212891,
+              "prior_complete": 0.8159825801849365,
+              "prior_distill": 0.00028109605773352087,
+              "prior_gate": 0.002249352168291807,
+              "prior_total": 1.41230309009552
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.006196066737174988,
+              "hallucination__prior_key": -0.0216741394251585,
+              "hallucination__prior_complete": 0.017835618928074837,
+              "hallucination__prior_distill": 0.03539206460118294,
+              "hallucination__prior_gate": -0.12377867847681046,
+              "final_mechanism__hallucination": 0.11428689956665039,
+              "final_mechanism__prior_total": -0.11119464784860611
+            }
+          },
+          {
+            "position": 11,
+            "rows": [
+              "gsm8k-train-06339-cand-007",
+              "gsm8k-train-02050-cand-007",
+              "gsm8k-train-00287-cand-007",
+              "gsm8k-train-04590-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.5946176648139954,
+              "hallucination": 0.6500672101974487,
+              "prior_key": 0.582464873790741,
+              "prior_complete": 0.8454190492630005,
+              "prior_distill": 0.00024063240562099963,
+              "prior_gate": 0.002148577244952321,
+              "prior_total": 1.430273175239563
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.02992076613008976,
+              "hallucination__prior_key": -0.04424645006656647,
+              "hallucination__prior_complete": 0.005019389558583498,
+              "hallucination__prior_distill": 0.035951294004917145,
+              "hallucination__prior_gate": -0.111944280564785,
+              "final_mechanism__hallucination": -0.12569773197174072,
+              "final_mechanism__prior_total": 0.10315969586372375
+            }
+          },
+          {
+            "position": 12,
+            "rows": [
+              "gsm8k-train-05019-cand-000",
+              "gsm8k-train-01238-cand-002",
+              "gsm8k-train-00321-cand-003",
+              "gsm8k-train-06610-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.8016774654388428,
+              "hallucination": 0.6528851985931396,
+              "prior_key": 0.6110564470291138,
+              "prior_complete": 0.763882040977478,
+              "prior_distill": 0.0002373898751102388,
+              "prior_gate": 0.0018102378817275167,
+              "prior_total": 1.376986026763916
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.025786779820919037,
+              "hallucination__prior_key": -0.03763717785477638,
+              "hallucination__prior_complete": 0.013157681562006474,
+              "hallucination__prior_distill": 0.06490390002727509,
+              "hallucination__prior_gate": -0.08681359142065048,
+              "final_mechanism__hallucination": 0.11628755927085876,
+              "final_mechanism__prior_total": -0.11847098171710968
+            }
+          }
+        ],
+        "consistency": [
+          {
+            "position": 1,
+            "rows": [
+              "gsm8k-train-07162-cand-000",
+              "gsm8k-train-07162-cand-007",
+              "gsm8k-train-00862-cand-001",
+              "gsm8k-train-00862-cand-004"
+            ],
+            "losses": {
+              "final_consistency": 0.4639133810997009,
+              "consistency": 0.7816984057426453
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.02745712734758854
+            }
+          },
+          {
+            "position": 2,
+            "rows": [
+              "gsm8k-train-06698-cand-006",
+              "gsm8k-train-06698-cand-001",
+              "gsm8k-train-04307-cand-003",
+              "gsm8k-train-04307-cand-004"
+            ],
+            "losses": {
+              "final_consistency": 0.49004310369491577,
+              "consistency": 0.7940742373466492
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.04818351939320564
+            }
+          },
+          {
+            "position": 3,
+            "rows": [
+              "gsm8k-train-06312-cand-000",
+              "gsm8k-train-06312-cand-007",
+              "gsm8k-train-03205-cand-001",
+              "gsm8k-train-03205-cand-007"
+            ],
+            "losses": {
+              "final_consistency": 0.5065346956253052,
+              "consistency": 0.7932367324829102
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.04530498757958412
+            }
+          },
+          {
+            "position": 4,
+            "rows": [
+              "gsm8k-train-03248-cand-006",
+              "gsm8k-train-03248-cand-002",
+              "gsm8k-train-03161-cand-002",
+              "gsm8k-train-03161-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.5153365731239319,
+              "consistency": 0.793544590473175
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.05456296727061272
+            }
+          },
+          {
+            "position": 5,
+            "rows": [
+              "gsm8k-train-05862-cand-000",
+              "gsm8k-train-05862-cand-007",
+              "gsm8k-train-03753-cand-002",
+              "gsm8k-train-03753-cand-006"
+            ],
+            "losses": {
+              "final_consistency": 0.48538243770599365,
+              "consistency": 0.7852885127067566
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.055946651846170425
+            }
+          },
+          {
+            "position": 6,
+            "rows": [
+              "gsm8k-train-03938-cand-007",
+              "gsm8k-train-03938-cand-006"
+            ],
+            "losses": {
+              "final_consistency": 0.48235684633255005,
+              "consistency": 7.571979222120717e-05
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": -0.030105210840702057
+            }
+          },
+          {
+            "position": 7,
+            "rows": [
+              "gsm8k-train-06644-cand-001",
+              "gsm8k-train-06644-cand-000",
+              "gsm8k-train-01914-cand-007",
+              "gsm8k-train-01914-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.5010576248168945,
+              "consistency": 0.7817868590354919
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.055421266704797745
+            }
+          },
+          {
+            "position": 8,
+            "rows": [
+              "gsm8k-train-06453-cand-001",
+              "gsm8k-train-06453-cand-006",
+              "gsm8k-train-04439-cand-004",
+              "gsm8k-train-04439-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.476869136095047,
+              "consistency": 0.7742811441421509
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.032425835728645325
+            }
+          },
+          {
+            "position": 9,
+            "rows": [
+              "gsm8k-train-01770-cand-000",
+              "gsm8k-train-01770-cand-004",
+              "gsm8k-train-01458-cand-000",
+              "gsm8k-train-01458-cand-007"
+            ],
+            "losses": {
+              "final_consistency": 0.4563213586807251,
+              "consistency": 0.7969991564750671
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.009089866653084755
+            }
+          },
+          {
+            "position": 10,
+            "rows": [
+              "gsm8k-train-05032-cand-002",
+              "gsm8k-train-05032-cand-007",
+              "gsm8k-train-03457-cand-005",
+              "gsm8k-train-03457-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.5089475512504578,
+              "consistency": 0.777942955493927
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.0509599931538105
+            }
+          },
+          {
+            "position": 11,
+            "rows": [
+              "gsm8k-train-04207-cand-007",
+              "gsm8k-train-04207-cand-000",
+              "gsm8k-train-05189-cand-001",
+              "gsm8k-train-05189-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.4980674982070923,
+              "consistency": 0.7853148579597473
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.03557930514216423
+            }
+          },
+          {
+            "position": 12,
+            "rows": [
+              "gsm8k-train-04225-cand-005",
+              "gsm8k-train-04225-cand-002",
+              "gsm8k-train-01740-cand-004",
+              "gsm8k-train-01740-cand-003"
+            ],
+            "losses": {
+              "final_consistency": 0.5024843811988831,
+              "consistency": 0.7815558314323425
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.016365015879273415
+            }
+          },
+          {
+            "position": 13,
+            "rows": [
+              "gsm8k-train-04700-cand-000",
+              "gsm8k-train-04700-cand-001",
+              "gsm8k-train-03341-cand-004",
+              "gsm8k-train-03341-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.48739176988601685,
+              "consistency": 0.7936044931411743
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.03695615008473396
+            }
+          },
+          {
+            "position": 14,
+            "rows": [
+              "gsm8k-train-07373-cand-005",
+              "gsm8k-train-07373-cand-001",
+              "gsm8k-train-01660-cand-007",
+              "gsm8k-train-01660-cand-002"
+            ],
+            "losses": {
+              "final_consistency": 0.5203131437301636,
+              "consistency": 0.7827712297439575
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.03711175546050072
+            }
+          }
+        ]
+      },
+      "prior_component_sum_checks": [
+        {
+          "prior_total_loss": 1.3421481847763062,
+          "component_gradient_norm": 24.094465255737305
+        },
+        {
+          "prior_total_loss": 1.3708465099334717,
+          "component_gradient_norm": 24.616413116455078
+        },
+        {
+          "prior_total_loss": 1.3987433910369873,
+          "component_gradient_norm": 26.313453674316406
+        },
+        {
+          "prior_total_loss": 1.3788504600524902,
+          "component_gradient_norm": 28.940635681152344
+        },
+        {
+          "prior_total_loss": 1.4692500829696655,
+          "component_gradient_norm": 31.598190307617188
+        },
+        {
+          "prior_total_loss": 1.315542221069336,
+          "component_gradient_norm": 25.712556838989258
+        },
+        {
+          "prior_total_loss": 1.410571575164795,
+          "component_gradient_norm": 27.791088104248047
+        },
+        {
+          "prior_total_loss": 1.4587955474853516,
+          "component_gradient_norm": 29.9403133392334
+        },
+        {
+          "prior_total_loss": 1.4158376455307007,
+          "component_gradient_norm": 31.12706756591797
+        },
+        {
+          "prior_total_loss": 1.41230309009552,
+          "component_gradient_norm": 28.550195693969727
+        },
+        {
+          "prior_total_loss": 1.430273175239563,
+          "component_gradient_norm": 30.759620666503906
+        },
+        {
+          "prior_total_loss": 1.376986026763916,
+          "component_gradient_norm": 26.268577575683594
+        }
+      ],
+      "passed": true
+    },
+    "jp_epoch5": {
+      "state": "jp_epoch5",
+      "provenance": {
+        "kind": "checkpoint",
+        "checkpoint": "/prodcpfs/user/panzhixin/ICLR_2027/run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+        "checkpoint_sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+        "completed_epoch": 5,
+        "training_code": {
+          "commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+          "dirty": false
+        },
+        "parameter_checksum": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f"
+      },
+      "parameter_checksum_before": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f",
+      "parameter_checksum_after": "e479ccf5d1842adb1fb2100f6abe6401bb6c898689e83404c076ce61ab42115f",
+      "no_parameter_update": true,
+      "optimizer_grad_buffers_absent": true,
+      "shared_parameter_groups": {
+        "shared_all": {
+          "parameter_tensors": 49,
+          "parameter_elements": 8162306
+        },
+        "input_encoder_all": {
+          "parameter_tensors": 38,
+          "parameter_elements": 3433728
+        },
+        "input_projection": {
+          "parameter_tensors": 6,
+          "parameter_elements": 802304
+        },
+        "transformer_block_0": {
+          "parameter_tensors": 12,
+          "parameter_elements": 789760
+        },
+        "transformer_block_1": {
+          "parameter_tensors": 12,
+          "parameter_elements": 789760
+        },
+        "layer_pool": {
+          "parameter_tensors": 4,
+          "parameter_elements": 263168
+        },
+        "encoder_output": {
+          "parameter_tensors": 4,
+          "parameter_elements": 788736
+        },
+        "condition_all": {
+          "parameter_tensors": 11,
+          "parameter_elements": 4728578
+        },
+        "condition_attention": {
+          "parameter_tensors": 3,
+          "parameter_elements": 1769472
+        },
+        "condition_fusion": {
+          "parameter_tensors": 8,
+          "parameter_elements": 2959106
+        }
+      },
+      "objective_batch_counts": {
+        "final_mechanism": 12,
+        "hallucination": 12,
+        "prior_key": 12,
+        "prior_complete": 12,
+        "prior_distill": 12,
+        "prior_gate": 12,
+        "prior_total": 12,
+        "final_consistency": 14,
+        "consistency": 14
+      },
+      "aggregate_gradient_norms": {
+        "final_mechanism": {
+          "shared_all": 8.158047676086426,
+          "input_encoder_all": 8.147624015808105,
+          "input_projection": 8.081686973571777,
+          "transformer_block_0": 0.7830206155776978,
+          "transformer_block_1": 0.14740465581417084,
+          "layer_pool": 0.33385008573532104,
+          "encoder_output": 0.5690367817878723,
+          "condition_all": 0.41227349638938904,
+          "condition_attention": 0.04018838331103325,
+          "condition_fusion": 0.4103100299835205
+        },
+        "hallucination": {
+          "shared_all": 1.2500054836273193,
+          "input_encoder_all": 1.1665008068084717,
+          "input_projection": 0.6294021010398865,
+          "transformer_block_0": 0.1333383470773697,
+          "transformer_block_1": 0.07151728123426437,
+          "layer_pool": 0.29449936747550964,
+          "encoder_output": 0.9246369004249573,
+          "condition_all": 0.44920992851257324,
+          "condition_attention": 0.04432198032736778,
+          "condition_fusion": 0.447018027305603
+        },
+        "prior_key": {
+          "shared_all": 0.12701073288917542,
+          "input_encoder_all": 0.125613272190094,
+          "input_projection": 0.11508020013570786,
+          "transformer_block_0": 0.02651320956647396,
+          "transformer_block_1": 0.011399618349969387,
+          "layer_pool": 0.026097144931554794,
+          "encoder_output": 0.031957462430000305,
+          "condition_all": 0.018789159134030342,
+          "condition_attention": 0.002714988775551319,
+          "condition_fusion": 0.018591968342661858
+        },
+        "prior_complete": {
+          "shared_all": 0.44152599573135376,
+          "input_encoder_all": 0.43896639347076416,
+          "input_projection": 0.41404756903648376,
+          "transformer_block_0": 0.09089349955320358,
+          "transformer_block_1": 0.040235430002212524,
+          "layer_pool": 0.08758765459060669,
+          "encoder_output": 0.06086042523384094,
+          "condition_all": 0.04747331887483597,
+          "condition_attention": 0.005598262883722782,
+          "condition_fusion": 0.04714207351207733
+        },
+        "prior_distill": {
+          "shared_all": 0.14976941049098969,
+          "input_encoder_all": 0.14965476095676422,
+          "input_projection": 0.14826296269893646,
+          "transformer_block_0": 0.01758350059390068,
+          "transformer_block_1": 0.003423038637265563,
+          "layer_pool": 0.005802219733595848,
+          "encoder_output": 0.0077509828843176365,
+          "condition_all": 0.005858846474438906,
+          "condition_attention": 0.0011852782918140292,
+          "condition_fusion": 0.005737700033932924
+        },
+        "prior_gate": {
+          "shared_all": 0.15910422801971436,
+          "input_encoder_all": 0.15877214074134827,
+          "input_projection": 0.15658485889434814,
+          "transformer_block_0": 0.01978429965674877,
+          "transformer_block_1": 0.004872982855886221,
+          "layer_pool": 0.01192715298384428,
+          "encoder_output": 0.011504549533128738,
+          "condition_all": 0.010274323634803295,
+          "condition_attention": 0.0018437327817082405,
+          "condition_fusion": 0.010107540525496006
+        },
+        "prior_total": {
+          "shared_all": 0.5358045101165771,
+          "input_encoder_all": 0.5332822799682617,
+          "input_projection": 0.5026307106018066,
+          "transformer_block_0": 0.11391256749629974,
+          "transformer_block_1": 0.04887586459517479,
+          "layer_pool": 0.10561376065015793,
+          "encoder_output": 0.07233978807926178,
+          "condition_all": 0.05192757770419121,
+          "condition_attention": 0.004612286109477282,
+          "condition_fusion": 0.051722340285778046
+        },
+        "final_consistency": {
+          "shared_all": 0.06815635412931442,
+          "input_encoder_all": 0.06795445829629898,
+          "input_projection": 0.06723229587078094,
+          "transformer_block_0": 0.006564537528902292,
+          "transformer_block_1": 0.0012383192079141736,
+          "layer_pool": 0.002928381320089102,
+          "encoder_output": 0.0066652363166213036,
+          "condition_all": 0.005242126062512398,
+          "condition_attention": 0.0005236084689386189,
+          "condition_fusion": 0.005215910263359547
+        },
+        "consistency": {
+          "shared_all": 1.7128691673278809,
+          "input_encoder_all": 1.7106817960739136,
+          "input_projection": 1.680281400680542,
+          "transformer_block_0": 0.22999684512615204,
+          "transformer_block_1": 0.06246026232838631,
+          "layer_pool": 0.16335852444171906,
+          "encoder_output": 0.14000457525253296,
+          "condition_all": 0.08653897047042847,
+          "condition_attention": 0.014036057516932487,
+          "condition_fusion": 0.08539310097694397
+        }
+      },
+      "aggregate_pairs": {
+        "hallucination__prior_total": {
+          "shared_all": {
+            "cosine": 0.12634269893169403,
+            "dot": 0.08461910486221313,
+            "left_norm": 1.2500054836273193,
+            "right_norm": 0.5358045101165771
+          },
+          "input_encoder_all": {
+            "cosine": 0.1400279998779297,
+            "dot": 0.08710779994726181,
+            "left_norm": 1.1665008068084717,
+            "right_norm": 0.5332822799682617
+          },
+          "input_projection": {
+            "cosine": 0.21019603312015533,
+            "dot": 0.06649695336818695,
+            "left_norm": 0.6294021010398865,
+            "right_norm": 0.5026307106018066
+          },
+          "transformer_block_0": {
+            "cosine": 0.3219311833381653,
+            "dot": 0.004889784846454859,
+            "left_norm": 0.1333383470773697,
+            "right_norm": 0.11391256749629974
+          },
+          "transformer_block_1": {
+            "cosine": 0.5287982225418091,
+            "dot": 0.0018483977764844894,
+            "left_norm": 0.07151728123426437,
+            "right_norm": 0.04887586459517479
+          },
+          "layer_pool": {
+            "cosine": 0.33753952383995056,
+            "dot": 0.010498554445803165,
+            "left_norm": 0.29449936747550964,
+            "right_norm": 0.10561376065015793
+          },
+          "encoder_output": {
+            "cosine": 0.05044404789805412,
+            "dot": 0.0033741032239049673,
+            "left_norm": 0.9246369004249573,
+            "right_norm": 0.07233978807926178
+          },
+          "condition_all": {
+            "cosine": -0.10669035464525223,
+            "dot": -0.002488700207322836,
+            "left_norm": 0.44920992851257324,
+            "right_norm": 0.05192757770419121
+          },
+          "condition_attention": {
+            "cosine": -0.2101576179265976,
+            "dot": -4.2961608414771035e-05,
+            "left_norm": 0.04432198032736778,
+            "right_norm": 0.004612286109477282
+          },
+          "condition_fusion": {
+            "cosine": -0.10578080266714096,
+            "dot": -0.002445738762617111,
+            "left_norm": 0.447018027305603,
+            "right_norm": 0.051722340285778046
+          }
+        },
+        "hallucination__prior_key": {
+          "shared_all": {
+            "cosine": 0.2093217521905899,
+            "dot": 0.033232782036066055,
+            "left_norm": 1.2500054836273193,
+            "right_norm": 0.12701073288917542
+          },
+          "input_encoder_all": {
+            "cosine": 0.22928966581821442,
+            "dot": 0.03359735384583473,
+            "left_norm": 1.1665008068084717,
+            "right_norm": 0.125613272190094
+          },
+          "input_projection": {
+            "cosine": 0.36018362641334534,
+            "dot": 0.026088720187544823,
+            "left_norm": 0.6294021010398865,
+            "right_norm": 0.11508020013570786
+          },
+          "transformer_block_0": {
+            "cosine": 0.43994247913360596,
+            "dot": 0.0015552968252450228,
+            "left_norm": 0.1333383470773697,
+            "right_norm": 0.02651320956647396
+          },
+          "transformer_block_1": {
+            "cosine": 0.5125390887260437,
+            "dot": 0.0004178576054982841,
+            "left_norm": 0.07151728123426437,
+            "right_norm": 0.011399618349969387
+          },
+          "layer_pool": {
+            "cosine": 0.4051394462585449,
+            "dot": 0.003113736864179373,
+            "left_norm": 0.29449936747550964,
+            "right_norm": 0.026097144931554794
+          },
+          "encoder_output": {
+            "cosine": 0.08195666968822479,
+            "dot": 0.002421741606667638,
+            "left_norm": 0.9246369004249573,
+            "right_norm": 0.031957462430000305
+          },
+          "condition_all": {
+            "cosine": -0.043193694204092026,
+            "dot": -0.00036456671659834683,
+            "left_norm": 0.44920992851257324,
+            "right_norm": 0.018789159134030342
+          },
+          "condition_attention": {
+            "cosine": 0.4494074285030365,
+            "dot": 5.407884964370169e-05,
+            "left_norm": 0.04432198032736778,
+            "right_norm": 0.002714988775551319
+          },
+          "condition_fusion": {
+            "cosine": -0.05037280172109604,
+            "dot": -0.0004186455626040697,
+            "left_norm": 0.447018027305603,
+            "right_norm": 0.018591968342661858
+          }
+        },
+        "hallucination__prior_complete": {
+          "shared_all": {
+            "cosine": 0.12733136117458344,
+            "dot": 0.0702754408121109,
+            "left_norm": 1.2500054836273193,
+            "right_norm": 0.44152599573135376
+          },
+          "input_encoder_all": {
+            "cosine": 0.1430913656949997,
+            "dot": 0.07327060401439667,
+            "left_norm": 1.1665008068084717,
+            "right_norm": 0.43896639347076416
+          },
+          "input_projection": {
+            "cosine": 0.221163809299469,
+            "dot": 0.057635821402072906,
+            "left_norm": 0.6294021010398865,
+            "right_norm": 0.41404756903648376
+          },
+          "transformer_block_0": {
+            "cosine": 0.319917231798172,
+            "dot": 0.003877265378832817,
+            "left_norm": 0.1333383470773697,
+            "right_norm": 0.09089349955320358
+          },
+          "transformer_block_1": {
+            "cosine": 0.5464157462120056,
+            "dot": 0.0015723269898444414,
+            "left_norm": 0.07151728123426437,
+            "right_norm": 0.040235430002212524
+          },
+          "layer_pool": {
+            "cosine": 0.32485419511795044,
+            "dot": 0.008379454724490643,
+            "left_norm": 0.29449936747550964,
+            "right_norm": 0.08758765459060669
+          },
+          "encoder_output": {
+            "cosine": 0.03208858519792557,
+            "dot": 0.0018057464621961117,
+            "left_norm": 0.9246369004249573,
+            "right_norm": 0.06086042523384094
+          },
+          "condition_all": {
+            "cosine": -0.14044977724552155,
+            "dot": -0.002995159709826112,
+            "left_norm": 0.44920992851257324,
+            "right_norm": 0.04747331887483597
+          },
+          "condition_attention": {
+            "cosine": -0.6261549592018127,
+            "dot": -0.00015536538558080792,
+            "left_norm": 0.04432198032736778,
+            "right_norm": 0.005598262883722782
+          },
+          "condition_fusion": {
+            "cosine": -0.13475757837295532,
+            "dot": -0.0028397943824529648,
+            "left_norm": 0.447018027305603,
+            "right_norm": 0.04714207351207733
+          }
+        },
+        "hallucination__prior_distill": {
+          "shared_all": {
+            "cosine": -0.06897775083780289,
+            "dot": -0.012913503684103489,
+            "left_norm": 1.2500054836273193,
+            "right_norm": 0.14976941049098969
+          },
+          "input_encoder_all": {
+            "cosine": -0.07460486143827438,
+            "dot": -0.013023949228227139,
+            "left_norm": 1.1665008068084717,
+            "right_norm": 0.14965476095676422
+          },
+          "input_projection": {
+            "cosine": -0.13337239623069763,
+            "dot": -0.012445914559066296,
+            "left_norm": 0.6294021010398865,
+            "right_norm": 0.14826296269893646
+          },
+          "transformer_block_0": {
+            "cosine": -0.02184622548520565,
+            "dot": -5.121967842569575e-05,
+            "left_norm": 0.1333383470773697,
+            "right_norm": 0.01758350059390068
+          },
+          "transformer_block_1": {
+            "cosine": -0.20039474964141846,
+            "dot": -4.905791865894571e-05,
+            "left_norm": 0.07151728123426437,
+            "right_norm": 0.003423038637265563
+          },
+          "layer_pool": {
+            "cosine": -0.2444419413805008,
+            "dot": -0.0004176901711616665,
+            "left_norm": 0.29449936747550964,
+            "right_norm": 0.005802219733595848
+          },
+          "encoder_output": {
+            "cosine": -0.0083811916410923,
+            "dot": -6.0066700825700536e-05,
+            "left_norm": 0.9246369004249573,
+            "right_norm": 0.0077509828843176365
+          },
+          "condition_all": {
+            "cosine": 0.04196540266275406,
+            "dot": 0.0001104467228287831,
+            "left_norm": 0.44920992851257324,
+            "right_norm": 0.005858846474438906
+          },
+          "condition_attention": {
+            "cosine": 0.10562501847743988,
+            "dot": 5.548892204387812e-06,
+            "left_norm": 0.04432198032736778,
+            "right_norm": 0.0011852782918140292
+          },
+          "condition_fusion": {
+            "cosine": 0.040898144245147705,
+            "dot": 0.00010489783016964793,
+            "left_norm": 0.447018027305603,
+            "right_norm": 0.005737700033932924
+          }
+        },
+        "hallucination__prior_gate": {
+          "shared_all": {
+            "cosine": -0.030046338215470314,
+            "dot": -0.0059756506234407425,
+            "left_norm": 1.2500054836273193,
+            "right_norm": 0.15910422801971436
+          },
+          "input_encoder_all": {
+            "cosine": -0.036371197551488876,
+            "dot": -0.006736230570822954,
+            "left_norm": 1.1665008068084717,
+            "right_norm": 0.15877214074134827
+          },
+          "input_projection": {
+            "cosine": -0.04851795732975006,
+            "dot": -0.004781679715961218,
+            "left_norm": 0.6294021010398865,
+            "right_norm": 0.15658485889434814
+          },
+          "transformer_block_0": {
+            "cosine": -0.1863369643688202,
+            "dot": -0.0004915579920634627,
+            "left_norm": 0.1333383470773697,
+            "right_norm": 0.01978429965674877
+          },
+          "transformer_block_1": {
+            "cosine": -0.26607951521873474,
+            "dot": -9.272937313653529e-05,
+            "left_norm": 0.07151728123426437,
+            "right_norm": 0.004872982855886221
+          },
+          "layer_pool": {
+            "cosine": -0.16425339877605438,
+            "dot": -0.0005769464769400656,
+            "left_norm": 0.29449936747550964,
+            "right_norm": 0.01192715298384428
+          },
+          "encoder_output": {
+            "cosine": -0.07457729429006577,
+            "dot": -0.0007933182641863823,
+            "left_norm": 0.9246369004249573,
+            "right_norm": 0.011504549533128738
+          },
+          "condition_all": {
+            "cosine": 0.1647941768169403,
+            "dot": 0.0007605791906826198,
+            "left_norm": 0.44920992851257324,
+            "right_norm": 0.010274323634803295
+          },
+          "condition_attention": {
+            "cosine": 0.6458322405815125,
+            "dot": 5.277604577713646e-05,
+            "left_norm": 0.04432198032736778,
+            "right_norm": 0.0018437327817082405
+          },
+          "condition_fusion": {
+            "cosine": 0.15665417909622192,
+            "dot": 0.0007078031776472926,
+            "left_norm": 0.447018027305603,
+            "right_norm": 0.010107540525496006
+          }
+        },
+        "final_mechanism__hallucination": {
+          "shared_all": {
+            "cosine": 0.0032849651761353016,
+            "dot": 0.03349877521395683,
+            "left_norm": 8.158047676086426,
+            "right_norm": 1.2500054836273193
+          },
+          "input_encoder_all": {
+            "cosine": 0.003267635591328144,
+            "dot": 0.031056294217705727,
+            "left_norm": 8.147624015808105,
+            "right_norm": 1.1665008068084717
+          },
+          "input_projection": {
+            "cosine": -0.007852232083678246,
+            "dot": -0.03994140774011612,
+            "left_norm": 8.081686973571777,
+            "right_norm": 0.6294021010398865
+          },
+          "transformer_block_0": {
+            "cosine": 0.17603924870491028,
+            "dot": 0.01837967336177826,
+            "left_norm": 0.7830206155776978,
+            "right_norm": 0.1333383470773697
+          },
+          "transformer_block_1": {
+            "cosine": 0.449188768863678,
+            "dot": 0.004735338967293501,
+            "left_norm": 0.14740465581417084,
+            "right_norm": 0.07151728123426437
+          },
+          "layer_pool": {
+            "cosine": 0.2852073907852173,
+            "dot": 0.02804120071232319,
+            "left_norm": 0.33385008573532104,
+            "right_norm": 0.29449936747550964
+          },
+          "encoder_output": {
+            "cosine": 0.0377105288207531,
+            "dot": 0.01984148658812046,
+            "left_norm": 0.5690367817878723,
+            "right_norm": 0.9246369004249573
+          },
+          "condition_all": {
+            "cosine": 0.013188531622290611,
+            "dot": 0.00244248122908175,
+            "left_norm": 0.41227349638938904,
+            "right_norm": 0.44920992851257324
+          },
+          "condition_attention": {
+            "cosine": 0.4585365653038025,
+            "dot": 0.0008167584892362356,
+            "left_norm": 0.04018838331103325,
+            "right_norm": 0.04432198032736778
+          },
+          "condition_fusion": {
+            "cosine": 0.008863583207130432,
+            "dot": 0.0016257227398455143,
+            "left_norm": 0.4103100299835205,
+            "right_norm": 0.447018027305603
+          }
+        },
+        "final_mechanism__prior_total": {
+          "shared_all": {
+            "cosine": -0.22279101610183716,
+            "dot": -0.9738459587097168,
+            "left_norm": 8.158047676086426,
+            "right_norm": 0.5358045101165771
+          },
+          "input_encoder_all": {
+            "cosine": -0.2242826521396637,
+            "dot": -0.9745044708251953,
+            "left_norm": 8.147624015808105,
+            "right_norm": 0.5332822799682617
+          },
+          "input_projection": {
+            "cosine": -0.23627084493637085,
+            "dot": -0.9597567915916443,
+            "left_norm": 8.081686973571777,
+            "right_norm": 0.5026307106018066
+          },
+          "transformer_block_0": {
+            "cosine": -0.14752115309238434,
+            "dot": -0.013158280402421951,
+            "left_norm": 0.7830206155776978,
+            "right_norm": 0.11391256749629974
+          },
+          "transformer_block_1": {
+            "cosine": 0.08450803905725479,
+            "dot": 0.0006088406662456691,
+            "left_norm": 0.14740465581417084,
+            "right_norm": 0.04887586459517479
+          },
+          "layer_pool": {
+            "cosine": 0.03224291652441025,
+            "dot": 0.0011368582490831614,
+            "left_norm": 0.33385008573532104,
+            "right_norm": 0.10561376065015793
+          },
+          "encoder_output": {
+            "cosine": -0.0810263454914093,
+            "dot": -0.003335368586704135,
+            "left_norm": 0.5690367817878723,
+            "right_norm": 0.07233978807926178
+          },
+          "condition_all": {
+            "cosine": 0.030755648389458656,
+            "dot": 0.0006584281218238175,
+            "left_norm": 0.41227349638938904,
+            "right_norm": 0.05192757770419121
+          },
+          "condition_attention": {
+            "cosine": -0.11005647480487823,
+            "dot": -2.0400102584972046e-05,
+            "left_norm": 0.04018838331103325,
+            "right_norm": 0.004612286109477282
+          },
+          "condition_fusion": {
+            "cosine": 0.03198670968413353,
+            "dot": 0.0006788281607441604,
+            "left_norm": 0.4103100299835205,
+            "right_norm": 0.051722340285778046
+          }
+        },
+        "final_consistency__consistency": {
+          "shared_all": {
+            "cosine": 0.694381833076477,
+            "dot": 0.08106415718793869,
+            "left_norm": 0.06815635412931442,
+            "right_norm": 1.7128691673278809
+          },
+          "input_encoder_all": {
+            "cosine": 0.6977038979530334,
+            "dot": 0.081106998026371,
+            "left_norm": 0.06795445829629898,
+            "right_norm": 1.7106817960739136
+          },
+          "input_projection": {
+            "cosine": 0.7082071900367737,
+            "dot": 0.08000557869672775,
+            "left_norm": 0.06723229587078094,
+            "right_norm": 1.680281400680542
+          },
+          "transformer_block_0": {
+            "cosine": 0.4500872492790222,
+            "dot": 0.0006795520312152803,
+            "left_norm": 0.006564537528902292,
+            "right_norm": 0.22999684512615204
+          },
+          "transformer_block_1": {
+            "cosine": 0.5012775659561157,
+            "dot": 3.877168637700379e-05,
+            "left_norm": 0.0012383192079141736,
+            "right_norm": 0.06246026232838631
+          },
+          "layer_pool": {
+            "cosine": 0.4637964069843292,
+            "dot": 0.00022186909336596727,
+            "left_norm": 0.002928381320089102,
+            "right_norm": 0.16335852444171906
+          },
+          "encoder_output": {
+            "cosine": 0.1727769523859024,
+            "dot": 0.0001612291525816545,
+            "left_norm": 0.0066652363166213036,
+            "right_norm": 0.14000457525253296
+          },
+          "condition_all": {
+            "cosine": -0.09442998468875885,
+            "dot": -4.283798989490606e-05,
+            "left_norm": 0.005242126062512398,
+            "right_norm": 0.08653897047042847
+          },
+          "condition_attention": {
+            "cosine": -0.4994995594024658,
+            "dot": -3.6710212043544743e-06,
+            "left_norm": 0.0005236084689386189,
+            "right_norm": 0.014036057516932487
+          },
+          "condition_fusion": {
+            "cosine": -0.08793605864048004,
+            "dot": -3.9166963688330725e-05,
+            "left_norm": 0.005215910263359547,
+            "right_norm": 0.08539310097694397
+          }
+        },
+        "consistency__prior_total": {
+          "shared_all": {
+            "cosine": 0.26799631118774414,
+            "dot": 0.2459571212530136,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 0.5358045101165771
+          },
+          "input_encoder_all": {
+            "cosine": 0.26975688338279724,
+            "dot": 0.2460927963256836,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 0.5332822799682617
+          },
+          "input_projection": {
+            "cosine": 0.2928493916988373,
+            "dot": 0.24732919037342072,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.5026307106018066
+          },
+          "transformer_block_0": {
+            "cosine": 0.041561949998140335,
+            "dot": 0.0010889036348089576,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.11391256749629974
+          },
+          "transformer_block_1": {
+            "cosine": -0.10243148356676102,
+            "dot": -0.00031270275940187275,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.04887586459517479
+          },
+          "layer_pool": {
+            "cosine": -0.10087045282125473,
+            "dot": -0.0017403087113052607,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.10561376065015793
+          },
+          "encoder_output": {
+            "cosine": -0.026884572580456734,
+            "dot": -0.0002722842909861356,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.07233978807926178
+          },
+          "condition_all": {
+            "cosine": -0.030194466933608055,
+            "dot": -0.0001356866559945047,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.05192757770419121
+          },
+          "condition_attention": {
+            "cosine": 0.12937380373477936,
+            "dot": 8.375442121177912e-06,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.004612286109477282
+          },
+          "condition_fusion": {
+            "cosine": -0.03261735662817955,
+            "dot": -0.0001440620981156826,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.051722340285778046
+          }
+        },
+        "consistency__prior_key": {
+          "shared_all": {
+            "cosine": 0.1252330243587494,
+            "dot": 0.027244791388511658,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 0.12701073288917542
+          },
+          "input_encoder_all": {
+            "cosine": 0.12623216211795807,
+            "dot": 0.027125313878059387,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 0.125613272190094
+          },
+          "input_projection": {
+            "cosine": 0.16254989802837372,
+            "dot": 0.03143180534243584,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.11508020013570786
+          },
+          "transformer_block_0": {
+            "cosine": -0.20890358090400696,
+            "dot": -0.0012738845543935895,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.02651320956647396
+          },
+          "transformer_block_1": {
+            "cosine": -0.3453960120677948,
+            "dot": -0.00024592995760031044,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.011399618349969387
+          },
+          "layer_pool": {
+            "cosine": -0.47508764266967773,
+            "dot": -0.0020253893453627825,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.026097144931554794
+          },
+          "encoder_output": {
+            "cosine": -0.1701515167951584,
+            "dot": -0.0007612903718836606,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.031957462430000305
+          },
+          "condition_all": {
+            "cosine": 0.07347860187292099,
+            "dot": 0.00011947579332627356,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.018789159134030342
+          },
+          "condition_attention": {
+            "cosine": 0.4225654900074005,
+            "dot": 1.6103014786494896e-05,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.002714988775551319
+          },
+          "condition_fusion": {
+            "cosine": 0.06511155515909195,
+            "dot": 0.00010337278217775747,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.018591968342661858
+          }
+        },
+        "consistency__prior_complete": {
+          "shared_all": {
+            "cosine": 0.23305656015872955,
+            "dot": 0.17625513672828674,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 0.44152599573135376
+          },
+          "input_encoder_all": {
+            "cosine": 0.2357219159603119,
+            "dot": 0.17701108753681183,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 0.43896639347076416
+          },
+          "input_projection": {
+            "cosine": 0.25336527824401855,
+            "dot": 0.17627039551734924,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.41404756903648376
+          },
+          "transformer_block_0": {
+            "cosine": 0.11297997087240219,
+            "dot": 0.0023618710692971945,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.09089349955320358
+          },
+          "transformer_block_1": {
+            "cosine": -0.07760734111070633,
+            "dot": -0.00019503622024785727,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.040235430002212524
+          },
+          "layer_pool": {
+            "cosine": -0.060853924602270126,
+            "dot": -0.000870709540322423,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.08758765459060669
+          },
+          "encoder_output": {
+            "cosine": -0.06518886983394623,
+            "dot": -0.0005554573144763708,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.06086042523384094
+          },
+          "condition_all": {
+            "cosine": -0.18400943279266357,
+            "dot": -0.0007559644873254001,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.04747331887483597
+          },
+          "condition_attention": {
+            "cosine": -0.3011234998703003,
+            "dot": -2.3661543309572153e-05,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.005598262883722782
+          },
+          "condition_fusion": {
+            "cosine": -0.1819111406803131,
+            "dot": -0.0007323028985410929,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.04714207351207733
+          }
+        },
+        "consistency__prior_distill": {
+          "shared_all": {
+            "cosine": -0.5363880395889282,
+            "dot": -0.1376025229692459,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 0.14976941049098969
+          },
+          "input_encoder_all": {
+            "cosine": -0.537389874458313,
+            "dot": -0.1375780701637268,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 0.14965476095676422
+          },
+          "input_projection": {
+            "cosine": -0.5449010729789734,
+            "dot": -0.13574765622615814,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.14826296269893646
+          },
+          "transformer_block_0": {
+            "cosine": -0.44268420338630676,
+            "dot": -0.0017902811523526907,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.01758350059390068
+          },
+          "transformer_block_1": {
+            "cosine": -0.08875031024217606,
+            "dot": -1.8975162674905732e-05,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.003423038637265563
+          },
+          "layer_pool": {
+            "cosine": -0.026854606345295906,
+            "dot": -2.545392453612294e-05,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.005802219733595848
+          },
+          "encoder_output": {
+            "cosine": 0.003934984561055899,
+            "dot": 4.270139470463619e-06,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.0077509828843176365
+          },
+          "condition_all": {
+            "cosine": -0.04819120839238167,
+            "dot": -2.4433835278614424e-05,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.005858846474438906
+          },
+          "condition_attention": {
+            "cosine": -0.2709534168243408,
+            "dot": -4.507752692006761e-06,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.0011852782918140292
+          },
+          "condition_fusion": {
+            "cosine": -0.0406687967479229,
+            "dot": -1.9926084860344417e-05,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.005737700033932924
+          }
+        },
+        "consistency__prior_gate": {
+          "shared_all": {
+            "cosine": 0.6607098579406738,
+            "dot": 0.1800597608089447,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 0.15910422801971436
+          },
+          "input_encoder_all": {
+            "cosine": 0.6610045433044434,
+            "dot": 0.17953453958034515,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 0.15877214074134827
+          },
+          "input_projection": {
+            "cosine": 0.6665535569190979,
+            "dot": 0.17537465691566467,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.15658485889434814
+          },
+          "transformer_block_0": {
+            "cosine": 0.3936416804790497,
+            "dot": 0.0017911981558427215,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.01978429965674877
+          },
+          "transformer_block_1": {
+            "cosine": 0.4837521016597748,
+            "dot": 0.00014723856293130666,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.004872982855886221
+          },
+          "layer_pool": {
+            "cosine": 0.6062628626823425,
+            "dot": 0.0011812439188361168,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.01192715298384428
+          },
+          "encoder_output": {
+            "cosine": 0.6458061933517456,
+            "dot": 0.0010401932522654533,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.011504549533128738
+          },
+          "condition_all": {
+            "cosine": 0.5907305479049683,
+            "dot": 0.0005252358969300985,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.010274323634803295
+          },
+          "condition_attention": {
+            "cosine": 0.7899041175842285,
+            "dot": 2.044172288151458e-05,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.0018437327817082405
+          },
+          "condition_fusion": {
+            "cosine": 0.5848520994186401,
+            "dot": 0.0005047941813245416,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.010107540525496006
+          }
+        },
+        "consistency__hallucination": {
+          "shared_all": {
+            "cosine": -0.1997850090265274,
+            "dot": -0.4277588725090027,
+            "left_norm": 1.7128691673278809,
+            "right_norm": 1.2500054836273193
+          },
+          "input_encoder_all": {
+            "cosine": -0.2157396674156189,
+            "dot": -0.4305110275745392,
+            "left_norm": 1.7106817960739136,
+            "right_norm": 1.1665008068084717
+          },
+          "input_projection": {
+            "cosine": -0.36694660782814026,
+            "dot": -0.388072669506073,
+            "left_norm": 1.680281400680542,
+            "right_norm": 0.6294021010398865
+          },
+          "transformer_block_0": {
+            "cosine": -0.4594525098800659,
+            "dot": -0.014090213924646378,
+            "left_norm": 0.22999684512615204,
+            "right_norm": 0.1333383470773697
+          },
+          "transformer_block_1": {
+            "cosine": -0.5363979935646057,
+            "dot": -0.0023960834369063377,
+            "left_norm": 0.06246026232838631,
+            "right_norm": 0.07151728123426437
+          },
+          "layer_pool": {
+            "cosine": -0.3087538480758667,
+            "dot": -0.014853833243250847,
+            "left_norm": 0.16335852444171906,
+            "right_norm": 0.29449936747550964
+          },
+          "encoder_output": {
+            "cosine": -0.08573037385940552,
+            "dot": -0.011098087765276432,
+            "left_norm": 0.14000457525253296,
+            "right_norm": 0.9246369004249573
+          },
+          "condition_all": {
+            "cosine": 0.07079574465751648,
+            "dot": 0.0027521252632141113,
+            "left_norm": 0.08653897047042847,
+            "right_norm": 0.44920992851257324
+          },
+          "condition_attention": {
+            "cosine": 0.5543185472488403,
+            "dot": 0.0003448447969276458,
+            "left_norm": 0.014036057516932487,
+            "right_norm": 0.04432198032736778
+          },
+          "condition_fusion": {
+            "cosine": 0.0630636215209961,
+            "dot": 0.0024072807282209396,
+            "left_norm": 0.08539310097694397,
+            "right_norm": 0.447018027305603
+          }
+        }
+      },
+      "batch_shared_cosines": {
+        "hallucination__prior_total": {
+          "count": 12,
+          "mean": 0.05923239390055338,
+          "median": 0.13623547554016113,
+          "minimum": -0.38596370816230774,
+          "maximum": 0.22978457808494568,
+          "negative_fraction": 0.3333333333333333,
+          "at_or_below_threshold_fraction": 0.16666666666666666
+        },
+        "hallucination__prior_key": {
+          "count": 12,
+          "mean": 0.010237924512087678,
+          "median": 0.04828914254903793,
+          "minimum": -0.4979396462440491,
+          "maximum": 0.345459908246994,
+          "negative_fraction": 0.4166666666666667,
+          "at_or_below_threshold_fraction": 0.3333333333333333
+        },
+        "hallucination__prior_complete": {
+          "count": 12,
+          "mean": 0.052003572384516396,
+          "median": 0.05494537018239498,
+          "minimum": -0.3153834342956543,
+          "maximum": 0.2836304008960724,
+          "negative_fraction": 0.3333333333333333,
+          "at_or_below_threshold_fraction": 0.16666666666666666
+        },
+        "hallucination__prior_distill": {
+          "count": 12,
+          "mean": -0.0963160897178265,
+          "median": -0.12504731118679047,
+          "minimum": -0.28935733437538147,
+          "maximum": 0.15662047266960144,
+          "negative_fraction": 0.75,
+          "at_or_below_threshold_fraction": 0.6666666666666666
+        },
+        "hallucination__prior_gate": {
+          "count": 12,
+          "mean": -0.020622301371380065,
+          "median": -0.018039737769868225,
+          "minimum": -0.45578888058662415,
+          "maximum": 0.37095823884010315,
+          "negative_fraction": 0.5833333333333334,
+          "at_or_below_threshold_fraction": 0.4166666666666667
+        },
+        "final_mechanism__hallucination": {
+          "count": 12,
+          "mean": 0.08089589048177004,
+          "median": 0.04646221362054348,
+          "minimum": -0.15041230618953705,
+          "maximum": 0.4452153742313385,
+          "negative_fraction": 0.3333333333333333,
+          "at_or_below_threshold_fraction": 0.3333333333333333
+        },
+        "final_mechanism__prior_total": {
+          "count": 12,
+          "mean": -0.162898215232417,
+          "median": -0.18280884623527527,
+          "minimum": -0.5096769332885742,
+          "maximum": 0.26325610280036926,
+          "negative_fraction": 0.75,
+          "at_or_below_threshold_fraction": 0.6666666666666666
+        },
+        "final_consistency__consistency": {
+          "count": 14,
+          "mean": 0.38245355524122715,
+          "median": 0.590815544128418,
+          "minimum": -0.8456093072891235,
+          "maximum": 0.9734686017036438,
+          "negative_fraction": 0.21428571428571427,
+          "at_or_below_threshold_fraction": 0.21428571428571427
+        }
+      },
+      "batch_records": {
+        "mechanism": [
+          {
+            "position": 1,
+            "rows": [
+              "gsm8k-train-04355-cand-006",
+              "gsm8k-train-00333-cand-003",
+              "gsm8k-train-04210-cand-000",
+              "gsm8k-train-03562-cand-007"
+            ],
+            "losses": {
+              "final_mechanism": 1.959577202796936,
+              "hallucination": 0.7060536742210388,
+              "prior_key": 0.2543926537036896,
+              "prior_complete": 0.4072551429271698,
+              "prior_distill": 0.00039340154035016894,
+              "prior_gate": 0.014087733812630177,
+              "prior_total": 0.6761289238929749
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.18348120152950287,
+              "hallucination__prior_key": 0.0709233283996582,
+              "hallucination__prior_complete": 0.1983771175146103,
+              "hallucination__prior_distill": -0.0018855503294616938,
+              "hallucination__prior_gate": -0.03465515375137329,
+              "final_mechanism__hallucination": 0.023820210248231888,
+              "final_mechanism__prior_total": 0.1657387763261795
+            }
+          },
+          {
+            "position": 2,
+            "rows": [
+              "gsm8k-train-02867-cand-003",
+              "gsm8k-train-07439-cand-007",
+              "gsm8k-train-03751-cand-004",
+              "gsm8k-train-01164-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.5088603496551514,
+              "hallucination": 0.679286003112793,
+              "prior_key": 0.2620454728603363,
+              "prior_complete": 0.35549163818359375,
+              "prior_distill": 0.0007625151192769408,
+              "prior_gate": 0.041069962084293365,
+              "prior_total": 0.6593696475028992
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.04878082498908043,
+              "hallucination__prior_key": -0.28861892223358154,
+              "hallucination__prior_complete": 0.09628020972013474,
+              "hallucination__prior_distill": -0.28935733437538147,
+              "hallucination__prior_gate": -0.45578888058662415,
+              "final_mechanism__hallucination": 0.4452153742313385,
+              "final_mechanism__prior_total": -0.27458837628364563
+            }
+          },
+          {
+            "position": 3,
+            "rows": [
+              "gsm8k-train-01052-cand-001",
+              "gsm8k-train-06918-cand-003",
+              "gsm8k-train-02735-cand-003",
+              "gsm8k-train-02214-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 0.24983353912830353,
+              "hallucination": 0.7399426102638245,
+              "prior_key": 0.19303789734840393,
+              "prior_complete": 0.23609201610088348,
+              "prior_distill": 0.0006012337980791926,
+              "prior_gate": 0.020473763346672058,
+              "prior_total": 0.45020490884780884
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.1042562872171402,
+              "hallucination__prior_key": -0.2573377192020416,
+              "hallucination__prior_complete": -0.021780285984277725,
+              "hallucination__prior_distill": 0.07945538312196732,
+              "hallucination__prior_gate": -0.0014243217883631587,
+              "final_mechanism__hallucination": 0.09253822267055511,
+              "final_mechanism__prior_total": -0.5096769332885742
+            }
+          },
+          {
+            "position": 4,
+            "rows": [
+              "gsm8k-train-06555-cand-000",
+              "gsm8k-train-03989-cand-002",
+              "gsm8k-train-00228-cand-000",
+              "gsm8k-train-05851-cand-006"
+            ],
+            "losses": {
+              "final_mechanism": 1.2972824573516846,
+              "hallucination": 0.7130261063575745,
+              "prior_key": 0.13265468180179596,
+              "prior_complete": 0.32823115587234497,
+              "prior_distill": 0.0007918189512565732,
+              "prior_gate": 0.061217598617076874,
+              "prior_total": 0.5228952169418335
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.1928747594356537,
+              "hallucination__prior_key": 0.345459908246994,
+              "hallucination__prior_complete": 0.1520848274230957,
+              "hallucination__prior_distill": -0.0868239626288414,
+              "hallucination__prior_gate": -0.31358540058135986,
+              "final_mechanism__hallucination": 0.2175760716199875,
+              "final_mechanism__prior_total": -0.18780571222305298
+            }
+          },
+          {
+            "position": 5,
+            "rows": [
+              "gsm8k-train-01074-cand-007",
+              "gsm8k-train-01068-cand-005",
+              "gsm8k-train-03486-cand-002",
+              "gsm8k-train-03160-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.0002670210669748485,
+              "hallucination": 0.7623467445373535,
+              "prior_key": 0.12606970965862274,
+              "prior_complete": 0.15104243159294128,
+              "prior_distill": 0.0006038756691850722,
+              "prior_gate": 0.01102837361395359,
+              "prior_total": 0.28874439001083374
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.14779317378997803,
+              "hallucination__prior_key": 0.09408868104219437,
+              "hallucination__prior_complete": 0.10843450576066971,
+              "hallucination__prior_distill": -0.22305512428283691,
+              "hallucination__prior_gate": 0.30928120017051697,
+              "final_mechanism__hallucination": 0.23885051906108856,
+              "final_mechanism__prior_total": 0.26325610280036926
+            }
+          },
+          {
+            "position": 6,
+            "rows": [
+              "gsm8k-train-04583-cand-000",
+              "gsm8k-train-07455-cand-001",
+              "gsm8k-train-04695-cand-000",
+              "gsm8k-train-06355-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 0.9726210236549377,
+              "hallucination": 0.7178112864494324,
+              "prior_key": 0.18722975254058838,
+              "prior_complete": 0.1968594640493393,
+              "prior_distill": 0.000446065969299525,
+              "prior_gate": 0.00941566564142704,
+              "prior_total": 0.3939509391784668
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.18251976370811462,
+              "hallucination__prior_key": 0.3395718038082123,
+              "hallucination__prior_complete": -0.12024876475334167,
+              "hallucination__prior_distill": 0.15662047266960144,
+              "hallucination__prior_gate": -0.07765276730060577,
+              "final_mechanism__hallucination": -0.1082296222448349,
+              "final_mechanism__prior_total": -0.381443053483963
+            }
+          },
+          {
+            "position": 7,
+            "rows": [
+              "gsm8k-train-02014-cand-007",
+              "gsm8k-train-03225-cand-005",
+              "gsm8k-train-05789-cand-001",
+              "gsm8k-train-06820-cand-004"
+            ],
+            "losses": {
+              "final_mechanism": 0.0002589814248494804,
+              "hallucination": 0.8098706603050232,
+              "prior_key": 0.22788973152637482,
+              "prior_complete": 0.1365627944469452,
+              "prior_distill": 0.0003841084835585207,
+              "prior_gate": 0.006153481546789408,
+              "prior_total": 0.37099015712738037
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.1360630989074707,
+              "hallucination__prior_key": 0.1596631109714508,
+              "hallucination__prior_complete": 0.011581812053918839,
+              "hallucination__prior_distill": -0.13298378884792328,
+              "hallucination__prior_gate": 0.37095823884010315,
+              "final_mechanism__hallucination": 0.31721118092536926,
+              "final_mechanism__prior_total": -0.17781198024749756
+            }
+          },
+          {
+            "position": 8,
+            "rows": [
+              "gsm8k-train-01849-cand-001",
+              "gsm8k-train-01756-cand-001",
+              "gsm8k-train-05298-cand-003",
+              "gsm8k-train-06647-cand-007"
+            ],
+            "losses": {
+              "final_mechanism": 0.05171891301870346,
+              "hallucination": 0.6714257001876831,
+              "prior_key": 0.17000678181648254,
+              "prior_complete": 0.30792099237442017,
+              "prior_distill": 0.008929954841732979,
+              "prior_gate": 0.21073979139328003,
+              "prior_total": 0.6975975036621094
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.05088382214307785,
+              "hallucination__prior_key": 0.025654956698417664,
+              "hallucination__prior_complete": 0.2836304008960724,
+              "hallucination__prior_distill": -0.14900416135787964,
+              "hallucination__prior_gate": 0.1036035493016243,
+              "final_mechanism__hallucination": -0.14417347311973572,
+              "final_mechanism__prior_total": 0.15507732331752777
+            }
+          },
+          {
+            "position": 9,
+            "rows": [
+              "gsm8k-train-04890-cand-002",
+              "gsm8k-train-06870-cand-003",
+              "gsm8k-train-04066-cand-006",
+              "gsm8k-train-07238-cand-005"
+            ],
+            "losses": {
+              "final_mechanism": 4.17147159576416,
+              "hallucination": 0.6793979406356812,
+              "prior_key": 0.2888321280479431,
+              "prior_complete": 0.26064276695251465,
+              "prior_distill": 0.001062353840097785,
+              "prior_gate": 0.030888112261891365,
+              "prior_total": 0.5814253687858582
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.38596370816230774,
+              "hallucination__prior_key": -0.4979396462440491,
+              "hallucination__prior_complete": -0.3153834342956543,
+              "hallucination__prior_distill": 0.01830330118536949,
+              "hallucination__prior_gate": 0.16866181790828705,
+              "final_mechanism__hallucination": 0.023657623678445816,
+              "final_mechanism__prior_total": -0.015510172583162785
+            }
+          },
+          {
+            "position": 10,
+            "rows": [
+              "gsm8k-train-03931-cand-001",
+              "gsm8k-train-03538-cand-003",
+              "gsm8k-train-06776-cand-007",
+              "gsm8k-train-06960-cand-002"
+            ],
+            "losses": {
+              "final_mechanism": 1.0860759019851685,
+              "hallucination": 0.6981783509254456,
+              "prior_key": 0.24644437432289124,
+              "prior_complete": 0.3412717580795288,
+              "prior_distill": 0.0010170817840844393,
+              "prior_gate": 0.06389978528022766,
+              "prior_total": 0.6526329517364502
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": -0.01001870259642601,
+              "hallucination__prior_key": -0.0014342173235490918,
+              "hallucination__prior_complete": 0.013610530644655228,
+              "hallucination__prior_distill": -0.21234926581382751,
+              "hallucination__prior_gate": -0.10042335838079453,
+              "final_mechanism__hallucination": -0.15041230618953705,
+              "final_mechanism__prior_total": -0.41166824102401733
+            }
+          },
+          {
+            "position": 11,
+            "rows": [
+              "gsm8k-train-06339-cand-007",
+              "gsm8k-train-02050-cand-007",
+              "gsm8k-train-00287-cand-007",
+              "gsm8k-train-04590-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.04074481129646301,
+              "hallucination": 0.7733005285263062,
+              "prior_key": 0.2002871036529541,
+              "prior_complete": 0.17671889066696167,
+              "prior_distill": 0.00045759178465232253,
+              "prior_gate": 0.03147360309958458,
+              "prior_total": 0.4089371860027313
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.22978457808494568,
+              "hallucination__prior_key": 0.2830759584903717,
+              "hallucination__prior_complete": -0.02008626237511635,
+              "hallucination__prior_distill": -0.11711083352565765,
+              "hallucination__prior_gate": 0.10493160784244537,
+              "final_mechanism__hallucination": -0.054407332092523575,
+              "final_mechanism__prior_total": -0.07608601450920105
+            }
+          },
+          {
+            "position": 12,
+            "rows": [
+              "gsm8k-train-05019-cand-000",
+              "gsm8k-train-01238-cand-002",
+              "gsm8k-train-00321-cand-003",
+              "gsm8k-train-06610-cand-003"
+            ],
+            "losses": {
+              "final_mechanism": 0.596051037311554,
+              "hallucination": 0.7179333567619324,
+              "prior_key": 0.17787908017635345,
+              "prior_complete": 0.3067209720611572,
+              "prior_distill": 0.0005342724616639316,
+              "prior_gate": 0.03839617967605591,
+              "prior_total": 0.5235304832458496
+            },
+            "shared_cosines": {
+              "hallucination__prior_total": 0.13640785217285156,
+              "hallucination__prior_key": -0.15025214850902557,
+              "hallucination__prior_complete": 0.23754221200942993,
+              "hallucination__prior_distill": -0.19760221242904663,
+              "hallucination__prior_gate": -0.32137414813041687,
+              "final_mechanism__hallucination": 0.06910421699285507,
+              "final_mechanism__prior_total": -0.5042603015899658
+            }
+          }
+        ],
+        "consistency": [
+          {
+            "position": 1,
+            "rows": [
+              "gsm8k-train-07162-cand-000",
+              "gsm8k-train-07162-cand-007",
+              "gsm8k-train-00862-cand-001",
+              "gsm8k-train-00862-cand-004"
+            ],
+            "losses": {
+              "final_consistency": 0.013795673847198486,
+              "consistency": 1.6030290126800537
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.34353336691856384
+            }
+          },
+          {
+            "position": 2,
+            "rows": [
+              "gsm8k-train-06698-cand-006",
+              "gsm8k-train-06698-cand-001",
+              "gsm8k-train-04307-cand-003",
+              "gsm8k-train-04307-cand-004"
+            ],
+            "losses": {
+              "final_consistency": 0.0002561855944804847,
+              "consistency": 0.8542199730873108
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.9296846985816956
+            }
+          },
+          {
+            "position": 3,
+            "rows": [
+              "gsm8k-train-06312-cand-000",
+              "gsm8k-train-06312-cand-007",
+              "gsm8k-train-03205-cand-001",
+              "gsm8k-train-03205-cand-007"
+            ],
+            "losses": {
+              "final_consistency": 0.0011203865287825465,
+              "consistency": 0.8455912470817566
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.919312059879303
+            }
+          },
+          {
+            "position": 4,
+            "rows": [
+              "gsm8k-train-03248-cand-006",
+              "gsm8k-train-03248-cand-002",
+              "gsm8k-train-03161-cand-002",
+              "gsm8k-train-03161-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.000991166103631258,
+              "consistency": 0.8923056125640869
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": -0.6683220267295837
+            }
+          },
+          {
+            "position": 5,
+            "rows": [
+              "gsm8k-train-05862-cand-000",
+              "gsm8k-train-05862-cand-007",
+              "gsm8k-train-03753-cand-002",
+              "gsm8k-train-03753-cand-006"
+            ],
+            "losses": {
+              "final_consistency": 0.0006281934911385179,
+              "consistency": 0.7718366980552673
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.9734686017036438
+            }
+          },
+          {
+            "position": 6,
+            "rows": [
+              "gsm8k-train-03938-cand-007",
+              "gsm8k-train-03938-cand-006"
+            ],
+            "losses": {
+              "final_consistency": 0.00014521169941872358,
+              "consistency": 0.01884162798523903
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.058438610285520554
+            }
+          },
+          {
+            "position": 7,
+            "rows": [
+              "gsm8k-train-06644-cand-001",
+              "gsm8k-train-06644-cand-000",
+              "gsm8k-train-01914-cand-007",
+              "gsm8k-train-01914-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.00047471807920373976,
+              "consistency": 0.7534928917884827
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": -0.8456093072891235
+            }
+          },
+          {
+            "position": 8,
+            "rows": [
+              "gsm8k-train-06453-cand-001",
+              "gsm8k-train-06453-cand-006",
+              "gsm8k-train-04439-cand-004",
+              "gsm8k-train-04439-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.00027214139117859304,
+              "consistency": 0.8124515414237976
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.6305968165397644
+            }
+          },
+          {
+            "position": 9,
+            "rows": [
+              "gsm8k-train-01770-cand-000",
+              "gsm8k-train-01770-cand-004",
+              "gsm8k-train-01458-cand-000",
+              "gsm8k-train-01458-cand-007"
+            ],
+            "losses": {
+              "final_consistency": 0.0004880953929387033,
+              "consistency": 0.898299515247345
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.3122696578502655
+            }
+          },
+          {
+            "position": 10,
+            "rows": [
+              "gsm8k-train-05032-cand-002",
+              "gsm8k-train-05032-cand-007",
+              "gsm8k-train-03457-cand-005",
+              "gsm8k-train-03457-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.0008747144602239132,
+              "consistency": 0.7904709577560425
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.854008138179779
+            }
+          },
+          {
+            "position": 11,
+            "rows": [
+              "gsm8k-train-04207-cand-007",
+              "gsm8k-train-04207-cand-000",
+              "gsm8k-train-05189-cand-001",
+              "gsm8k-train-05189-cand-000"
+            ],
+            "losses": {
+              "final_consistency": 0.004269035067409277,
+              "consistency": 0.7021355032920837
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.5510342717170715
+            }
+          },
+          {
+            "position": 12,
+            "rows": [
+              "gsm8k-train-04225-cand-005",
+              "gsm8k-train-04225-cand-002",
+              "gsm8k-train-01740-cand-004",
+              "gsm8k-train-01740-cand-003"
+            ],
+            "losses": {
+              "final_consistency": 0.00065188406733796,
+              "consistency": 0.7774508595466614
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": -0.4992275536060333
+            }
+          },
+          {
+            "position": 13,
+            "rows": [
+              "gsm8k-train-04700-cand-000",
+              "gsm8k-train-04700-cand-001",
+              "gsm8k-train-03341-cand-004",
+              "gsm8k-train-03341-cand-005"
+            ],
+            "losses": {
+              "final_consistency": 0.004557064268738031,
+              "consistency": 1.0201538801193237
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.8654409646987915
+            }
+          },
+          {
+            "position": 14,
+            "rows": [
+              "gsm8k-train-07373-cand-005",
+              "gsm8k-train-07373-cand-001",
+              "gsm8k-train-01660-cand-007",
+              "gsm8k-train-01660-cand-002"
+            ],
+            "losses": {
+              "final_consistency": 0.0058720726519823074,
+              "consistency": 0.8247127532958984
+            },
+            "shared_cosines": {
+              "final_consistency__consistency": 0.929721474647522
+            }
+          }
+        ]
+      },
+      "prior_component_sum_checks": [
+        {
+          "prior_total_loss": 0.6761289238929749,
+          "component_gradient_norm": 2.3655965328216553
+        },
+        {
+          "prior_total_loss": 0.6593696475028992,
+          "component_gradient_norm": 1.0341852903366089
+        },
+        {
+          "prior_total_loss": 0.45020490884780884,
+          "component_gradient_norm": 0.9109572172164917
+        },
+        {
+          "prior_total_loss": 0.5228952169418335,
+          "component_gradient_norm": 0.6930167078971863
+        },
+        {
+          "prior_total_loss": 0.28874439001083374,
+          "component_gradient_norm": 1.0079838037490845
+        },
+        {
+          "prior_total_loss": 0.3939509391784668,
+          "component_gradient_norm": 0.6039633750915527
+        },
+        {
+          "prior_total_loss": 0.37099015712738037,
+          "component_gradient_norm": 0.47354432940483093
+        },
+        {
+          "prior_total_loss": 0.6975975036621094,
+          "component_gradient_norm": 1.205472707748413
+        },
+        {
+          "prior_total_loss": 0.5814253687858582,
+          "component_gradient_norm": 1.4543641805648804
+        },
+        {
+          "prior_total_loss": 0.6526329517364502,
+          "component_gradient_norm": 1.6062225103378296
+        },
+        {
+          "prior_total_loss": 0.4089371860027313,
+          "component_gradient_norm": 0.4733537435531616
+        },
+        {
+          "prior_total_loss": 0.5235304832458496,
+          "component_gradient_norm": 0.6959601044654846
+        }
+      ],
+      "passed": true
+    }
+  },
+  "classifications": {
+    "same_batch": {
+      "hallucination__prior_total": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": -0.02367623895406723,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.017359732805440824,
+              "median": -0.027652356773614883,
+              "minimum": -0.03943629935383797,
+              "maximum": 0.04701295495033264,
+              "negative_fraction": 0.8333333333333334,
+              "at_or_below_threshold_fraction": 0.0
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": 0.12634269893169403,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.05923239390055338,
+              "median": 0.13623547554016113,
+              "minimum": -0.38596370816230774,
+              "maximum": 0.22978457808494568,
+              "negative_fraction": 0.3333333333333333,
+              "at_or_below_threshold_fraction": 0.16666666666666666
+            }
+          }
+        },
+        "classification": "no_stable_same_batch_conflict"
+      },
+      "hallucination__prior_key": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": -0.03749571368098259,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.02948211187807222,
+              "median": -0.04018433019518852,
+              "minimum": -0.048108749091625214,
+              "maximum": 0.059556618332862854,
+              "negative_fraction": 0.9166666666666666,
+              "at_or_below_threshold_fraction": 0.0
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": 0.2093217521905899,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.010237924512087678,
+              "median": 0.04828914254903793,
+              "minimum": -0.4979396462440491,
+              "maximum": 0.345459908246994,
+              "negative_fraction": 0.4166666666666667,
+              "at_or_below_threshold_fraction": 0.3333333333333333
+            }
+          }
+        },
+        "classification": "no_stable_same_batch_conflict"
+      },
+      "hallucination__prior_complete": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": 0.010100631974637508,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.01127228825741137,
+              "median": 0.008091387338936329,
+              "minimum": 0.0014339664485305548,
+              "maximum": 0.03477015718817711,
+              "negative_fraction": 0.0,
+              "at_or_below_threshold_fraction": 0.0
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": 0.12733136117458344,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.052003572384516396,
+              "median": 0.05494537018239498,
+              "minimum": -0.3153834342956543,
+              "maximum": 0.2836304008960724,
+              "negative_fraction": 0.3333333333333333,
+              "at_or_below_threshold_fraction": 0.16666666666666666
+            }
+          }
+        },
+        "classification": "no_stable_same_batch_conflict"
+      },
+      "hallucination__prior_distill": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": 0.03692295402288437,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.029675862247434754,
+              "median": 0.0354609377682209,
+              "minimum": -0.040756408125162125,
+              "maximum": 0.07246948778629303,
+              "negative_fraction": 0.16666666666666666,
+              "at_or_below_threshold_fraction": 0.0
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": -0.06897775083780289,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.0963160897178265,
+              "median": -0.12504731118679047,
+              "minimum": -0.28935733437538147,
+              "maximum": 0.15662047266960144,
+              "negative_fraction": 0.75,
+              "at_or_below_threshold_fraction": 0.6666666666666666
+            }
+          }
+        },
+        "classification": "state_specific_same_batch_conflict"
+      },
+      "hallucination__prior_gate": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": -0.11280426383018494,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.08879672052959602,
+              "median": -0.11221280321478844,
+              "minimum": -0.12377867847681046,
+              "maximum": 0.11824603378772736,
+              "negative_fraction": 0.9166666666666666,
+              "at_or_below_threshold_fraction": 0.9166666666666666
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": -0.030046338215470314,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.020622301371380065,
+              "median": -0.018039737769868225,
+              "minimum": -0.45578888058662415,
+              "maximum": 0.37095823884010315,
+              "negative_fraction": 0.5833333333333334,
+              "at_or_below_threshold_fraction": 0.4166666666666667
+            }
+          }
+        },
+        "classification": "state_specific_same_batch_conflict"
+      },
+      "final_mechanism__hallucination": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": 0.11726245284080505,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.003972326094905536,
+              "median": -0.01559409499168396,
+              "minimum": -0.12569773197174072,
+              "maximum": 0.11628755927085876,
+              "negative_fraction": 0.5,
+              "at_or_below_threshold_fraction": 0.5
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": 0.0032849651761353016,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": 0.08089589048177004,
+              "median": 0.04646221362054348,
+              "minimum": -0.15041230618953705,
+              "maximum": 0.4452153742313385,
+              "negative_fraction": 0.3333333333333333,
+              "at_or_below_threshold_fraction": 0.3333333333333333
+            }
+          }
+        },
+        "classification": "no_stable_same_batch_conflict"
+      },
+      "final_mechanism__prior_total": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": -0.11440569162368774,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.02091306634247303,
+              "median": -0.10738816484808922,
+              "minimum": -0.11847098171710968,
+              "maximum": 0.11916632205247879,
+              "negative_fraction": 0.5833333333333334,
+              "at_or_below_threshold_fraction": 0.5833333333333334
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": -0.22279101610183716,
+            "batch_shared_cosines": {
+              "count": 12,
+              "mean": -0.162898215232417,
+              "median": -0.18280884623527527,
+              "minimum": -0.5096769332885742,
+              "maximum": 0.26325610280036926,
+              "negative_fraction": 0.75,
+              "at_or_below_threshold_fraction": 0.6666666666666666
+            }
+          }
+        },
+        "classification": "state_specific_same_batch_conflict"
+      },
+      "final_consistency__consistency": {
+        "states": {
+          "initialization_seed42": {
+            "aggregate_shared_cosine": 0.05755189433693886,
+            "batch_shared_cosines": {
+              "count": 14,
+              "mean": 0.033947087957390716,
+              "median": 0.03703395277261734,
+              "minimum": -0.030105210840702057,
+              "maximum": 0.055946651846170425,
+              "negative_fraction": 0.07142857142857142,
+              "at_or_below_threshold_fraction": 0.0
+            }
+          },
+          "jp_epoch5": {
+            "aggregate_shared_cosine": 0.694381833076477,
+            "batch_shared_cosines": {
+              "count": 14,
+              "mean": 0.38245355524122715,
+              "median": 0.590815544128418,
+              "minimum": -0.8456093072891235,
+              "maximum": 0.9734686017036438,
+              "negative_fraction": 0.21428571428571427,
+              "at_or_below_threshold_fraction": 0.21428571428571427
+            }
+          }
+        },
+        "classification": "no_stable_same_batch_conflict"
+      }
+    },
+    "cross_stream": {
+      "consistency__prior_total": {
+        "state_shared_cosines": {
+          "initialization_seed42": 0.13294857740402222,
+          "jp_epoch5": 0.26799631118774414
+        },
+        "classification": "no_stable_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      },
+      "consistency__prior_key": {
+        "state_shared_cosines": {
+          "initialization_seed42": 0.04195193946361542,
+          "jp_epoch5": 0.1252330243587494
+        },
+        "classification": "no_stable_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      },
+      "consistency__prior_complete": {
+        "state_shared_cosines": {
+          "initialization_seed42": 0.16459795832633972,
+          "jp_epoch5": 0.23305656015872955
+        },
+        "classification": "no_stable_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      },
+      "consistency__prior_distill": {
+        "state_shared_cosines": {
+          "initialization_seed42": -0.3999042809009552,
+          "jp_epoch5": -0.5363880395889282
+        },
+        "classification": "stable_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      },
+      "consistency__prior_gate": {
+        "state_shared_cosines": {
+          "initialization_seed42": -0.07855910807847977,
+          "jp_epoch5": 0.6607098579406738
+        },
+        "classification": "state_specific_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      },
+      "consistency__hallucination": {
+        "state_shared_cosines": {
+          "initialization_seed42": -0.11048071086406708,
+          "jp_epoch5": -0.1997850090265274
+        },
+        "classification": "stable_cross_stream_opposition",
+        "simultaneous_batch_conflict": false
+      }
+    },
+    "threshold": -0.05,
+    "same_batch_negative_fraction_minimum": 0.7
+  },
+  "measurement_semantics": {
+    "gradient_space": "raw effective gradients before global-norm clipping and AdamW preconditioning",
+    "precision": "BF16 autocast forward with FP32 losses/gradients as produced by the frozen training implementation",
+    "mechanism_batching": "Four frozen mechanism rows share one forward; each objective is averaged over four independently computed row losses so the aggregate matches equal active-step row weighting.",
+    "consistency_batching": "Use all epoch-1 consistency-active semantic rows in their frozen batch grouping; ordinary unlabeled companions are removed because they do not enter consistency loss.",
+    "cross_stream_caveat": "C and H/prior never co-occur in one frozen optimizer batch. C-vs-prior cosine measures cross-step representation pressure and is sample-confounded, not simultaneous PCGrad-style conflict.",
+    "optimizer_caveat": "Raw-gradient cosines do not include AdamW moment preconditioning or global-norm clipping."
+  },
+  "no_parameter_update": true,
+  "automatic_repair_performed": false,
+  "automatic_weight_tuning_performed": false,
+  "automatic_sampler_change_performed": false,
+  "additional_training_performed": false,
+  "pilot_test_accessed": false,
+  "final_test_accessed": false,
+  "formal_mechanism_claim_allowed": false,
+  "passed": true
+}

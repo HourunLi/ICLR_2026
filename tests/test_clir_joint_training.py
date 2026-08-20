@@ -36,6 +36,9 @@ DROP_ONE_PROTOCOL_PATH = (
 GRADIENT_INTERACTION_PROTOCOL_PATH = (
     ROOT / "configs/joint_gradient_interaction_v1/audit_protocol_v1.json"
 )
+GRADIENT_INTERACTION_RESULT_PATH = (
+    ROOT / "configs/joint_gradient_interaction_v1/audit_result_v1.json"
+)
 
 
 def load_protocol():
@@ -309,3 +312,37 @@ def test_gradient_interaction_classifiers_require_stability():
         )
         == "state_specific_cross_stream_opposition"
     )
+
+
+def test_gradient_interaction_result_is_no_update_and_matches_frozen_rules():
+    protocol = load_gradient_interaction_protocol()
+    result = json.loads(GRADIENT_INTERACTION_RESULT_PATH.read_text(encoding="utf-8"))
+    assert result["schema_version"] == "clir-joint-gradient-interaction-result-v1"
+    assert result["status"] == "completed_no_update_diagnostic"
+    assert result["passed"] is True
+    assert result["no_parameter_update"] is True
+    assert result["protocol_sha256"] == file_sha256(
+        GRADIENT_INTERACTION_PROTOCOL_PATH
+    )
+    assert result["code"]["dirty"] is False
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False
+    for state in result["model_state_results"].values():
+        assert state["parameter_checksum_before"] == state["parameter_checksum_after"]
+        assert state["optimizer_grad_buffers_absent"] is True
+        assert state["objective_batch_counts"]["hallucination"] == 12
+        assert state["objective_batch_counts"]["consistency"] == 14
+    classifications = result["classifications"]
+    assert (
+        classifications["same_batch"]["hallucination__prior_total"]["classification"]
+        == "no_stable_same_batch_conflict"
+    )
+    assert (
+        classifications["cross_stream"]["consistency__prior_total"]["classification"]
+        == "no_stable_cross_stream_opposition"
+    )
+    assert (
+        classifications["cross_stream"]["consistency__prior_distill"]["classification"]
+        == "stable_cross_stream_opposition"
+    )
+    assert protocol["decision_rules"]["automatic_repair_authorized"] is False

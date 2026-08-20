@@ -87,26 +87,18 @@ batches；JPH 在 3968-row 联合流中，H singleton 分散在每 epoch 45–48
 relation cosine gap 为 `.818`，JALL 为 `.789`，说明 C 显著改变训练关系几何；因为仍无 held-out relation，
 该指标只能作训练诊断。
 
-## 4. 当前裁决
+## 4. 后续梯度审计与当前裁决
 
-本轮排除了“只有 H×C 交互才造成 key drop”，也排除了“只需去掉 C 就能恢复 H localization”。目前最值得
-先区分的是：
+后续 no-update audit 已完成：H↔prior-total 为 `-.024/+.126`，C↔prior-total 为 `+.133/+.268`，没有稳定
+全局负夹角；C↔mutual 与 C↔H 虽为稳定负向，但五个 epoch 中 C 与 H/prior 从不共批，普通 per-batch PCGrad
+无法处理。JP 状态下 H/C norm 又是 residual prior-total 的 `2.33×/3.20×`。
 
-1. H/C 与原始 prior 在共享 encoder 上是否存在系统性负梯度夹角；
-2. 若没有明显梯度冲突，是否是稀疏 mechanism rows 在 3968-row single stream 中的 packing 与更新时序造成
-   了训练稀释。
+所以当前不授权 blanket gradient surgery。下一格建议比较冻结 JPH 与 JPH supervision-aware
+packing/schedule：把 48 mechanism rows 集中成 12 个 4-row active batches，保持每行一次、所有 loss 权重和
+原始 prior 不变。由于 active steps 也会下降，它不是严格 gradient-budget-matched 的纯 packing 因果实验，
+必须按这个边界解释。完整审计见 `docs/joint_gradient_interaction_v1.md`。
 
-建议下一步先做一个不更新参数、不开新训练 cell 的 shared-gradient interaction audit。在相同初始化和/或
-冻结 JP checkpoint 上，记录 H、C、final、key、complete、prior-total 对共享 encoder 的梯度 cosine、norm
-和分层分布。该审计须另发冻结协议，并在用户批准前不自动实施修复。
-
-- 若 H/C 与 prior 出现稳定负夹角，再预注册只处理共享 encoder 冲突的 repair 对照；原 direct、mutual、gate
-  以及各 head gradient 都保留。
-- 若没有稳定负夹角，再比较当前 singleton-scattered packing 与 supervision-aware packing；仍保持每行每
-  epoch 一次，不扫 loss weight。
-
-本轮不授权 seeds 43/44，不自动采用 PCGrad 类方法，不改 sampler/stream，不访问 `pilot_test` 或
-`final_test`。
+本轮仍不授权 seeds 43/44，不自动改 sampler/stream，不访问 `pilot_test` 或 `final_test`。
 
 ## 5. 可复核 artifact
 
@@ -115,6 +107,7 @@ relation cosine gap 为 `.818`，JALL 为 `.789`，说明 C 显著改变训练�
 - no-update 梯度路由审计：`run_artifacts/joint_training_drop_one_v1/audits/gradient_routing_v1.json`
 - 新 cell 训练目录：`run_artifacts/joint_training_drop_one_v1/seed42_v1/seed_42/`
 - 父实验结果：`configs/joint_training_pilot_v1/training_result_v1.json`
+- 后续梯度审计：`configs/joint_gradient_interaction_v1/audit_result_v1.json`
 
 协议 SHA256 为 `ce6c2d5817be8323803c11a1911ddb9167af1cd228eafb6ea7461b39f6c7e128`；机器结果
 SHA256 为 `5258d051129bdb480416a68f267229de249525fd664c498d68ab5511cdb3c289`；梯度路由审计 SHA256 为

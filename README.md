@@ -97,17 +97,23 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   ranking 保护门；但 key AP 相对 JP 分别下降 `.118/.157`，所以 H 与 C 在当前冻结条件下都单独足以复现
   key drop。JPH 的 H span/claim AP 为 `.319/.338`，仍低于位置基线；去掉 C 不能单独解决 localization。
   JPC 未启用 H loss 却得到 `.435/.442`，只能视为小 dev 对共享表示变化敏感，不能称为学会 H。
+- No-update gradient interaction audit 已从 clean commit `74f7583` 覆盖全部 48 mechanism rows、27 个 C
+  positive pairs 和 init/JP 两个状态。H↔prior-total 为 `-.024/+.126`，C↔prior-total 为
+  `+.133/+.268`，都不支持全 shared-encoder 冲突；C↔mutual 为 `-.400/-.536`、C↔H 为
+  `-.110/-.200`，但五个 epoch 中 C 与 H/prior active batches 从不重叠，只能称 cross-stream pressure。
+  JP 状态 H/C norm 是 residual prior-total 的 `2.33×/3.20×`，优先指向 schedule/budget 诊断。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-`joint_training_drop_one_v1` 已完成且排除了“只有 H×C 交互才造成 key drop”；当前仍无法区分共享梯度冲突
-与 sparse mechanism rows 在大 single stream 中的 packing/更新时序稀释。建议下一道门先做不更新参数的
-shared-gradient interaction audit：在相同初始化和/或冻结 JP checkpoint 上比较 H、C、final、key、complete
-及 prior-total 对共享 encoder 的梯度 cosine、norm 和分层分布。该审计需要用户单独批准并另发冻结协议；
-在此之前不自动引入 PCGrad 类修复、改 packing、扫权重或扩 seeds。
+`joint_gradient_interaction_v1` 已完成。它不支持统一 PCGrad-style repair：H/C 与 total prior 没有稳定负
+cosine，且 C 与 prior 从不共批。下一格建议只补一个 JPH supervision-aware packing/schedule cell，把 48 条
+mechanism rows 集中成 12 个 4-row batches，复用冻结 JPH control；每行仍每 epoch 一次，保持初始化、epochs、
+loss 权重和原始 prior 不变。这个比较会把 auxiliary-active steps 从约 48 降到 12，因此只能称
+packing/schedule test，不能伪称完全相同的 gradient budget。它仍需用户单独批准和冻结协议；在此之前不改
+sampler、不引入 gradient surgery、不扩 seeds。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -122,7 +128,9 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 联合训练的完整结果与失败边界见 [Joint Training Pilot v1](docs/joint_training_pilot_v1.md)，机器结果为
 `configs/joint_training_pilot_v1/training_result_v1.json`；drop-one 归因见
 [Joint Training Drop-One Diagnosis v1](docs/joint_training_drop_one_v1.md)，机器结果为
-`configs/joint_training_drop_one_v1/training_result_v1.json`。
+`configs/joint_training_drop_one_v1/training_result_v1.json`；梯度审计见
+[Joint Shared-Gradient Interaction Audit v1](docs/joint_gradient_interaction_v1.md)，机器结果为
+`configs/joint_gradient_interaction_v1/audit_result_v1.json`。
 
 完整停止条件和标签定义见
 [Hallucination Full-Tail v2c](docs/hallucination_tail_cross_validation_v2c.md)、
