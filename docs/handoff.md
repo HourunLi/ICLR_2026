@@ -316,16 +316,20 @@ protocol/audit 中，不在本 handoff 重复展开。
 不要再重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing seeds，或放宽历史失败门。当前恢复
 原 JPH ordinary single-stream sampler；packing 代码只作 optional diagnostic，不要默认启用。
 
-路由工程 gate 已通过。下一个仍待用户拍板的最小训练实验是 `JPH + H-condition-stopgrad`：
+路由工程 gate 已通过，用户已批准并冻结最小训练实验 `JPH + H-condition-stopgrad`：
 
 1. forward 仍使用 problem condition，H BCE 仍更新 hallucination head、trajectory encoder 与共享 token
    representation；
 2. 仅阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；final 与原 prior 对这些参数的
    梯度保留，原 direct targets、双向 stop-gradient mutual `.25`、shared-gradient gate `10` 不变；
-3. no-update routing audit 已证明仅 H→condition 路由被截断，其他原方法路由不变；获用户批准后
-   再另发协议，冻结一个 seed-42 5-epoch cell 和结果门；
+3. no-update routing audit 已证明仅 H→condition 路由被截断；训练协议现已冻结一个 seed-42
+   5-epoch cell，并预注册 H、key、complete 与 BoN@16 结果门；
 4. 不采用 blanket PCGrad，不修改 C cross-stream pressure，不扩 seeds 43/44，不读取
    `pilot_test/final_test`。
+
+执行入口为 `scripts/run_joint_training_pilot_v1.py --protocol
+configs/joint_condition_routing_v1/training_protocol_v1.json --cell jph_h_condition_stopgrad --seed 42
+--execute`。完成后只运行 `scripts/summarize_joint_condition_routing_v1.py`；无论结果如何都不自动扩种子或调参。
 
 原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
 reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。

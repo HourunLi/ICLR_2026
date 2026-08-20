@@ -10,6 +10,9 @@ from .consistency_localized_reward import RewardConfig
 JOINT_PROTOCOL_SCHEMA = "clir-joint-training-pilot-protocol-v1"
 JOINT_DROP_ONE_PROTOCOL_SCHEMA = "clir-joint-training-drop-one-protocol-v1"
 JOINT_PACKING_PROTOCOL_SCHEMA = "clir-joint-training-packing-protocol-v1"
+JOINT_CONDITION_ROUTING_PROTOCOL_SCHEMA = (
+    "clir-joint-training-condition-routing-protocol-v1"
+)
 LOSS_NAMES = (
     "final",
     "consistency",
@@ -100,6 +103,12 @@ _FROZEN_CELL_OVERRIDES_BY_SCHEMA = {
     },
     JOINT_PACKING_PROTOCOL_SCHEMA: {
         "jph_supervision_packed": {
+            "hallucination": 1.0,
+            "prior": 1.0,
+        },
+    },
+    JOINT_CONDITION_ROUTING_PROTOCOL_SCHEMA: {
+        "jph_h_condition_stopgrad": {
             "hallucination": 1.0,
             "prior": 1.0,
         },
@@ -199,6 +208,43 @@ def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
         for name, expected in expected_rules.items():
             if rules.get(name) != expected:
                 raise ValueError(f"Frozen packing decision rule drifted: {name}")
+    if schema == JOINT_CONDITION_ROUTING_PROTOCOL_SCHEMA:
+        expected_method_flags = {
+            "hallucination_condition_stop_gradient": True,
+            "dual_prior_architecture_changed": False,
+            "mutual_distillation_changed": False,
+            "loss_formula_changed": False,
+            "sampler_or_batch_packing_changed": False,
+            "loss_weight_scan_in_this_protocol": False,
+            "multistream_training_in_this_protocol": False,
+        }
+        for name, expected in expected_method_flags.items():
+            if protocol.get("method", {}).get(name) is not expected:
+                raise ValueError(
+                    f"Frozen condition-routing method field drifted: {name}"
+                )
+        if protocol.get("batch_packing", {}).get("enabled", False):
+            raise ValueError(
+                "Condition-routing protocol must restore ordinary JPH batching"
+            )
+        expected_rules = {
+            "key_ap_min_recovery_vs_jph": 0.05,
+            "key_ap_max_drop_vs_jp": 0.05,
+            "complete_ap_max_drop_vs_jph": 0.05,
+            "hallucination_span_token_ap_min_exclusive": 0.39328067905143455,
+            "hallucination_claim_ap_min_exclusive": 0.42198767865054354,
+            "ranking_max_absolute_regression_vs_jp": 0.02,
+            "no_seed_expansion_from_this_diagnostic": True,
+            "automatic_loss_weight_tuning": False,
+            "automatic_gradient_surgery": False,
+            "automatic_sampler_or_stream_change": False,
+        }
+        rules = protocol.get("condition_routing_decision_rules", {})
+        for name, expected in expected_rules.items():
+            if rules.get(name) != expected:
+                raise ValueError(
+                    f"Frozen condition-routing decision rule drifted: {name}"
+                )
 
 
 def resolve_loss_weights(
@@ -270,6 +316,7 @@ def reward_config_from_protocol(
 
 
 __all__ = [
+    "JOINT_CONDITION_ROUTING_PROTOCOL_SCHEMA",
     "JOINT_DROP_ONE_PROTOCOL_SCHEMA",
     "JOINT_PACKING_PROTOCOL_SCHEMA",
     "JOINT_PROTOCOL_SCHEMA",

@@ -12,6 +12,9 @@ from scripts.summarize_joint_training_drop_one_v1 import (
 from scripts.summarize_joint_training_packing_v1 import (
     classify_packing_outcome,
 )
+from scripts.summarize_joint_condition_routing_v1 import (
+    classify_condition_routing_outcome,
+)
 from scripts.audit_joint_gradient_interactions_v1 import (
     audit_stream_structure,
     controlled_batch_report,
@@ -63,6 +66,9 @@ CONDITION_ROUTING_PROTOCOL_PATH = (
 CONDITION_ROUTING_RESULT_PATH = (
     ROOT / "configs/joint_condition_routing_v1/audit_result_v1.json"
 )
+CONDITION_ROUTING_TRAINING_PROTOCOL_PATH = (
+    ROOT / "configs/joint_condition_routing_v1/training_protocol_v1.json"
+)
 
 
 def load_protocol():
@@ -86,6 +92,12 @@ def load_packing_protocol():
 def load_condition_routing_protocol():
     return json.loads(
         CONDITION_ROUTING_PROTOCOL_PATH.read_text(encoding="utf-8")
+    )
+
+
+def load_condition_routing_training_protocol():
+    return json.loads(
+        CONDITION_ROUTING_TRAINING_PROTOCOL_PATH.read_text(encoding="utf-8")
     )
 
 
@@ -413,7 +425,10 @@ def test_packing_protocol_changes_only_the_declared_sampler_family():
         "each_row_once_per_epoch",
         "auxiliary_oversampling",
     ):
-        assert protocol["matched_training"][name] == parent["matched_training"][name]
+        assert (
+            protocol["matched_training"][name]
+            == parent["matched_training"][name]
+        )
     for name in (
         "consistency_margin",
         "hallucination_target_mode",
@@ -543,6 +558,101 @@ def test_condition_routing_protocol_references_are_exact():
     assert config.hallucination_condition_stop_gradient is False
     assert config.prior_distill_weight == 0.25
     assert config.gate_prior_weight == 10.0
+
+
+def test_condition_routing_training_freezes_one_factor_and_original_jph():
+    protocol = load_condition_routing_training_protocol()
+    parent = load_drop_one_protocol()
+    validate_joint_protocol(protocol)
+    assert protocol["schema_version"] in SUPPORTED_PROTOCOL_SCHEMAS
+    assert list(protocol["cells"]) == ["jph_h_condition_stopgrad"]
+    config = reward_config_from_protocol(protocol, "jph_h_condition_stopgrad")
+    parent_config = reward_config_from_protocol(
+        parent, "jph_prior_plus_hallucination"
+    )
+    assert config.hallucination_condition_stop_gradient is True
+    assert parent_config.hallucination_condition_stop_gradient is False
+    candidate_values = dict(config.__dict__)
+    parent_values = dict(parent_config.__dict__)
+    del candidate_values["hallucination_condition_stop_gradient"]
+    del parent_values["hallucination_condition_stop_gradient"]
+    assert candidate_values == parent_values
+    assert config.prior_distill_weight == 0.25
+    assert config.gate_prior_weight == 10.0
+    assert protocol["method"]["mutual_distillation_changed"] is False
+    assert protocol["method"]["loss_formula_changed"] is False
+    assert protocol["method"]["sampler_or_batch_packing_changed"] is False
+    assert protocol["matched_training"]["packing_enabled"] is False
+
+    for name in (
+        "epochs",
+        "batch_size",
+        "learning_rate",
+        "weight_decay",
+        "max_grad_norm",
+        "amp_dtype",
+        "num_workers",
+        "pin_memory",
+        "persistent_workers",
+        "group_by_semantic_id",
+        "hidden_state_source",
+        "validation_every_n_epochs",
+        "prior_phase_mode",
+        "train_rows",
+        "batches_per_epoch",
+        "each_row_once_per_epoch",
+        "auxiliary_oversampling",
+    ):
+        assert protocol["matched_training"][name] == parent["matched_training"][name]
+
+
+def test_condition_routing_training_references_are_exact():
+    protocol = load_condition_routing_training_protocol()
+    for section in (
+        "parent_experiment",
+        "preceding_route_audit",
+        "inputs",
+        "manifests",
+    ):
+        for spec in protocol[section].values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+    for specs in protocol["frozen_controls"]["cells"].values():
+        for name in ("cell_result", "ranking_evaluation"):
+            path = ROOT / specs[name]["path"]
+            assert path.is_file()
+            assert file_sha256(path) == specs[name]["sha256"]
+
+
+def test_condition_routing_outcome_requires_targets_and_preservation():
+    assert (
+        classify_condition_routing_outcome(
+            key_gates=True,
+            hallucination_gates=True,
+            complete_guard=True,
+            ranking_guard=True,
+        )
+        == "condition_route_supported_at_seed42_followup_required"
+    )
+    assert (
+        classify_condition_routing_outcome(
+            key_gates=True,
+            hallucination_gates=False,
+            complete_guard=True,
+            ranking_guard=True,
+        )
+        == "condition_route_partially_supported_at_seed42"
+    )
+    assert (
+        classify_condition_routing_outcome(
+            key_gates=True,
+            hallucination_gates=True,
+            complete_guard=False,
+            ranking_guard=True,
+        )
+        == "condition_route_not_supported_at_frozen_gates_seed42"
+    )
 
 
 def test_condition_routing_gradient_difference_handles_blocked_parameters():

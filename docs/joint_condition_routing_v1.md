@@ -2,7 +2,7 @@
 
 最后更新：2026-08-20
 
-状态：`completed_no_update_routing_audit_passed`
+状态：`training_protocol_frozen_after_no_update_audit_passed`
 
 ## 1. 目的与边界
 
@@ -84,18 +84,21 @@ H 仍保留的三条路由在每个 batch 都非零。其中 minimum L2：
 没有改 forward 函数值、其他 H 梯度或项目原 correctness/dual-prior 路由。这仍不说明它能改善
 localization 或 ranking。
 
-## 5. 下一道需用户拍板的门
+## 5. 已获批准并冻结的训练格
 
-若用户批准，再另发一个单 cell 训练协议：
+用户已批准唯一的 seed-42 `JPH + H-condition-stopgrad` 单格，协议冻结为：
 
 - control 为冻结 JPH，candidate 唯一变量为 `hallucination_condition_stop_gradient=true`；
 - 恢复原 ordinary `SemanticGroupBatchSampler`，禁用 packing；
 - 同一 3968-row manifest、seed 42、5 epochs、batch 4、LR `1e-4`、BF16、final checkpoint；
 - final/H/prior 外层权重仍 `1/1/1`，direct `1/1`、mutual `.25`、gate `10`；C/tail/progress/
   reconstruction 仍关闭；
-- 先冻结 key、H localization 和 BoN@16 保护门，再训练；不自动扩 seeds。
+- 效果门同时要求：H span/claim AP 严格超过冻结位置基线；key AP 相比 JPH 至少恢复 `.05` 且距
+  JP 不超过 `.05`；complete AP 相比 JPH 最多下降 `.05`；BoN@16 相比 JP 最多下降 `.02`；
+- 不自动扩 seeds、调 loss、做 gradient surgery 或改 sampler/stream。
 
-当前审计结果显式记录 `next_training_requires_user_approval=true`，所以本轮没有启动该训练。
+这些门在训练前写入 `training_protocol_v1.json`。本格仍只是一个 seed 的 small-scale real diagnostic；
+即使全门通过，也只授权讨论后续复验，不构成正式效果结论。
 
 ## 6. Artifact
 
@@ -105,5 +108,8 @@ localization 或 ranking。
 - 结果 SHA256：`661831e72919a93c81e9cb3007976360978227eb56e90283bf07ceb8be987234`
 - 审计代码：`scripts/audit_joint_condition_routing_v1.py`
 - clean 代码 commit：`a5bf692b12590bfc439127dd527dc8c5da5901c2`
+- 冻结训练协议：`configs/joint_condition_routing_v1/training_protocol_v1.json`
+- 训练运行器：`scripts/run_joint_training_pilot_v1.py`
+- 结果汇总器：`scripts/summarize_joint_condition_routing_v1.py`
 
 `pilot_test/final_test` 均未访问。

@@ -42,6 +42,7 @@ SUPPORTED_PROTOCOL_SCHEMAS = {
     "clir-joint-training-pilot-protocol-v1",
     "clir-joint-training-drop-one-protocol-v1",
     "clir-joint-training-packing-protocol-v1",
+    "clir-joint-training-condition-routing-protocol-v1",
 }
 
 
