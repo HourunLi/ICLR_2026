@@ -215,6 +215,12 @@ def test_training_epoch_accepts_token_only_loader(tmp_path: Path):
     assert metrics["examples"] == 2
     assert metrics["batches"] == 1
     assert metrics["applicable_counts"]["final"] == 2
+    assert metrics["active_batches"]["final"] == 1
+    assert metrics["active_losses"]["final"] == metrics["losses"]["final"]
+    assert metrics["active_loss_reduction"] == (
+        "mean_of_per_batch_component_means_over_batches_with_nonzero_"
+        "applicable_count"
+    )
 
 
 def test_scoring_accepts_token_only_manifest(tmp_path: Path, monkeypatch):

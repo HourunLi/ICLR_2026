@@ -1,6 +1,6 @@
 # CLIR 当前交接
 
-最后更新：2026-08-19
+最后更新：2026-08-20
 
 本文件只保留当前可执行状态。研究设计见 `docs/proposal.md`，历史路线与弃用原因见
 `docs/decision_history.md`；Localization v1 的 contaminated-tail 实验见
@@ -70,7 +70,8 @@ Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate inte
   delta `-1.712`，所以它确实消除了统一平移捷径；但 clean mean 下移 `-2.300`，大于 tail 的 `-1.374`，
   `tail−clean` delta `+.925`，value-risk/span AP 分别下降 `.109/.100`，未获多 seed 扩跑资格；
 - 当前 localization 默认选择 T0（S1 sparse BCE、无 full tail）。absolute T2 与 relative R1 都暂缓而非永久
-  否证；pseudo-tail、mixed 3968-row mechanism run 仍未获授权，pilot/final test 未读。
+  否证；pseudo-tail 仍未获授权。用户已另行批准把 T0 作为稀疏监督接入 3968-row 联合训练 pilot；这不推翻
+  tail 的历史裁决，也不把 sparse span 标签解释成 full-tail ground truth。pilot/final test 未读。
 
 当前三种监督和一种 reward shaping 不要混称：
 
@@ -110,6 +111,16 @@ clean-matched positional control 的新协议。
    gate-to-detached-fused-prior 的 shared-gradient alignment。v1 的 key-AP 保护门失败按历史原样保留，但当前
    不换 head-only；先用 v2 mixed outcome data 和 query-grouped ranking 判断原方法的任务效果。containment
    不替代 mutual，reconstruction 继续关闭且仍只接受独立 768-d target。
+6. Progress 在 primary 中暂时完全移出 reward：显式使用 `progress_weight=0` 与
+   `progress_score_weight=0`。原 head 不删除；稳定版 main 的 `progress_score_weight=.5` 只保留为 matched
+   control。在没有独立 verifier prefix-delta 等真实 `progress_targets` 前，不得把该分支输出解释为
+   局部推理进度。
+7. Complete reconstruction 已明确暂时关闭：primary 必须显式使用
+   `reconstruction_weight=0`。这是推迟而非删除；只有独立、冻结、宽度为 `model_dim=768` 的完整证据/
+   答案 target 经新版数据与训练协议发布后才能重开。same-candidate pooled feature 永久不能作为
+   reconstruction target。
+8. 当前联合训练采用一个 manifest、一个 sampler、一个 optimizer，从同一初始化联合更新；禁止把三个已训练
+   checkpoint 拼接。每行每 epoch 一次，不对 54/48 条辅助样本 oversample；缺失监督用 mask 跳过。
 
 外部 Qwen/Falcon rewrite 与旧 Route A v1 manifest 不是当前机制训练入口。Stage 1B v4 的旧训练结论仍只作
 optimization diagnostic，但其最新 checker-v5 outcome manifests 由 original-scale v2 作为 correctness 数据
@@ -235,24 +246,40 @@ carrier 复用；新的 query 排除、prior 合并和实验结论全部受 v2 �
 v2 继承的 v1 labels/split 是来源 artifact，不是当前训练方案；其 hash 与 lineage 已记录在 v2
 protocol/audit 中，不在本 handoff 重复展开。
 
+### Joint training pilot v1
+
+- 数据协议：`configs/joint_training_pilot_v1/data_protocol_v1.json`；统一 train 固定为 3968 rows / 496
+  queries，其中 3866 correctness-only、54 correctness+consistency、48
+  correctness+sparse-hallucination+dual-prior；54 与 48 行零重叠；
+- mechanism train/dev 为相同机制标签的 48/16 query-disjoint rows；ranking validation 固定为 500×16，三者
+  query overlap 均为 0；
+- sampler 固定 batch 4、每 epoch 992 batches、每行恰好一次；Route-A 每 epoch 产生 27 positive pairs 与
+  26 same-style negative pairs，不做辅助 oversampling；
+- 三格固定为 `j0_correctness`、`jp_original_prior`、`jall_full_retained`，seed 42、5 epochs、BF16、LR
+  `1e-4`、final epoch 5；原始 prior 为 direct key/complete + mutual `.25` + shared-gradient gate `10`；
+- JALL 只启用 consistency `1`、unweighted sparse hallucination BCE `1` 和 prior outer `1`。MIL、所有 tail、
+  token reward、progress、reconstruction 均为 0，`progress_score_weight=0`；
+- 训练前必须通过真实 feature 的 no-update gradient routing audit；日志同时保留全 epoch coverage-weighted loss、
+  active-supervision batch mean、active batch 数和精确 row/pair/token count；
+- 结果等级固定为 `small-scale real integration pilot`。Consistency 没有 held-out relation，只报告训练关系几何；
+  seed 42 通过只授权另发 seeds 43/44 协议。
+
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽已失败 v1 G1 的 key-AP 门槛。original-scale v2 已
-完成，下一步先使用现有 6 个 ranking 输出做无训练的 query-paired failure decomposition：
+不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。当前按以下顺序执行：
 
-1. 对每个 seed 统计 G1 相对 G0 的 top-choice 保持、正确→错误、错误→正确和错误→错误；
-2. 定位发生 top-choice 切换的 query，并关联 mixed-pool 难度、G0 margin、prior Gold 覆盖与 localization
-   指标，判断问题更像监督稀疏、优化干扰还是 ranking 饱和；
-3. 只有分析支持后才发布新 v3 协议；优先改变 prior supervision scale 或训练 schedule，保持原始 direct +
-   mutual `.25` + shared-gradient gate 公式；
-4. 不在当前 validation 结果后扫描 gate weight，不自动授权 head-only，不读取 pilot/final test。
+1. 物化并审计 unified train、mechanism train/dev，确认 3968/54/48、exact-token identity、provenance、
+   query disjointness 与 sampler 27/26 pair count；
+2. 在 JALL 配置上运行 no-update gradient audit，逐项确认 final、consistency、sparse hallucination、direct
+   key/complete、mutual 与 detached-fused-prior gate 的有限非零梯度及目标路由；
+3. 从同一 seed-42 初始化并行运行 J0/JP/JALL，各 5 epochs；只在 epoch 5 做冻结 mechanism/ranking 比较；
+4. JALL 必须超过 hallucination token/claim 位置基线、key/complete prior 位置基线，prior AP 相对 JP 回退不
+   超过 `.05`，训练 relation cosine gap 为正，且 BoN@16 相对 J0、JP 均不回退超过 `.02`；
+5. 全部门通过才另发 seeds 43/44 扩跑协议。任一门失败先做归因或 drop-one，不自动调 loss weight、不切换
+   multistream、不读取 pilot/final test。
 
-v1 G1 的 key-AP 损失曾支持 shared-representation interference 假设，但 v2 的三 seed mean key AP 反而
-提高 `.03084`，因此该因果解释不能视为已证明，也不能直接指导换架构。用户已选择保证项目原方法得到直接
-训练与 ranking 检验；该目标现已完成。containment 不替代相互蒸馏，reconstruction 仍等待独立 768-d target。
-
-reconstruction 仍要求独立 768-d target，禁止 same-candidate pooling。exact onset 与下一代 clean-matched tail
-repair 留在 backlog，不阻塞当前 collaboration comparison。
+原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
+reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。
 
 ## 5. 不可破坏的约束
 

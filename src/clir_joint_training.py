@@ -1,0 +1,204 @@
+"""Frozen configuration helpers for the CLIR joint-training integration pilot."""
+
+from __future__ import annotations
+
+from typing import Any, Mapping
+
+from .consistency_localized_reward import RewardConfig
+
+
+JOINT_PROTOCOL_SCHEMA = "clir-joint-training-pilot-protocol-v1"
+LOSS_NAMES = (
+    "final",
+    "consistency",
+    "negative_consistency",
+    "score_consistency",
+    "hallucination",
+    "mil",
+    "token_reward",
+    "tail",
+    "relative_tail",
+    "pseudo_tail",
+    "progress",
+    "prior",
+    "key_prior",
+    "complete_prior",
+    "prior_distill",
+    "gate_prior",
+    "reconstruction",
+)
+
+_FROZEN_MODEL = {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0,
+}
+_FROZEN_TRAINING = {
+    "seeds": [42],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 1e-4,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "group_by_semantic_id": True,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 5,
+    "prior_phase_mode": "joint",
+    "train_rows": 3968,
+    "batches_per_epoch": 992,
+}
+_FROZEN_SHARED_WEIGHTS = {
+    "final": 1.0,
+    "consistency": 0.0,
+    "negative_consistency": 1.0,
+    "score_consistency": 0.1,
+    "hallucination": 0.0,
+    "mil": 0.0,
+    "token_reward": 0.0,
+    "tail": 0.0,
+    "relative_tail": 0.0,
+    "pseudo_tail": 0.0,
+    "progress": 0.0,
+    "prior": 0.0,
+    "key_prior": 1.0,
+    "complete_prior": 1.0,
+    "prior_distill": 0.25,
+    "gate_prior": 10.0,
+    "reconstruction": 0.0,
+}
+_FROZEN_CELL_OVERRIDES = {
+    "j0_correctness": {},
+    "jp_original_prior": {"prior": 1.0},
+    "jall_full_retained": {
+        "consistency": 1.0,
+        "hallucination": 1.0,
+        "prior": 1.0,
+    },
+}
+
+
+def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
+    if protocol.get("schema_version") != JOINT_PROTOCOL_SCHEMA:
+        raise ValueError("Unexpected joint-training protocol schema")
+    cells = protocol.get("cells")
+    if not isinstance(cells, Mapping) or set(cells) != {
+        "j0_correctness",
+        "jp_original_prior",
+        "jall_full_retained",
+    }:
+        raise ValueError("Joint-training protocol must define the frozen three cells")
+    for name, expected in _FROZEN_MODEL.items():
+        if protocol.get("model", {}).get(name) != expected:
+            raise ValueError(f"Frozen joint model field drifted: {name}")
+    for name, expected in _FROZEN_TRAINING.items():
+        if protocol.get("matched_training", {}).get(name) != expected:
+            raise ValueError(f"Frozen joint training field drifted: {name}")
+    shared = protocol.get("losses", {}).get("shared")
+    if not isinstance(shared, Mapping) or {
+        name: float(shared.get(name, -1.0)) for name in LOSS_NAMES
+    } != _FROZEN_SHARED_WEIGHTS:
+        raise ValueError("Frozen joint shared loss weights drifted")
+    for cell_name, expected in _FROZEN_CELL_OVERRIDES.items():
+        overrides = cells[cell_name].get("loss_overrides")
+        if not isinstance(overrides, Mapping) or {
+            name: float(value) for name, value in overrides.items()
+        } != expected:
+            raise ValueError(f"Frozen joint cell overrides drifted: {cell_name}")
+    method = protocol.get("method", {})
+    expected_method = {
+        "consistency_margin": 0.2,
+        "hallucination_target_mode": "explicit",
+        "hallucination_positive_weight": 1.0,
+        "prior_fusion_alpha": 0.5,
+        "progress_score_weight": 0.0,
+        "negative_tail_margin": 0.5,
+        "relative_tail_margin": 0.5,
+        "pseudo_onset_threshold": 0.5,
+    }
+    for name, expected in expected_method.items():
+        if method.get(name) != expected:
+            raise ValueError(f"Frozen joint method field drifted: {name}")
+
+
+def resolve_loss_weights(
+    protocol: Mapping[str, Any], cell_name: str
+) -> dict[str, float]:
+    validate_joint_protocol(protocol)
+    if cell_name not in protocol["cells"]:
+        raise ValueError(f"Unknown joint-training cell {cell_name!r}")
+    shared = protocol["losses"]["shared"]
+    cell = protocol["cells"][cell_name]
+    weights = {name: float(shared[name]) for name in LOSS_NAMES}
+    for name, value in cell["loss_overrides"].items():
+        if name not in weights:
+            raise ValueError(f"Unknown joint-training loss override {name!r}")
+        weights[name] = float(value)
+    if set(weights) != set(LOSS_NAMES) or any(value < 0.0 for value in weights.values()):
+        raise ValueError("Joint-training loss weights are incomplete or negative")
+    return weights
+
+
+def reward_config_from_protocol(
+    protocol: Mapping[str, Any], cell_name: str
+) -> RewardConfig:
+    weights = resolve_loss_weights(protocol, cell_name)
+    model = protocol["model"]
+    method = protocol["method"]
+    return RewardConfig(
+        hidden_dim=int(model["hidden_dim"]),
+        model_variant=str(model["variant"]),
+        encoder_type=str(model["encoder_type"]),
+        model_dim=int(model["model_dim"]),
+        num_feature_layers=int(model["num_feature_layers"]),
+        per_layer_dim=int(model["per_layer_dim"]),
+        layer_encoder_dim=int(model["layer_encoder_dim"]),
+        layer_encoder_blocks=int(model["layer_encoder_blocks"]),
+        layer_encoder_heads=int(model["layer_encoder_heads"]),
+        layer_pool_queries=int(model["layer_pool_queries"]),
+        encoder_dropout=float(model["encoder_dropout"]),
+        projection_dim=int(model["projection_dim"]),
+        consistency_margin=float(method["consistency_margin"]),
+        hallucination_target_mode=str(method["hallucination_target_mode"]),
+        hallucination_positive_weight=float(method["hallucination_positive_weight"]),
+        prior_fusion_alpha=float(method["prior_fusion_alpha"]),
+        progress_score_weight=float(method["progress_score_weight"]),
+        negative_tail_margin=float(method["negative_tail_margin"]),
+        relative_tail_margin=float(method["relative_tail_margin"]),
+        pseudo_onset_threshold=float(method["pseudo_onset_threshold"]),
+        final_weight=weights["final"],
+        consistency_weight=weights["consistency"],
+        negative_consistency_weight=weights["negative_consistency"],
+        score_consistency_weight=weights["score_consistency"],
+        hallucination_weight=weights["hallucination"],
+        mil_weight=weights["mil"],
+        token_reward_weight=weights["token_reward"],
+        tail_weight=weights["tail"],
+        relative_tail_weight=weights["relative_tail"],
+        pseudo_tail_weight=weights["pseudo_tail"],
+        progress_weight=weights["progress"],
+        prior_weight=weights["prior"],
+        key_prior_weight=weights["key_prior"],
+        complete_prior_weight=weights["complete_prior"],
+        prior_distill_weight=weights["prior_distill"],
+        gate_prior_weight=weights["gate_prior"],
+        reconstruction_weight=weights["reconstruction"],
+    )
+
+
+__all__ = [
+    "JOINT_PROTOCOL_SCHEMA",
+    "LOSS_NAMES",
+    "resolve_loss_weights",
+    "reward_config_from_protocol",
+    "validate_joint_protocol",
+]

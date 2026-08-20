@@ -1,6 +1,6 @@
 # CLIR: Consistency-Localized Intrinsic Rewards
 
-最后更新：2026-08-19
+最后更新：2026-08-20
 
 CLIR 研究如何利用真实 LLM hidden states，为 Best-of-N 轨迹排序学习比最终 correctness 更细的监督：
 语义一致性、首个 hallucination 的定位，以及后续 dual-prior evidence localization。仓库实现自包含的
@@ -19,9 +19,12 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
 | hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
 | dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | original-scale v2 已完整训练；localization 改善但未建立 ranking 增益，不以结果后架构替换覆盖该结论 |
+| progress | primary 暂时固定 `progress_weight=0` 且 `progress_score_weight=0` | 没有真实 `progress_targets`；稳定版 main 的 `progress_score_weight=.5` 只作 matched control，不解释为已学习的推理进度 |
+| complete reconstruction | primary 暂时固定 `reconstruction_weight=0` | 这是推迟而非删除；只有发布独立、冻结的 768-d 外部 target 和新版协议后才能重开，禁止 same-candidate pooling |
 
-模块按顺序单独验证：先 consistency，再 hallucination localization，最后 dual prior。首轮不把三族 loss
-同时混训，也不在未校准的 hallucination head 上启用 pseudo-tail 自训练。
+三个模块的 standalone pilot 已按 consistency → hallucination localization → dual prior 顺序完成。当前进入
+第一轮 single-stream 联合训练：只合并已经保留的 Route-A consistency、T0/S1 sparse token BCE 和项目原始
+dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续关闭。
 
 ## 当前状态与证据边界
 
@@ -91,11 +94,17 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 
 ## 下一道门
 
-下一道门不改原始 dual-prior 架构。先对已完成的 500×16 G0/G1 输出做 query-paired failure decomposition：
-定位 gate 改变 top choice 的 query、正确→错误与错误→正确的净流向，以及这些变化和 prior 覆盖/localization
-质量的关系。若证据仍指向 supervision sparsity，再另发 v3 数据规模或 optimization-schedule 协议，保持 direct
-targets + mutual `.25` + shared-gradient gate 公式不变；不得在结果后扫描同一路径权重，也不自动授权
-head-only。reconstruction 继续等待独立 768-d target，不得使用 same-candidate pooling。v2 完整结果见
+当前门是 `joint_training_pilot_v1` 的 seed-42 三格联合训练，而不是继续单独调模块。统一 train 有 3968 条：
+3866 条 correctness-only、54 条 correctness+consistency（27 对）、48 条
+correctness+sparse-hallucination+dual-prior；另有 query-disjoint mechanism-dev 16 条和固定 500×16 ranking
+validation。三格为 J0 correctness、JP correctness+原始 dual prior、JALL 全部保留模块；同一初始化、同一
+semantic-group batch 顺序、batch 4、5 epochs。先通过 manifest/data gate、无更新梯度路由审计和真实 GPU
+batch，再并行训练与评分。只有 JALL 的 localization/prior/geometry 门通过，且 BoN@16 相对 J0/JP 均不回退
+超过 2 个百分点，才另发 seeds 43/44 扩跑协议；单 seed 通过只代表扩大资格，不是方法效果结论。
+
+本轮固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调权重或
+切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
+same-candidate pooling。原始 dual-prior v2 完整结果见
 [Dual-Prior Original Scale v2](docs/dual_prior_original_scale_v2.md)，机器结果为
 `configs/dual_prior_original_scale_v2/training_result_v2.json`。完整 direct-target 结果见
 [Dual-Prior Evidence Pilot v1](docs/dual_prior_evidence_pilot_v1.md) 与

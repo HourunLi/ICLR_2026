@@ -1,0 +1,120 @@
+{
+  "schema_version": "clir-joint-training-data-protocol-v1",
+  "status": "frozen_before_materialization",
+  "evidence_tier": "small-scale real",
+  "purpose": "Materialize one query-disjoint 3968-row stream carrying correctness everywhere, 27 on-policy equivalence pairs, and the same 48 trajectories with sparse hallucination plus original dual-prior supervision.",
+  "inputs": {
+    "outcome_train": {
+      "path": "run_artifacts/stage1b_v3/labels/train_extracted.v5.jsonl",
+      "sha256": "6faca803b108675ed7ae08e54416969b483e7b9918133b51a0c9aff92fe02e06",
+      "rows": 4096,
+      "queries": 512,
+      "candidates_per_query": 8
+    },
+    "ranking_validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16
+    },
+    "consistency_manifest": {
+      "path": "run_artifacts/on_policy_pilot0_v1a/data_v1/train_mixed_precomputed_v1.jsonl",
+      "sha256": "5cae43026ca1fefdb14cc656e61dab5d3598e3582ba5d8ac27655f385a7e6307",
+      "rows": 4096,
+      "supervised_rows": 54,
+      "semantic_groups": 27
+    },
+    "consistency_protocol": {
+      "path": "configs/on_policy_pilot0_v1a/mixed_manifest_protocol_v1.json",
+      "sha256": "7f497bbbdb31832a3cd00b106b6b09d47359e129623bc1a3ab794b4ff454f95d"
+    },
+    "consistency_relations": {
+      "path": "configs/on_policy_pilot0_v1a/adjudicated_relations_v1.jsonl",
+      "sha256": "b874fd07280e501ff1515ee3ad301fb6b8eeaabf29ae9f7752c62493ccba810e"
+    },
+    "hallucination_path_annotations": {
+      "path": "configs/hallucination_localization_v1/supervision_annotations_v1.jsonl",
+      "sha256": "2447aef866f4a8693d03bd5bdeef7381d5254485966de3ff4f7d4fc0384b72cb",
+      "rows": 64
+    },
+    "hallucination_span_annotations": {
+      "path": "configs/hallucination_localization_v2/span_supervision_annotations_v2.jsonl",
+      "sha256": "a5564385561276d340ba97cbaf0775229f8a2ea8a5e79b9bf6bec7bc4d958cb2",
+      "rows": 64
+    },
+    "hallucination_span_train": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/train_span48_v2.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+      "rows": 48
+    },
+    "hallucination_span_dev": {
+      "path": "run_artifacts/hallucination_localization_v2/data_v2/localization_span_dev16_v2.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+      "rows": 16
+    },
+    "dual_prior_train_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_dense_train_v1.jsonl",
+      "sha256": "8338169e6e87a43734d93c5348de1ebad6dda14c3a5c791ed9a357a5e0538f98",
+      "rows": 48
+    },
+    "dual_prior_dev_annotations": {
+      "path": "configs/dual_prior_evidence_v1/supervision_gold_localization_dev_v1.jsonl",
+      "sha256": "4673c017d2a2ec24dff49873390c1c429d94fa8953eaad369a34256e7e88e8a7",
+      "rows": 16
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    }
+  },
+  "split_policy": {
+    "unit": "query_id",
+    "exclude_every_mechanism_dev_query_from_training": true,
+    "expected_excluded_queries": 16,
+    "expected_excluded_rows": 128,
+    "expected_train_queries": 496,
+    "expected_train_rows": 3968,
+    "preserve_complete_candidate_groups": true,
+    "ranking_validation_must_be_query_disjoint": true
+  },
+  "supervision_policy": {
+    "missing_supervision_remains_missing": true,
+    "exact_id_query_and_output_token_hash_join": true,
+    "copy_or_retokenize_targets": false,
+    "correctness_rows": 3968,
+    "consistency_rows": 54,
+    "consistency_pairs": 27,
+    "mechanism_train_rows": 48,
+    "mechanism_dev_rows": 16,
+    "consistency_and_mechanism_train_must_be_disjoint": true,
+    "hallucination_train_supervised_tokens": 6681,
+    "hallucination_train_positive_tokens": 922,
+    "hallucination_train_negative_tokens": 5759,
+    "hallucination_dev_supervised_tokens": 2451,
+    "hallucination_dev_positive_tokens": 528,
+    "hallucination_dev_negative_tokens": 1923,
+    "progress_targets_allowed": false,
+    "complete_reconstruction_target_allowed": false
+  },
+  "sampler_contract": {
+    "name": "SemanticGroupBatchSampler",
+    "batch_size": 4,
+    "seed": 42,
+    "each_row_once_per_epoch": true,
+    "expected_batches_per_epoch": 992,
+    "expected_positive_pairs_per_epoch": 27,
+    "expected_negative_pairs_per_epoch": 26,
+    "auxiliary_oversampling": false
+  },
+  "outputs": {
+    "train": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+    "mechanism_train": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+    "mechanism_dev": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+    "report": "configs/joint_training_pilot_v1/data_report_v1.json"
+  },
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

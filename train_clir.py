@@ -501,6 +501,8 @@ def run_epoch(
     training = optimizer is not None
     model.train(training)
     totals: Dict[str, float] = {}
+    active_totals: Dict[str, float] = {}
+    active_batches: Dict[str, int] = {}
     applicable: Dict[str, int] = {}
     examples = 0
     batches = 0
@@ -554,17 +556,34 @@ def run_epoch(
             batch_size = int(batch["hidden_states"].shape[0])
             examples += batch_size
             batches += 1
-            for key, value in losses.items():
-                totals[key] = totals.get(key, 0.0) + float(value.detach().cpu()) * batch_size
-            for key, value in _component_counts(
+            detached_losses = {
+                key: float(value.detach().cpu()) for key, value in losses.items()
+            }
+            for key, value in detached_losses.items():
+                totals[key] = totals.get(key, 0.0) + value * batch_size
+            component_counts = _component_counts(
                 batch,
                 losses,
                 hallucination_target_mode=model.config.hallucination_target_mode,
-            ).items():
+            )
+            for key, value in component_counts.items():
                 applicable[key] = applicable.get(key, 0) + value
+            for key, value in detached_losses.items():
+                if component_counts.get(key, 0) > 0:
+                    active_totals[key] = active_totals.get(key, 0.0) + value
+                    active_batches[key] = active_batches.get(key, 0) + 1
 
     return {
         "losses": {key: value / max(examples, 1) for key, value in totals.items()},
+        "active_losses": {
+            key: value / active_batches[key]
+            for key, value in active_totals.items()
+        },
+        "active_batches": active_batches,
+        "active_loss_reduction": (
+            "mean_of_per_batch_component_means_over_batches_with_nonzero_"
+            "applicable_count"
+        ),
         "applicable_counts": applicable,
         "examples": examples,
         "batches": batches,
