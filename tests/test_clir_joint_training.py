@@ -7,6 +7,16 @@ from scripts.evaluate_dual_prior_gate_predictions_v1 import (
 from scripts.summarize_joint_training_drop_one_v1 import (
     classify_key_attribution,
 )
+from scripts.audit_joint_gradient_interactions_v1 import (
+    audit_stream_structure,
+    controlled_batch_report,
+)
+from src.clir_data import CLIRTrajectoryDataset
+from src.clir_gradient_interaction import (
+    classify_cross_stream_pressure,
+    classify_same_batch_conflict,
+    validate_gradient_interaction_protocol,
+)
 from src.clir_data import read_jsonl
 from src.clir_joint_training import (
     reward_config_from_protocol,
@@ -23,6 +33,9 @@ PROTOCOL_PATH = (
 DROP_ONE_PROTOCOL_PATH = (
     ROOT / "configs/joint_training_drop_one_v1/training_protocol_v1.json"
 )
+GRADIENT_INTERACTION_PROTOCOL_PATH = (
+    ROOT / "configs/joint_gradient_interaction_v1/audit_protocol_v1.json"
+)
 
 
 def load_protocol():
@@ -31,6 +44,12 @@ def load_protocol():
 
 def load_drop_one_protocol():
     return json.loads(DROP_ONE_PROTOCOL_PATH.read_text(encoding="utf-8"))
+
+
+def load_gradient_interaction_protocol():
+    return json.loads(
+        GRADIENT_INTERACTION_PROTOCOL_PATH.read_text(encoding="utf-8")
+    )
 
 
 def test_joint_protocol_freezes_the_three_authorized_cells():
@@ -201,4 +220,92 @@ def test_drop_one_attribution_classifier_is_exhaustive():
             jph_reproduces_drop=False, jpc_reproduces_drop=False
         )
         == "joint_interaction_only_at_frozen_threshold_seed42"
+    )
+
+
+def test_gradient_interaction_protocol_and_artifact_hashes_are_frozen():
+    protocol = load_gradient_interaction_protocol()
+    validate_gradient_interaction_protocol(protocol)
+    for section in ("parent_artifacts", "inputs"):
+        for spec in protocol[section].values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+    assert protocol["effective_objective_weights"] == {
+        "final": 1.0,
+        "hallucination": 1.0,
+        "consistency": 1.0,
+        "prior_key": 1.0,
+        "prior_complete": 1.0,
+        "prior_distill": 0.25,
+        "prior_gate": 10.0,
+        "prior_total_outer": 1.0,
+    }
+    assert protocol["decision_rules"]["automatic_repair_authorized"] is False
+    assert protocol["decision_rules"]["additional_training_authorized"] is False
+
+
+def test_gradient_interaction_controlled_batches_cover_frozen_stream():
+    protocol = load_gradient_interaction_protocol()
+    main = CLIRTrajectoryDataset(
+        ROOT / protocol["inputs"]["train_manifest"]["path"],
+        check_finite=False,
+        require_correctness=True,
+        load_condition=False,
+        hidden_state_source="precomputed",
+    )
+    mechanism = CLIRTrajectoryDataset(
+        ROOT / protocol["inputs"]["mechanism_manifest"]["path"],
+        check_finite=False,
+        require_correctness=True,
+        load_condition=False,
+        hidden_state_source="precomputed",
+    )
+    consistency_batches, stream = audit_stream_structure(main, protocol)
+    controlled = controlled_batch_report(
+        main, mechanism, consistency_batches, protocol
+    )
+    assert stream["passed"] is True
+    assert [row["mechanism_consistency_overlap_batches"] for row in stream["epochs"]] == [0] * 5
+    assert controlled["mechanism_rows"] == 48
+    assert controlled["consistency_rows"] == 54
+    assert controlled["positive_pairs"] == 27
+    assert controlled["negative_pairs"] == 26
+
+
+def test_gradient_interaction_classifiers_require_stability():
+    stable = {
+        "init": {
+            "aggregate_shared_cosine": -0.2,
+            "batch_shared_cosines": {"negative_fraction": 0.8, "median": -0.1},
+        },
+        "jp": {
+            "aggregate_shared_cosine": -0.1,
+            "batch_shared_cosines": {"negative_fraction": 0.75, "median": -0.02},
+        },
+    }
+    assert (
+        classify_same_batch_conflict(
+            stable, threshold=-0.05, negative_fraction_minimum=0.7
+        )
+        == "stable_same_batch_conflict"
+    )
+    stable["jp"]["aggregate_shared_cosine"] = 0.1
+    assert (
+        classify_same_batch_conflict(
+            stable, threshold=-0.05, negative_fraction_minimum=0.7
+        )
+        == "state_specific_same_batch_conflict"
+    )
+    assert (
+        classify_cross_stream_pressure(
+            {"init": -0.2, "jp": -0.1}, threshold=-0.05
+        )
+        == "stable_cross_stream_opposition"
+    )
+    assert (
+        classify_cross_stream_pressure(
+            {"init": -0.2, "jp": 0.1}, threshold=-0.05
+        )
+        == "state_specific_cross_stream_opposition"
     )

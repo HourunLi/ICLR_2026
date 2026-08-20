@@ -1,0 +1,154 @@
+{
+  "schema_version": "clir-joint-gradient-interaction-protocol-v1",
+  "status": "frozen_before_audit",
+  "evidence_tier": "small-scale real",
+  "scope": "No-update raw-gradient diagnostic for the seed-42 joint-training failure; not a mechanism-efficacy or general causal experiment.",
+  "parent_artifacts": {
+    "joint_training_protocol": {
+      "path": "configs/joint_training_pilot_v1/training_protocol_v1.json",
+      "sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053"
+    },
+    "joint_training_result": {
+      "path": "configs/joint_training_pilot_v1/training_result_v1.json",
+      "sha256": "2cf16fa4d97c68a90a67e975ebb8b683e462200e08537c70182a9ebbbc80dd30"
+    },
+    "drop_one_result": {
+      "path": "configs/joint_training_drop_one_v1/training_result_v1.json",
+      "sha256": "5258d051129bdb480416a68f267229de249525fd664c498d68ab5511cdb3c289"
+    }
+  },
+  "inputs": {
+    "train_manifest": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+      "sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48"
+    },
+    "mechanism_manifest": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    },
+    "jp_epoch5_checkpoint": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+      "sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+      "schema_version": "clir-full-checkpoint-v2",
+      "completed_epoch": 5,
+      "training_code_commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+      "experiment_protocol_sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053",
+      "train_manifest_sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48"
+    }
+  },
+  "model_states": [
+    {
+      "name": "initialization_seed42",
+      "kind": "deterministic_initialization",
+      "seed": 42,
+      "expected_parameter_checksum": "bb2703054b1f5543f834803f1a112da96322255fdb368035e8f1192aff9cdace"
+    },
+    {
+      "name": "jp_epoch5",
+      "kind": "checkpoint",
+      "input": "jp_epoch5_checkpoint"
+    }
+  ],
+  "stream_structure": {
+    "sampler": "SemanticGroupBatchSampler",
+    "seed": 42,
+    "epochs": 5,
+    "batch_size": 4,
+    "batches_per_epoch": 992,
+    "mechanism_active_batches": [48, 47, 48, 45, 45],
+    "consistency_active_batches": [14, 14, 14, 14, 14],
+    "mechanism_consistency_overlap_batches": [0, 0, 0, 0, 0]
+  },
+  "controlled_batches": {
+    "mechanism": {
+      "rows": 48,
+      "batch_size": 4,
+      "batches": 12,
+      "row_mean_loss": true,
+      "coverage": "all mechanism-train rows in frozen manifest order"
+    },
+    "consistency": {
+      "rows": 54,
+      "semantic_groups": 27,
+      "active_batches": 14,
+      "positive_pairs": 27,
+      "negative_pairs": 26,
+      "coverage": "all epoch-1 consistency-active rows with ordinary rows removed"
+    }
+  },
+  "effective_objective_weights": {
+    "final": 1.0,
+    "hallucination": 1.0,
+    "consistency": 1.0,
+    "prior_key": 1.0,
+    "prior_complete": 1.0,
+    "prior_distill": 0.25,
+    "prior_gate": 10.0,
+    "prior_total_outer": 1.0
+  },
+  "shared_parameter_groups": {
+    "shared_all": ["input_encoder.", "condition_query.", "condition_key.", "condition_value.", "condition_fusion.", "feature_norm."],
+    "input_encoder_all": ["input_encoder."],
+    "input_projection": ["input_encoder.layer_positions", "input_encoder.pool_queries", "input_encoder.input_norm.", "input_encoder.input_projection."],
+    "transformer_block_0": ["input_encoder.layer_transformer.layers.0."],
+    "transformer_block_1": ["input_encoder.layer_transformer.layers.1."],
+    "layer_pool": ["input_encoder.layer_pool."],
+    "encoder_output": ["input_encoder.output_projection.", "input_encoder.output_norm."],
+    "condition_all": ["condition_query.", "condition_key.", "condition_value.", "condition_fusion.", "feature_norm."],
+    "condition_attention": ["condition_query.", "condition_key.", "condition_value."],
+    "condition_fusion": ["condition_fusion.", "feature_norm."]
+  },
+  "same_batch_pairs": [
+    ["hallucination", "prior_total"],
+    ["hallucination", "prior_key"],
+    ["hallucination", "prior_complete"],
+    ["hallucination", "prior_distill"],
+    ["hallucination", "prior_gate"],
+    ["final_mechanism", "hallucination"],
+    ["final_mechanism", "prior_total"],
+    ["final_consistency", "consistency"]
+  ],
+  "cross_stream_pairs": [
+    ["consistency", "prior_total"],
+    ["consistency", "prior_key"],
+    ["consistency", "prior_complete"],
+    ["consistency", "prior_distill"],
+    ["consistency", "prior_gate"],
+    ["consistency", "hallucination"]
+  ],
+  "decision_rules": {
+    "negative_cosine_threshold": -0.05,
+    "same_batch_negative_fraction_minimum": 0.7,
+    "same_batch_median_must_be_negative": true,
+    "stable_requires_both_model_states": true,
+    "cross_stream_is_not_simultaneous_conflict": true,
+    "automatic_repair_authorized": false,
+    "automatic_weight_tuning_authorized": false,
+    "automatic_sampler_change_authorized": false,
+    "additional_training_authorized": false
+  },
+  "measurement_semantics": {
+    "gradient_space": "raw effective gradients before global-norm clipping and AdamW preconditioning",
+    "precision": "BF16 autocast forward with FP32 losses/gradients as produced by the frozen training implementation",
+    "mechanism_batching": "Four frozen mechanism rows share one forward; each objective is averaged over four independently computed row losses so the aggregate matches equal active-step row weighting.",
+    "consistency_batching": "Use all epoch-1 consistency-active semantic rows in their frozen batch grouping; ordinary unlabeled companions are removed because they do not enter consistency loss.",
+    "cross_stream_caveat": "C and H/prior never co-occur in one frozen optimizer batch. C-vs-prior cosine measures cross-step representation pressure and is sample-confounded, not simultaneous PCGrad-style conflict.",
+    "optimizer_caveat": "Raw-gradient cosines do not include AdamW moment preconditioning or global-norm clipping."
+  },
+  "execution": {
+    "script": "scripts/audit_joint_gradient_interactions_v1.py",
+    "output": "configs/joint_gradient_interaction_v1/audit_result_v1.json",
+    "device": "cuda",
+    "amp_dtype": "bfloat16",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "no_parameter_update": true,
+    "pilot_test_accessed": false,
+    "final_test_accessed": false
+  }
+}
