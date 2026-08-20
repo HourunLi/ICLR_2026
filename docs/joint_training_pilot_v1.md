@@ -120,7 +120,8 @@ pilot/final test。
 - JPH 的 H AP 仍失败：下一步才比较当前 packing 与 supervision-aware packing，并保持每行每 epoch 一次，
   不能直接跳到扫 loss weight。
 
-这一 drop-one 只是失败归因，不是新方法效果实验。执行前仍需用户拍板。
+这一 drop-one 只是失败归因，不是新方法效果实验。用户已批准执行，冻结协议为
+`configs/joint_training_drop_one_v1/training_protocol_v1.json`；它不修改或覆盖本轮任何 artifact。
 
 ## 6. 可复核 artifact
 

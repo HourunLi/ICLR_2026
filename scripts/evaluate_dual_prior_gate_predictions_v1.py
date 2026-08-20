@@ -40,6 +40,7 @@ SUPPORTED_PROTOCOL_SCHEMAS = {
     "clir-dual-prior-reward-gate-integration-training-protocol-v1",
     "clir-dual-prior-original-scale-training-protocol-v2",
     "clir-joint-training-pilot-protocol-v1",
+    "clir-joint-training-drop-one-protocol-v1",
 }
 
 

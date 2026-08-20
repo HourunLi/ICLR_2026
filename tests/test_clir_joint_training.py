@@ -4,6 +4,9 @@ from pathlib import Path
 from scripts.evaluate_dual_prior_gate_predictions_v1 import (
     SUPPORTED_PROTOCOL_SCHEMAS,
 )
+from scripts.summarize_joint_training_drop_one_v1 import (
+    classify_key_attribution,
+)
 from src.clir_data import read_jsonl
 from src.clir_joint_training import (
     reward_config_from_protocol,
@@ -17,10 +20,17 @@ ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = (
     ROOT / "configs/joint_training_pilot_v1/training_protocol_v1.json"
 )
+DROP_ONE_PROTOCOL_PATH = (
+    ROOT / "configs/joint_training_drop_one_v1/training_protocol_v1.json"
+)
 
 
 def load_protocol():
     return json.loads(PROTOCOL_PATH.read_text(encoding="utf-8"))
+
+
+def load_drop_one_protocol():
+    return json.loads(DROP_ONE_PROTOCOL_PATH.read_text(encoding="utf-8"))
 
 
 def test_joint_protocol_freezes_the_three_authorized_cells():
@@ -109,3 +119,86 @@ def test_joint_manifests_have_no_deferred_targets_or_auxiliary_overlap():
     assert mechanism.isdisjoint(consistency)
     assert all("progress_targets" not in row for row in train)
     assert all("complete_reconstruction_target" not in row for row in train)
+
+
+def test_drop_one_protocol_freezes_only_jph_and_jpc():
+    protocol = load_drop_one_protocol()
+    validate_joint_protocol(protocol)
+    assert list(protocol["cells"]) == [
+        "jph_prior_plus_hallucination",
+        "jpc_prior_plus_consistency",
+    ]
+    jph = resolve_loss_weights(protocol, "jph_prior_plus_hallucination")
+    jpc = resolve_loss_weights(protocol, "jpc_prior_plus_consistency")
+    assert jph["prior"] == jph["hallucination"] == 1.0
+    assert jph["consistency"] == 0.0
+    assert jpc["prior"] == jpc["consistency"] == 1.0
+    assert jpc["hallucination"] == 0.0
+    for weights in (jph, jpc):
+        assert weights["final"] == 1.0
+        assert weights["prior_distill"] == 0.25
+        assert weights["gate_prior"] == 10.0
+        assert weights["mil"] == weights["tail"] == weights["progress"] == 0.0
+        assert weights["reconstruction"] == 0.0
+    assert protocol["schema_version"] in SUPPORTED_PROTOCOL_SCHEMAS
+
+
+def test_drop_one_protocol_matches_parent_data_model_schedule_and_weights():
+    parent = load_protocol()
+    protocol = load_drop_one_protocol()
+    assert protocol["model"] == parent["model"]
+    for name, value in parent["matched_training"].items():
+        assert protocol["matched_training"][name] == value
+    assert protocol["losses"] == parent["losses"]
+    for name, value in parent["method"].items():
+        assert protocol["method"][name] == value
+    assert protocol["manifests"] == parent["manifests"]
+    assert protocol["inputs"] == parent["inputs"]
+    assert protocol["method"]["loss_weight_scan_in_this_protocol"] is False
+    assert protocol["method"]["multistream_training_in_this_protocol"] is False
+    assert protocol["method"]["sampler_or_batch_packing_changed"] is False
+
+
+def test_drop_one_parent_controls_and_all_referenced_hashes_are_exact():
+    protocol = load_drop_one_protocol()
+    for spec in protocol["parent_experiment"].values():
+        path = ROOT / spec["path"]
+        assert path.is_file()
+        assert file_sha256(path) == spec["sha256"]
+    for control in protocol["frozen_controls"]["cells"].values():
+        for spec in control.values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+    for section in ("inputs", "manifests"):
+        for spec in protocol[section].values():
+            path = ROOT / spec["path"]
+            assert path.is_file()
+            assert file_sha256(path) == spec["sha256"]
+
+
+def test_drop_one_attribution_classifier_is_exhaustive():
+    assert (
+        classify_key_attribution(
+            jph_reproduces_drop=True, jpc_reproduces_drop=True
+        )
+        == "both_auxiliaries_individually_sufficient_at_seed42"
+    )
+    assert (
+        classify_key_attribution(
+            jph_reproduces_drop=True, jpc_reproduces_drop=False
+        )
+        == "hallucination_individually_sufficient_at_seed42"
+    )
+    assert (
+        classify_key_attribution(
+            jph_reproduces_drop=False, jpc_reproduces_drop=True
+        )
+        == "consistency_individually_sufficient_at_seed42"
+    )
+    assert (
+        classify_key_attribution(
+            jph_reproduces_drop=False, jpc_reproduces_drop=False
+        )
+        == "joint_interaction_only_at_frozen_threshold_seed42"
+    )

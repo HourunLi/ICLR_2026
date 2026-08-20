@@ -1,0 +1,295 @@
+{
+  "schema_version": "clir-joint-training-drop-one-protocol-v1",
+  "status": "frozen_before_training",
+  "evidence_tier": "small-scale real integration pilot",
+  "purpose": "Identify whether sparse hallucination supervision, on-policy consistency, or their interaction reproduces the seed-42 key-prior and hallucination-localization failures of the first joint-training pilot.",
+  "parent_experiment": {
+    "protocol": {
+      "path": "configs/joint_training_pilot_v1/training_protocol_v1.json",
+      "sha256": "412cb58b1e247ef7573f00461973161df38ddf84ffe06b04bd8ba2bbf4e68053"
+    },
+    "result": {
+      "path": "configs/joint_training_pilot_v1/training_result_v1.json",
+      "sha256": "2cf16fa4d97c68a90a67e975ebb8b683e462200e08537c70182a9ebbbc80dd30"
+    },
+    "failure_diagnostic": {
+      "path": "configs/joint_training_pilot_v1/failure_diagnostic_v1.json",
+      "sha256": "5b61367eba929fe3ac6531fc9bd23840968d1f2b467d1db20a2bedf9397cae79"
+    }
+  },
+  "frozen_controls": {
+    "seed": 42,
+    "training_code_commit": "5a0b5d3ed528c04c513434636fb21781368bce99",
+    "cells": {
+      "jp_original_prior": {
+        "cell_result": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/cell_result.json",
+          "sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32"
+        },
+        "ranking_evaluation": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/ranking_evaluation.json",
+          "sha256": "1cb0f224ccfa5a5a6f5ad1927258b843c4b11384301b32a7ad856e4322d34dd3"
+        }
+      },
+      "jall_full_retained": {
+        "cell_result": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jall_full_retained/cell_result.json",
+          "sha256": "f8ca0329b277e37a96ecb0b2f8327aa310d3aeafeaf265a62ed47bc92595390c"
+        },
+        "ranking_evaluation": {
+          "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jall_full_retained/ranking_evaluation.json",
+          "sha256": "e6f3e3e9b35cd6b6b65c4980d2ef26170774a2691361a05859b181b556245684"
+        }
+      }
+    }
+  },
+  "model": {
+    "variant": "clir",
+    "hidden_dim": 101376,
+    "encoder_type": "layer_transformer",
+    "model_dim": 768,
+    "num_feature_layers": 33,
+    "per_layer_dim": 3072,
+    "layer_encoder_dim": 256,
+    "layer_encoder_blocks": 2,
+    "layer_encoder_heads": 8,
+    "layer_pool_queries": 4,
+    "projection_dim": 256,
+    "encoder_dropout": 0.0
+  },
+  "matched_training": {
+    "seeds": [42],
+    "epochs": 5,
+    "batch_size": 4,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "amp_dtype": "bfloat16",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "group_by_semantic_id": true,
+    "hidden_state_source": "precomputed",
+    "validation_every_n_epochs": 5,
+    "checkpoint_selection": "fixed final epoch 5",
+    "early_stopping": false,
+    "prior_phase_mode": "joint",
+    "train_rows": 3968,
+    "train_queries": 496,
+    "batches_per_epoch": 992,
+    "each_row_once_per_epoch": true,
+    "auxiliary_oversampling": false,
+    "feature_finite_scan_policy": "skip only after the frozen exhaustive feature-integrity report",
+    "constant_prior_failure_gate": false,
+    "initialization_match": "same seed and architecture as JP/JALL; deterministic initialization before any optimizer update",
+    "batch_order_match": "same SemanticGroupBatchSampler seed and epoch schedule as JP/JALL"
+  },
+  "method": {
+    "consistency_margin": 0.2,
+    "hallucination_target_mode": "explicit",
+    "hallucination_positive_weight": 1.0,
+    "prior_fusion_alpha": 0.5,
+    "progress_score_weight": 0.0,
+    "negative_tail_margin": 0.5,
+    "relative_tail_margin": 0.5,
+    "pseudo_onset_threshold": 0.5,
+    "dual_prior_formula": "direct key BCE + direct complete BCE + bidirectional stop-gradient mutual distillation at 0.25 + shared-gradient reward gate to detached 0.5/0.5 fused prior at 10.0",
+    "dual_prior_architecture_changed": false,
+    "loss_weight_scan_in_this_protocol": false,
+    "multistream_training_in_this_protocol": false,
+    "sampler_or_batch_packing_changed": false
+  },
+  "losses": {
+    "shared": {
+      "final": 1.0,
+      "consistency": 0.0,
+      "negative_consistency": 1.0,
+      "score_consistency": 0.1,
+      "hallucination": 0.0,
+      "mil": 0.0,
+      "token_reward": 0.0,
+      "tail": 0.0,
+      "relative_tail": 0.0,
+      "pseudo_tail": 0.0,
+      "progress": 0.0,
+      "prior": 0.0,
+      "key_prior": 1.0,
+      "complete_prior": 1.0,
+      "prior_distill": 0.25,
+      "gate_prior": 10.0,
+      "reconstruction": 0.0
+    },
+    "disabled_in_every_cell": [
+      "mil",
+      "token_reward",
+      "tail",
+      "relative_tail",
+      "pseudo_tail",
+      "progress",
+      "reconstruction"
+    ],
+    "missing_supervision_policy": "mask and skip; do not synthesize targets"
+  },
+  "cells": {
+    "jph_prior_plus_hallucination": {
+      "description": "Correctness plus sparse explicit hallucination BCE and the unchanged original dual-prior objective; consistency outer weight remains zero.",
+      "loss_overrides": {
+        "hallucination": 1.0,
+        "prior": 1.0
+      }
+    },
+    "jpc_prior_plus_consistency": {
+      "description": "Correctness plus retained on-policy consistency and the unchanged original dual-prior objective; hallucination outer weight remains zero.",
+      "loss_overrides": {
+        "consistency": 1.0,
+        "prior": 1.0
+      }
+    }
+  },
+  "scoring": {
+    "batch_size": 2,
+    "amp_dtype": "none",
+    "compute_dtype": "float32",
+    "num_workers": 4,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "minimum_score_population_std": 0.0
+  },
+  "evaluation": {
+    "ranking_query_count": 500,
+    "ranking_candidates_per_query": 16,
+    "k": [1, 2, 4, 8, 16],
+    "primary_k": 16,
+    "candidate_subset": "first_k_by_vllm_completion_output_index",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "bootstrap_unit": "query",
+    "bootstrap_replicates": 10000,
+    "confidence_level": 0.95,
+    "minimum_within_query_pairwise_accuracy": 0.0,
+    "consistency_relation_split": "training relations only; geometry diagnostic, not held-out evidence",
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "engineering_gates": {
+    "per_epoch_applicable_counts": {
+      "total": 3968,
+      "final": 3968,
+      "consistency_positive": 27,
+      "consistency_negative": 26,
+      "consistency_score": 27,
+      "consistency_total": 53,
+      "localization_token_bce": 6681,
+      "prior_key": 14307,
+      "prior_complete": 14307,
+      "prior_distill": 14307,
+      "prior_gate": 14307,
+      "prior_total": 14307
+    },
+    "active_supervision_logging_required": true,
+    "finite_losses_required": true,
+    "real_feature_no_update_gradient_audit_required": true,
+    "same_initialization_and_batch_order_required": true
+  },
+  "drop_one_decision_rules": {
+    "key_ap_drop_threshold_vs_jp": 0.05,
+    "key_drop_definition": "new_cell_key_AP - frozen_JP_key_AP < -0.05",
+    "hallucination_span_token_ap_min_exclusive": 0.39328067905143455,
+    "hallucination_claim_ap_min_exclusive": 0.42198767865054354,
+    "hallucination_recovery_definition": "JPH exceeds both frozen position baselines",
+    "ranking_max_absolute_regression_vs_jp": 0.02,
+    "ranking_guard_definition": "new_cell_BoN16 - frozen_JP_BoN16 >= -0.02",
+    "attribution": {
+      "jpc_key_drop_only": "consistency is sufficient at seed 42, conditional on the original prior and current single stream, to cross the frozen key-drop threshold",
+      "jph_key_drop_only": "sparse hallucination is sufficient at seed 42, conditional on the original prior and current single stream, to cross the frozen key-drop threshold",
+      "both_key_drop": "each auxiliary objective is individually sufficient at seed 42 to cross the frozen key-drop threshold",
+      "neither_key_drop_while_jall_drops": "the frozen threshold is crossed only when hallucination and consistency are jointly enabled under the current protocol",
+      "jph_hallucination_recovers": "consistency is implicated in the JALL localization failure",
+      "jph_hallucination_does_not_recover": "the failure persists without consistency; prior/correctness mixing or current batch packing remains unresolved"
+    },
+    "no_seed_expansion_from_this_diagnostic": true,
+    "automatic_loss_weight_tuning": false,
+    "automatic_stream_switch": false
+  },
+  "manifests": {
+    "train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/train3968_joint_v1.jsonl",
+      "sha256": "dc868b60494c0417902f4f4679d24771a75cd5c9f51107104bb365579a0f4d48",
+      "rows": 3968,
+      "queries": 496,
+      "candidates_per_query": 8,
+      "correctness_rows": 3968,
+      "consistency_rows": 54,
+      "mechanism_rows": 48
+    },
+    "mechanism_train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6",
+      "rows": 48,
+      "queries": 48
+    },
+    "mechanism_dev": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+      "sha256": "22b4dadc0c75cfe9422bc9805697028dd31e19fe129ac100ab5a10b69a16678d",
+      "rows": 16,
+      "queries": 16
+    },
+    "localization_train": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_train48_joint_v1.jsonl",
+      "sha256": "074b224aaf3a57816aafc42d70e4cb2c1154c889676d5061b7d374ab5c02d8d6",
+      "rows": 48,
+      "queries": 48
+    },
+    "localization_dev": {
+      "path": "run_artifacts/joint_training_pilot_v1/data_v1/mechanism_dev16_joint_v1.jsonl",
+      "sha256": "22b4dadc0c75cfe9422bc9805697028dd31e19fe129ac100ab5a10b69a16678d",
+      "rows": 16,
+      "queries": 16
+    },
+    "ranking_validation": {
+      "path": "run_artifacts/stage1b_v3/labels/validation_extracted.v5.jsonl",
+      "sha256": "1e55ccfea2de2aa8190072e8a8c5784aec3d64059751355f6a5bde23295a6c36",
+      "rows": 8000,
+      "queries": 500,
+      "candidates_per_query": 16
+    }
+  },
+  "inputs": {
+    "data_protocol": {
+      "path": "configs/joint_training_pilot_v1/data_protocol_v1.json",
+      "sha256": "76dc414418f6961209ba38c4cf6c24c0a108774bcfde0a37c74b93e6590130c9"
+    },
+    "data_report": {
+      "path": "configs/joint_training_pilot_v1/data_report_v1.json",
+      "sha256": "b44bef69a0c8d522bd1ff3af85ebea206cedbe0c029151496e61bdc215481200"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25",
+      "required_failure_count": 0
+    },
+    "gold_labels": {
+      "path": "configs/dual_prior_evidence_v1/labels_gold_v1.jsonl",
+      "sha256": "da41e1e3061bb7ce321d12211fd5350f116d9510357ed774c7347c214e10cbdc"
+    }
+  },
+  "execution": {
+    "runner": "scripts/run_joint_training_pilot_v1.py",
+    "matrix_launcher": "scripts/run_joint_training_matrix_v1.py",
+    "hallucination_evaluator": "evaluate_hallucination_localization.py",
+    "prior_evaluator": "scripts/evaluate_dual_prior_gate_predictions_v1.py",
+    "consistency_evaluator": "scripts/evaluate_joint_consistency_v1.py",
+    "ranking_evaluator": "evaluate_clir.py",
+    "summarizer": "scripts/summarize_joint_training_drop_one_v1.py",
+    "output_root": "run_artifacts/joint_training_drop_one_v1/seed42_v1",
+    "gradient_audit_report": "run_artifacts/joint_training_drop_one_v1/audits/gradient_routing_v1.json",
+    "gradient_audit_cell": "jph_prior_plus_hallucination",
+    "result": "configs/joint_training_drop_one_v1/training_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "max_parallel_cells": 2
+  },
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "formal_mechanism_claim_allowed": false
+}

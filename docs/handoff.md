@@ -281,7 +281,9 @@ protocol/audit 中，不在本 handoff 重复展开。
 
 不要再重跑 v2c、扫描 tail weight、重跑 M0/M1，或放宽历史失败门。联合三格已经完成且失败，当前顺序改为：
 
-1. 征得用户批准后，另发冻结 drop-one 协议，只补 JPH（prior+H）和 JPC（prior+consistency）；
+1. 用户已经批准并已另发冻结 drop-one 协议
+   `configs/joint_training_drop_one_v1/training_protocol_v1.json`，只补 JPH（prior+H）和
+   JPC（prior+consistency）；
 2. 两格继续使用 seed 42、相同初始化、manifest、semantic-group batch order、single stream、batch 4、5
    epochs、final epoch 5 以及所有现有 loss 权重；JP/JALL 作为已冻结对照；
 3. 若 JPC 单独复现 key drop，则 consistency 已足够；若 JPH 单独复现，则 H 已足够；若二者单独不复现而

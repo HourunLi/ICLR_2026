@@ -1,4 +1,4 @@
-"""Frozen configuration helpers for the CLIR joint-training integration pilot."""
+"""Frozen configuration helpers for CLIR joint-training diagnostics."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from .consistency_localized_reward import RewardConfig
 
 
 JOINT_PROTOCOL_SCHEMA = "clir-joint-training-pilot-protocol-v1"
+JOINT_DROP_ONE_PROTOCOL_SCHEMA = "clir-joint-training-drop-one-protocol-v1"
 LOSS_NAMES = (
     "final",
     "consistency",
@@ -76,27 +77,39 @@ _FROZEN_SHARED_WEIGHTS = {
     "gate_prior": 10.0,
     "reconstruction": 0.0,
 }
-_FROZEN_CELL_OVERRIDES = {
-    "j0_correctness": {},
-    "jp_original_prior": {"prior": 1.0},
-    "jall_full_retained": {
-        "consistency": 1.0,
-        "hallucination": 1.0,
-        "prior": 1.0,
+_FROZEN_CELL_OVERRIDES_BY_SCHEMA = {
+    JOINT_PROTOCOL_SCHEMA: {
+        "j0_correctness": {},
+        "jp_original_prior": {"prior": 1.0},
+        "jall_full_retained": {
+            "consistency": 1.0,
+            "hallucination": 1.0,
+            "prior": 1.0,
+        },
+    },
+    JOINT_DROP_ONE_PROTOCOL_SCHEMA: {
+        "jph_prior_plus_hallucination": {
+            "hallucination": 1.0,
+            "prior": 1.0,
+        },
+        "jpc_prior_plus_consistency": {
+            "consistency": 1.0,
+            "prior": 1.0,
+        },
     },
 }
 
 
 def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
-    if protocol.get("schema_version") != JOINT_PROTOCOL_SCHEMA:
+    schema = protocol.get("schema_version")
+    expected_cells = _FROZEN_CELL_OVERRIDES_BY_SCHEMA.get(schema)
+    if expected_cells is None:
         raise ValueError("Unexpected joint-training protocol schema")
     cells = protocol.get("cells")
-    if not isinstance(cells, Mapping) or set(cells) != {
-        "j0_correctness",
-        "jp_original_prior",
-        "jall_full_retained",
-    }:
-        raise ValueError("Joint-training protocol must define the frozen three cells")
+    if not isinstance(cells, Mapping) or list(cells) != list(expected_cells):
+        raise ValueError(
+            "Joint-training protocol cells/order differ from the frozen schema"
+        )
     for name, expected in _FROZEN_MODEL.items():
         if protocol.get("model", {}).get(name) != expected:
             raise ValueError(f"Frozen joint model field drifted: {name}")
@@ -108,7 +121,7 @@ def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
         name: float(shared.get(name, -1.0)) for name in LOSS_NAMES
     } != _FROZEN_SHARED_WEIGHTS:
         raise ValueError("Frozen joint shared loss weights drifted")
-    for cell_name, expected in _FROZEN_CELL_OVERRIDES.items():
+    for cell_name, expected in expected_cells.items():
         overrides = cells[cell_name].get("loss_overrides")
         if not isinstance(overrides, Mapping) or {
             name: float(value) for name, value in overrides.items()
@@ -128,6 +141,20 @@ def validate_joint_protocol(protocol: Mapping[str, Any]) -> None:
     for name, expected in expected_method.items():
         if method.get(name) != expected:
             raise ValueError(f"Frozen joint method field drifted: {name}")
+    if schema == JOINT_DROP_ONE_PROTOCOL_SCHEMA:
+        rules = protocol.get("drop_one_decision_rules", {})
+        expected_rules = {
+            "key_ap_drop_threshold_vs_jp": 0.05,
+            "hallucination_span_token_ap_min_exclusive": 0.39328067905143455,
+            "hallucination_claim_ap_min_exclusive": 0.42198767865054354,
+            "ranking_max_absolute_regression_vs_jp": 0.02,
+            "no_seed_expansion_from_this_diagnostic": True,
+            "automatic_loss_weight_tuning": False,
+            "automatic_stream_switch": False,
+        }
+        for name, expected in expected_rules.items():
+            if rules.get(name) != expected:
+                raise ValueError(f"Frozen drop-one decision rule drifted: {name}")
 
 
 def resolve_loss_weights(
@@ -196,6 +223,7 @@ def reward_config_from_protocol(
 
 
 __all__ = [
+    "JOINT_DROP_ONE_PROTOCOL_SCHEMA",
     "JOINT_PROTOCOL_SCHEMA",
     "LOSS_NAMES",
     "resolve_loss_weights",

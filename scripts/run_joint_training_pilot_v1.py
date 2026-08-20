@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one frozen seed-42 CLIR joint-training cell end to end."""
+"""Run one frozen seed-42 CLIR joint-training diagnostic cell end to end."""
 
 from __future__ import annotations
 

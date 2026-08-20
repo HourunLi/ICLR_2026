@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch the frozen seed-42 three-cell joint CLIR pilot on exclusive GPUs."""
+"""Launch a frozen seed-42 joint CLIR diagnostic matrix on exclusive GPUs."""
 
 from __future__ import annotations
 

@@ -99,10 +99,11 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
 
 ## 下一道门
 
-`joint_training_pilot_v1` 已完成且未获多 seed 扩跑资格。当前待拍板的门是一个不调权重的 seed-42 drop-one
-诊断：补 JPH（correctness+原始 prior+H）和 JPC（correctness+原始 prior+consistency），复用冻结 JP/JALL
-对照，从而区分 H、consistency 与二者交互。新两格必须保持相同初始化、manifest、semantic-group batch
-顺序、single stream、batch 4、5 epochs 和原始 prior 实现；执行前另发冻结协议。
+`joint_training_pilot_v1` 已完成且未获多 seed 扩跑资格。用户已批准不调权重的 seed-42 drop-one 诊断：补
+JPH（correctness+原始 prior+H）和 JPC（correctness+原始 prior+consistency），复用冻结 JP/JALL 对照，
+从而区分 H、consistency 与二者交互。新两格保持相同初始化、manifest、semantic-group batch 顺序、single
+stream、batch 4、5 epochs 和原始 prior 实现；冻结协议为
+`configs/joint_training_drop_one_v1/training_protocol_v1.json`。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
