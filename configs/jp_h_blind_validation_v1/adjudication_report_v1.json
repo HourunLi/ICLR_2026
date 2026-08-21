@@ -1,0 +1,90 @@
+{
+  "adjudicator_disclosure": {
+    "aggregate_agreement_statistics_seen_before_decisions": true,
+    "authorship_may_be_inferable_from_annotation_style": true,
+    "claim_level_status": "internally_adjudicated_evaluation_reference_not_human_gold",
+    "identity": "codex_internal_score_blind_claim_review_v1",
+    "independent_human_adjudicator": false,
+    "not_visible_during_decisions": [
+      "A/B role lineage",
+      "source or query identity",
+      "domain",
+      "correctness",
+      "reference answer",
+      "parsed answer",
+      "raw or smoothed model predictions",
+      "position scores"
+    ],
+    "primary_model_identity_known_from_project_history": true,
+    "reviewer_type": "internal_model_review",
+    "same_local_model_as_primary_annotator": false,
+    "secondary_annotator_identity_known": false,
+    "visible_during_decisions": [
+      "frozen_annotation_guide",
+      "problem",
+      "trajectory",
+      "deterministically_shuffled_annotation_a",
+      "deterministically_shuffled_annotation_b",
+      "blocking_disagreement_type"
+    ]
+  },
+  "adoption_gate_run": false,
+  "all_rows": 96,
+  "artifacts": {
+    "adjudication_resolutions_raw": "configs/jp_h_blind_validation_v1/adjudication_resolutions_raw_v1.jsonl",
+    "adjudication_resolutions_raw_sha256": "bf0126009601b7a08fdccc83a874e8ac6a3116db8466bd18536877f7e9c68030",
+    "resolved_primary_labels": "configs/jp_h_blind_validation_v1/labels_resolved_primary_v1.jsonl",
+    "resolved_primary_labels_sha256": "54d1506c1e9bf66ce3e7358c12341344ec44e2b9f77d7be40ac2a6e0fc1b97fa",
+    "resolved_secondary_labels": "configs/jp_h_blind_validation_v1/labels_resolved_secondary_v1.jsonl",
+    "resolved_secondary_labels_sha256": "cd20827deda69a4ab22b5568fd180a118ec7550a92af7b30a22accb8da8ec665"
+  },
+  "automatic_score_coupling": false,
+  "blocking_rows_resolved": 42,
+  "claim_level_gold": false,
+  "code": {
+    "commit": "f4deeeb2342d072b79e071e2e488472d41dc4b01",
+    "dirty": false
+  },
+  "evidence_tier": "blind_validation_annotation_audit",
+  "final_test_accessed": false,
+  "native_negative_claim_coverage_preserved": true,
+  "nonblocking_rows_retaining_native_views": 54,
+  "pilot_test_accessed": false,
+  "prediction_values_accessed": false,
+  "protocol": "configs/jp_h_blind_validation_v1/adjudication_protocol_v1.json",
+  "protocol_sha256": "2473d386b3f60beb2095d3ebeafe6c868122964b3c49a670d98c4c919e8d8d4a",
+  "resolved_claim_status_counts": {
+    "primary_view": {
+      "contradicted": 88,
+      "non_claim": 10,
+      "supported": 594,
+      "unsupported": 45
+    },
+    "secondary_view": {
+      "contradicted": 88,
+      "non_claim": 5,
+      "supported": 549,
+      "unsupported": 45
+    }
+  },
+  "resolved_path_status_counts": {
+    "clean": 61,
+    "hallucinated": 35
+  },
+  "schema_version": "clir-jp-h-blind-adjudication-report-v1",
+  "selected_blocking_path_counts": {
+    "clean": 9,
+    "hallucinated": 33
+  },
+  "selected_hidden_source_counts": {
+    "primary": 1,
+    "secondary": 41
+  },
+  "selected_view_counts": {
+    "annotation_a": 18,
+    "annotation_b": 24
+  },
+  "status": "adjudication_complete_predictions_still_sealed",
+  "zero_remaining_path_disagreements": true,
+  "zero_remaining_positive_token_disagreements": true
+}
