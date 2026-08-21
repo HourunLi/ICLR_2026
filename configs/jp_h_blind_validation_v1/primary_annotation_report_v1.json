@@ -1,0 +1,50 @@
+{
+  "claim_status_counts": {
+    "contradicted": 18,
+    "non_claim": 22,
+    "supported": 706,
+    "unsupported": 38
+  },
+  "code": {
+    "commit": "1066270651733cafbac052e6dc7343e39cf3383b",
+    "dirty": false
+  },
+  "confidence_counts": {
+    "high": 96
+  },
+  "contract_repair_report": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1/contract_repair_report_v1.json",
+  "contract_repair_report_sha256": "29b25dd7ae05f1cbe967612541ad877d820b1c612becc6941cdfb0e873f4a43f",
+  "contract_repaired_rows": 19,
+  "decoding": {
+    "do_sample": false,
+    "max_new_tokens": 2048,
+    "num_beams": 1
+  },
+  "evidence_tier": "blind_validation_candidate_primary",
+  "final_test_accessed": false,
+  "items_sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8",
+  "labels": "configs/jp_h_blind_validation_v1/labels_primary_raw_v1.jsonl",
+  "labels_sha256": "ef0f804e26bf31f6241ab53b7baf253742f2f39e9b22ac445e370ee5b04e3a34",
+  "model_id": "mistralai/Mistral-Small-24B-Instruct-2501",
+  "model_predictions_accessed": false,
+  "model_revision": "9527884be6e5616bdd54de542f9ae13384489724",
+  "path_status_counts": {
+    "clean": 70,
+    "hallucinated": 26
+  },
+  "pilot_test_accessed": false,
+  "primary_is_candidate_not_gold": true,
+  "protocol": "configs/jp_h_blind_validation_v1/primary_annotation_protocol_v1.json",
+  "protocol_sha256": "3fb69ad204a3f4849b8a4fb402aae3f7ca6ee074788f118caa480712c9eec934",
+  "raw_parse_valid": 77,
+  "raw_results": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1/all_results.jsonl",
+  "raw_results_sha256": "801b392ec47960ef8ed476aae915b8c449c440f9552da4b55b001436e4b9b56b",
+  "raw_run": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1/run.json",
+  "raw_run_sha256": "6efa013c43d97bcce639db203d748b799208a9ab89609441cdf9f73d17f56b2e",
+  "resolved_results": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1/all_results_resolved_v1.jsonl",
+  "resolved_results_sha256": "3600ecca84486e40971d405259d001287c59328075e39d475357596c24d3019c",
+  "rows": 96,
+  "schema_version": "clir-jp-h-blind-primary-annotation-report-v1",
+  "secondary_labels_accessed": false,
+  "status": "primary_complete_secondary_and_predictions_still_sealed"
+}
