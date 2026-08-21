@@ -1,0 +1,185 @@
+{
+  "schema_version": "clir-jp-h-blind-scoring-protocol-v1",
+  "experiment_id": "clir-jp-to-h-mixed-domain-blind-validation-v1",
+  "status": "frozen_before_label_access",
+  "evidence_tier": "blind_validation",
+  "purpose": "Score all 96 new Phi-native mixed-domain trajectories with an all-old-data JP-to-H linear readout and the already selected three-token centered logit smoother before any new hallucination annotation content is opened.",
+  "inputs": {
+    "blind_acquisition_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/protocol_v1.json",
+      "sha256": "90cabecd4cc3f60f9218bfe4581b95fa1be9ba975ce0b996a9cf02984ed83411"
+    },
+    "blind_package_report": {
+      "path": "configs/jp_h_blind_validation_v1/package_report_v1.json",
+      "sha256": "f03c3689d6e40ac3e5aa7f57c091a9b144d43b71fd9c47444db09a89be7955ec"
+    },
+    "blind_private_lineage": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+      "sha256": "60c20648fd5961146f3f9d4d604d54cf1b78d1d605f50a0918a8dd4df40bc52f"
+    },
+    "old_probe_protocol": {
+      "path": "configs/jp_h_frozen_probe_v1/training_protocol_v1.json",
+      "sha256": "f42fa15f084111921cdc1901339664bc9b46f730d15ad274f7433e2053cc3983"
+    },
+    "old_probe_result": {
+      "path": "configs/jp_h_frozen_probe_v1/training_result_v1.json",
+      "sha256": "3c12fab6b864ed753485ddee1d03377417adeed49adbd089b4bb96a012015361"
+    },
+    "old_jp_feature_cache": {
+      "path": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1/cache/frozen_jp_token_features.pt",
+      "sha256": "dbe2c1f04f36f6b4c1244a23d8d6b094e1b0b352623e89706fe4bd4278a7d75c"
+    },
+    "old_jp_feature_cache_report": {
+      "path": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1/cache/cache_report.json",
+      "sha256": "7c1cd092596035c719bb4004077545c0e26baa39211ff070bbd1f1215c43b18e"
+    },
+    "old_fold0_train48": {
+      "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/train48.jsonl",
+      "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a"
+    },
+    "old_fold0_dev16": {
+      "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/dev16.jsonl",
+      "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36"
+    },
+    "jp_checkpoint": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+      "sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c"
+    },
+    "jp_cell_result": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/cell_result.json",
+      "sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32"
+    }
+  },
+  "sealed_annotations": [
+    {
+      "path": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl",
+      "reported_rows": 96,
+      "reported_sha256": "118952a3200048675595c618476c75b2e7a4a8349573ccb4868150dd5e864b4b",
+      "reported_structural_validation": "passed",
+      "role_during_scoring": "sealed_not_an_input_and_not_opened"
+    }
+  ],
+  "blind_isolation": {
+    "annotation_completion_precedes_protocol_freeze": true,
+    "annotation_content_accessed_by_scoring_author": false,
+    "new_label_access_before_prediction_freeze_forbidden": true,
+    "scoring_runner_has_no_annotation_input_argument": true,
+    "lineage_private_fields_removed_before_model_forward": true,
+    "forbidden_private_fields": [
+      "correctness",
+      "domain",
+      "parsed_answer",
+      "reference_answer",
+      "answer_type",
+      "problem",
+      "prompt",
+      "trajectory"
+    ],
+    "selection_correctness_used_by_scoring": false,
+    "hallucination_labels_used_by_scoring": false
+  },
+  "representation": {
+    "source": "jp_epoch5_conditioned_token_features",
+    "task_model": "microsoft/Phi-3.5-mini-instruct",
+    "task_model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "torch_dtype": "bfloat16",
+    "trust_remote_code": true,
+    "layer_count": 33,
+    "per_layer_hidden_size": 3072,
+    "all_layer_feature_width": 101376,
+    "extract_from_exact_saved_token_ids": true,
+    "trajectory_forward": "one_unpadded_teacher_forced_prompt_plus_output_forward_then_exact_output_slice",
+    "condition_forward": "separate_unpadded_prompt_only_forward",
+    "jp_conditioning": "frozen_input_encoder_plus_token_specific_condition_fusion_plus_feature_norm",
+    "jp_output_width": 768,
+    "base_jp_frozen": true,
+    "base_jp_enters_optimizer": false,
+    "new_token_features_persisted": true,
+    "new_token_feature_storage_dtype": "float32"
+  },
+  "readout": {
+    "architecture": "linear_768_to_1_with_bias",
+    "feature_width": 768,
+    "parameter_count_per_head": 769,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "head_scope": "one_all64_head_per_predeclared_seed",
+    "seed_role": "stability_repetitions_not_model_selection_or_ensemble_selection",
+    "training_rows": 64,
+    "training_row_order": "old_fold0_train48_then_old_fold0_dev16",
+    "supervised_tokens": 9132,
+    "positive_tokens": 1450,
+    "loss": "unweighted_explicit_sparse_token_bce",
+    "epochs": 100,
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "batching": "one_full_batch_of_all_supervised_tokens",
+    "checkpoint_selection": "fixed_final_epoch_100",
+    "early_stopping": false,
+    "automatic_hyperparameter_tuning": false,
+    "model_selection_across_seeds": false,
+    "new_labels_used_for_training": false
+  },
+  "smoother": {
+    "architecture": "fixed_masked_centered_logit_mean",
+    "window_tokens": 3,
+    "radius_tokens": 1,
+    "centered": true,
+    "boundary_rule": "mean_over_available_real_tokens_only",
+    "input": "stable_float64_logit_of_persisted_float32_sigmoid_probability",
+    "output": "sigmoid_of_smoothed_logit",
+    "compute_dtype": "float64",
+    "trainable_parameter_count": 0,
+    "head_retraining": false,
+    "window_search": false,
+    "enters_reward_score": false,
+    "offline_localization_only": true
+  },
+  "selection_history": {
+    "three_token_window_selected_after_inspecting_old_64_rows": true,
+    "new_96_rows_are_the_first_adoption_eligible_validation_set": true,
+    "additional_window_or_architecture_sweep_on_new_96_forbidden": true
+  },
+  "post_unseal_evaluation": {
+    "candidate": "three_token_centered_logit_smoother",
+    "comparators": [
+      "paired_raw_all64_linear_head",
+      "same_rows_strongest_absolute_or_normalized_position"
+    ],
+    "primary_units": [
+      "explicit_claim_span_token_average_precision",
+      "claim_mean_probability_average_precision"
+    ],
+    "minimum_passing_seeds": 2,
+    "require_candidate_above_both_comparators_on_both_primary_units": true,
+    "require_mean_of_all_four_paired_advantages_positive": true,
+    "pooled_96_is_primary": true,
+    "per_domain_results_are_descriptive": true,
+    "tail_targets_used_for_adoption": false,
+    "reason_tail_excluded": "The frozen H candidate was trained on explicit sparse claim spans; onset-to-end tail labels would change the target semantics and are retained only as a separate diagnostic until independently justified.",
+    "threshold_tuning_on_blind_rows": false,
+    "primary_and_secondary_annotations_compared_before_score_access": true,
+    "disagreements_adjudicated_without_score_access": true,
+    "automatic_reward_score_coupling": false
+  },
+  "execution": {
+    "runner": "scripts/run_jp_h_blind_scoring_v1.py",
+    "output_root": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1",
+    "predictions": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/predictions_v1.jsonl",
+    "completion_report": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/completion_report_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "recommended_hf_cache": "/prodcpfs/user/panzhixin/hf_cache",
+    "clean_committed_worktree_required": true,
+    "resumable_per_row": true,
+    "expected_rows": 96,
+    "expected_total_output_tokens": 29148,
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false
+  }
+}
