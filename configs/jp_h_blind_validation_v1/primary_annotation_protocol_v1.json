@@ -1,0 +1,68 @@
+{
+  "schema_version": "clir-jp-h-blind-primary-annotation-protocol-v1",
+  "experiment_id": "clir-jp-h-mixed-domain-primary-annotation-v1",
+  "status": "frozen_blind_to_secondary_and_scores",
+  "purpose": "Produce an independent candidate-primary hallucination-localization annotation for all 96 visible blind items before any secondary label or frozen JP-to-H prediction is opened.",
+  "selection": {
+    "rows": 96,
+    "queries": 96,
+    "one_row_per_query": true
+  },
+  "annotation": {
+    "guide": "configs/jp_h_blind_validation_v1/annotation_guide_v1.md",
+    "items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+    "quote_contract": "exact trajectory substring plus zero-based occurrence",
+    "path_status_values": [
+      "hallucinated",
+      "clean",
+      "uncertain"
+    ],
+    "claim_status_values": [
+      "supported",
+      "contradicted",
+      "unsupported",
+      "non_claim",
+      "uncertain"
+    ],
+    "correctness_independence": true
+  },
+  "primary_annotator": {
+    "role": "candidate_primary_requires_independent_secondary_and_adjudication",
+    "model_id": "mistralai/Mistral-Small-24B-Instruct-2501",
+    "model_revision": "9527884be6e5616bdd54de542f9ae13384489724",
+    "local_model_path": "/prodcpfs/user/panzhixin/models/Mistral-Small-24B-Instruct-2501-9527884",
+    "decoding": {
+      "do_sample": false,
+      "num_beams": 1,
+      "max_new_tokens": 2048
+    }
+  },
+  "blind_isolation": {
+    "semantic_inputs": [
+      "configs/jp_h_blind_validation_v1/annotation_guide_v1.md",
+      "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl"
+    ],
+    "secondary_labels_forbidden": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl",
+    "frozen_predictions_forbidden": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/predictions_v1.jsonl",
+    "private_lineage_forbidden": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+    "source_correctness_forbidden": true,
+    "answer_keys_forbidden": true,
+    "internet_browsing_forbidden": true
+  },
+  "outputs": {
+    "annotation_items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+    "primary_run_root": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1",
+    "primary_raw_results": "run_artifacts/jp_h_blind_validation_v1/primary_mistral24_v1/all_results.jsonl",
+    "primary_labels_raw": "configs/jp_h_blind_validation_v1/labels_primary_raw_v1.jsonl"
+  },
+  "execution": {
+    "runner": "scripts/run_hallucination_primary_v1.py",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "device": "cuda:0",
+    "one_durable_shard_per_completed_item": true,
+    "resume_existing_valid_shards": true,
+    "clean_committed_worktree_required": true,
+    "expected_items_sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8",
+    "expected_guide_sha256": "43ec983ef1c980dcc6eb34a03831688bbc482f994d19bd969c99b8d79ab8507d"
+  }
+}

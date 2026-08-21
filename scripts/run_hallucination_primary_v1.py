@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the frozen 24B candidate primary annotator over 64 blind items."""
+"""Run the frozen 24B candidate primary annotator over a blind item set."""
 
 from __future__ import annotations
 
