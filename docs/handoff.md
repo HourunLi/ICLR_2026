@@ -1,6 +1,6 @@
 # CLIR 当前交接
 
-最后更新：2026-08-20
+最后更新：2026-08-21
 
 本文件只保留当前可执行状态。研究设计见 `docs/proposal.md`，历史路线与弃用原因见
 `docs/decision_history.md`；Localization v1 的 contaminated-tail 实验见
@@ -73,6 +73,22 @@ Dual-prior direct-target、原始 mutual distillation 与首个 reward-gate inte
   否证；pseudo-tail 仍未获授权。用户已另行批准把 T0 作为稀疏监督接入 3968-row 联合训练 pilot；这不推翻
   tail 的历史裁决，也不把 sparse span 标签解释成 full-tail ground truth。pilot/final test 未读。
 
+为避免 H 再通过 shared representation 改坏 JP，`JP→H frozen linear probe v1` 已从结果前冻结的 clean
+commit `17d0efa` 完成：
+
+- JP epoch-5 checkpoint 只读；抽取前后及 12-cell 结束后的 SHA256 均为
+  `a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c`；
+- 当前 forward 对 64/64 reward scores 和全部 token values 与 retained JP scoring bit-identical；每个 probe
+  仅为独立 `Linear(768,1)`，769 参数，base optimizer parameters 为 0；
+- 4 folds × seeds 42/43/44 的 12/12 cells 完成；主要 folds 1–3 的 48 条 OOF 上，claim AP
+  `.358/.341/.325` 全部超过同批位置基线 `.305`，span AP `.236/.233/.234` 全部低于 `.260`；
+- 冻结双门 0/3 通过，状态为 `completed_frozen_linear_probe_not_supported`，不能直接接 reward；
+- 事后机制诊断显示所有 supervised tokens 都由 claim spans 覆盖，annotated-claim oracle 内取均值可把 span AP 提至
+  `.384/.369/.352`，3-token local mean 也提至 `.280/.273/.269`。这定位为 claim 内高频抖动，但属于
+  post-hoc，不得追溯改判或在同一 64 条上直接采用窗口；
+- 完整协议、结果和下一门见 `docs/jp_h_frozen_probe_v1.md` 与
+  `configs/jp_h_frozen_probe_v1/training_result_v1.json`。
+
 当前三种监督和一种 reward shaping 不要混称：
 
 | 层级 | canonical 字段 | 含义 | 当前裁决 |
@@ -105,8 +121,10 @@ clean-matched positional control 的新协议。
 2. Consistency 主路线是 Route A：同一原始 prompt 下从 Phi on-policy candidates 挖掘
    reasoning-equivalent pairs；Route B 的 Phi self-rewrite 只作后续对照。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
-4. Localization 当前选择 T0/S1 sparse span branch；absolute-margin T2 暂缓，简单 pre-onset-relative R1 也未
-   通过。exact onset 与显式 clean-matched 的 tail repair 都是独立后续问题。
+4. Localization 标签当前选择 T0/S1 sparse span。联合阶段不再让 H 更新 JP shared path：plain frozen
+   linear H probe 已确认 claim-level signal、但 token/span 门失败；下一候选是仍冻结 JP 的极小 masked
+   temporal smoother。absolute-margin T2、pre-onset-relative R1、exact onset 与 clean-matched tail repair
+   都保持独立，不与 smoother 混跑。
 5. Dual-prior 保留项目原方法：direct key/complete targets、symmetric stop-gradient mutual MSE，以及
    gate-to-detached-fused-prior 的 shared-gradient alignment。v1 的 key-AP 保护门失败按历史原样保留，但当前
    不换 head-only；先用 v2 mixed outcome data 和 query-grouped ranking 判断原方法的任务效果。containment
@@ -319,27 +337,30 @@ protocol/audit 中，不在本 handoff 重复展开。
 
 ## 4. 下一步
 
-不要再重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing seeds，或放宽历史失败门。当前恢复
-原 JPH ordinary single-stream sampler；packing 代码只作 optional diagnostic，不要默认启用。
+不要重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing/condition-stopgrad seeds，或放宽任何历史失败门。
+plain frozen linear probe 也已冻结失败，不能因为 post-hoc smoothing 看起来好就追溯改判。
 
-路由工程 gate 虽通过，但真实 `JPH + H-condition-stopgrad` 效果门已失败：
+下一格需要和用户逐项拍板，推荐只改变 H readout 的 temporal consistency：
 
-1. forward 仍使用 problem condition，H BCE 仍更新 hallucination head、trajectory encoder 与共享 token
-   representation；
-2. 仅阻止 H BCE 更新 `condition_query/key/value` 和 `condition_fusion`；final 与原 prior 对这些参数的
-   梯度保留，原 direct targets、双向 stop-gradient mutual `.25`、shared-gradient gate `10` 不变；
-3. no-update routing audit 证明实现没有误伤其他路由，但真实训练说明这不等于有效修复；key 只小幅
-   回升而 H 定位明显变差；
-4. 不采用 blanket PCGrad，不修改 C cross-stream pressure，不扩 seeds 43/44，不读取
+1. JP checkpoint、conditioned token features、final score、direct key/complete、双向 stop-gradient mutual `.25`
+   和 shared-gradient gate `10` 全部冻结；
+2. H branch 仍从 detached JP `[T,768]` features 开始，先做 linear logits，再加极小、域无关的 masked local
+   smoother；不要先上大 MLP/Transformer adapter；
+3. 现有 64 条若继续使用，窗口或尺度只能在每个 fold 的 train48 内选择，dev16 只读；该结果仍明确标为
+   post-selection exploratory pipeline pilot；
+4. 真正采用 temporal smoother 需要新增、未参与本轮结构选择的 localization validation，优先覆盖非数学
+   领域。第二标注 AI 的 prompt 继续要求每判断一条立即落盘；
+5. smoother 未在新标签上同时通过 span/claim 前，不做 `p_hallucination→reward` coupling；通过后再单独冻结
+   一个透明 score-coupling 协议，最多学习非负标量 `alpha`，并直接测 500×16 ranking；
+6. consistency 继续独立，tail/exact onset/progress/reconstruction 不在该格中重开；不读取
    `pilot_test/final_test`。
 
-因此不要扩跑这个 stop-gradient 的 seeds，也不要把它设成默认。当前保留项目原 direct key/complete、
-双向 stop-gradient mutual `.25` 和 shared-gradient gate `10`；packing 与 targeted stop-gradient 都只保留为
-负诊断。下一步若继续解决联合 H/prior 干扰，应先和用户讨论新的单因素设计，并在训练前冻结；不能由本结果
-自动授权调权重、切 multistream、拆 branch 或做 gradient surgery。
+为什么先做 smoother 而不是 pointwise adapter：linear probe 的 claim AP 三 seed 全通过，而 annotated-claim oracle constant
+和最小 local mean 都显著修复 span AP，证据直接指向 claim 内概率抖动。一个仍逐 token 独立的 MLP 只增加
+容量，不直接处理这个失败机制。
 
-原始 mutual 与 shared-gradient gate 不因联合结果被静默替换；containment/head-only 仍只是历史候选。
-reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。
+原始 mutual 与 shared-gradient gate 不因联合或 probe 结果被静默替换；containment/head-only 仍只是历史
+候选。reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。
 
 ## 5. 不可破坏的约束
 
@@ -388,6 +409,7 @@ docs/hallucination_localization_pilot_v2.md       当前 localization 结果
 docs/hallucination_tail_comparison_v2b.md         tail 撤销审计与 matched 直接比较
 docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
 docs/hallucination_relative_tail_pilot_v2d.md     relative R1 单-cell 修复试验
+docs/jp_h_frozen_probe_v1.md                      冻结 JP 的 H linear probe 与 temporal-smoother 下一门
 docs/dual_prior_evidence_pilot_v1.md              dual-prior gold、D0–D3 与下一门
 docs/dual_prior_mutual_distillation_pilot_v1.md   原始 mutual distillation 三种子结果
 docs/dual_prior_reward_gate_pilot_v1.md           shared-gradient gate 三种子结果与 head-only repair
@@ -404,6 +426,8 @@ scripts/summarize_hallucination_span_pilot_v2.py      冻结结论与 bootstrap
 scripts/summarize_hallucination_tail_comparison_v2b.py  T0-T2 护栏与 bootstrap
 scripts/summarize_hallucination_tail_cv_v2c.py        out-of-fold 多 seed 采用门
 scripts/summarize_hallucination_relative_tail_v2d.py  relative R1 冻结裁决
+scripts/run_jp_h_frozen_probe_v1.py                   只读 JP feature cache 与 4-fold × 3-seed probe
+scripts/summarize_jp_h_frozen_probe_v1.py             base bit-identity 与 OOF span/claim 采用门
 scripts/run_dual_prior_matrix_v1.py                   D0–D3 多 GPU launcher
 scripts/summarize_dual_prior_pilot_v1.py              direct-target 三种子采用门
 train_clir.py / score_clir.py / evaluate_clir.py     训练、打分、Best-of-N

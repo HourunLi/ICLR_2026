@@ -1,6 +1,6 @@
 # CLIR: Consistency-Localized Intrinsic Rewards
 
-最后更新：2026-08-20
+最后更新：2026-08-21
 
 CLIR 研究如何利用真实 LLM hidden states，为 Best-of-N 轨迹排序学习比最终 correctness 更细的监督：
 语义一致性、首个 hallucination 的定位，以及后续 dual-prior evidence localization。仓库实现自包含的
@@ -17,7 +17,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | correctness baseline | `strict_swift / encoded_swift / clir` 共用候选、split 和预算 | correctness 只监督 outcome，不伪造机制标签 |
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
-| hallucination localization | T0：S1 sparse token BCE；不加 absolute 或 relative full tail | absolute T2 有全局 shift；首个 pre-onset-relative R1 无 clean anchor 且损伤 sparse AP；exact onset 未通过 |
+| hallucination localization | T0 sparse labels；联合阶段先冻结 JP，再独立训练 H branch | plain linear probe 只稳定读出 claim-level signal，token/span 门失败；下一候选是极小 temporal smoother，尚未采用 |
 | dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | original-scale v2 已完整训练；localization 改善但未建立 ranking 增益，不以结果后架构替换覆盖该结论 |
 | progress | primary 暂时固定 `progress_weight=0` 且 `progress_score_weight=0` | 没有真实 `progress_targets`；稳定版 main 的 `progress_score_weight=.5` 只作 matched control，不解释为已学习的推理进度 |
 | complete reconstruction | primary 暂时固定 `reconstruction_weight=0` | 这是推迟而非删除；只有发布独立、冻结的 768-d 外部 target 和新版协议后才能重开，禁止 same-candidate pooling |
@@ -116,19 +116,25 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `.912`、complete AP `.929` 通过保护门，但 key AP `.337` 只比 JPH 恢复 `.023`，H span/claim AP
   `.247/.235` 反而比 JPH 下降 `.072/.103`。分类为
   `condition_route_not_supported_at_frozen_gates_seed42`，不进入保留方案、不扩 seeds。
+- `JP→H frozen linear probe v1` 已从结果前冻结的 clean commit `17d0efa` 完成 4 folds × 3 seeds。JP
+  checkpoint、64/64 reward scores 和所有 token values 前后 bit-identical，12 个 probe 各只有 769 参数；
+  主要 48 条 OOF 上 claim AP 三 seed 为 `.358/.341/.325`，均超过同批 position `.305`，但 span AP
+  `.236/.233/.234` 均低于 position `.260`，所以 0/3 双门通过。状态为
+  `completed_frozen_linear_probe_not_supported`。事后只读诊断显示 3-token local mean 已把 span AP 提至
+  `.280/.273/.269`，指向 claim 内高频抖动；该扫描不得追溯改判或直接选窗口。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-`joint_training_packing_v1` 已冻结判定为不支持，当前恢复原 JPH ordinary single-stream sampler。
-JPH condition-branch gradient-routing 的 no-update gate 已通过：H 仍使用 condition forward，但不更新
-`condition_query/key/value` 与 `condition_fusion`；final 和项目原 prior 的全部梯度保留，direct
-targets、双向 mutual `.25` 和 shared-gradient gate `10` 不变。唯一的 seed-42
-`JPH + H-condition-stopgrad` 5-epoch cell 已完成且冻结门失败：ranking/complete 守住，但 H 两门和
-key 两门都失败。因此 targeted stop-gradient 与 packing 一样不进入保留方案，仍不引入 blanket PCGrad、
-不扩 seeds；下一次结构或训练日程改动需重新讨论并在训练前冻结。
+当前不再继续 packing、targeted stop-gradient 或 blanket PCGrad。新的冻结 JP 诊断证明 claim-level H signal
+存在，但 plain pointwise linear head 的 token/span 门失败；因此也不直接接入 reward score。下一次单因素设计
+应继续保持 JP、原 direct priors、双向 mutual `.25` 与 shared-gradient gate `10` 全冻结，只给 H branch
+增加一个极小、域无关的 masked temporal smoother，处理 claim 内概率抖动。由于窗口族已经被事后诊断
+触及，现有 64 条上的 nested OOF 最多是工程 pilot；采用裁决需要新增未参与选择的 localization validation，
+并优先覆盖非数学领域。具体边界见
+[JP → Hallucination Frozen Probe v1](docs/jp_h_frozen_probe_v1.md)。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -186,6 +192,7 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 | `src/clir_reasoning_rewrite.py` | reasoning-equivalence verifier 契约 |
 | `src/clir_hallucination_annotation.py` | claim schema、exact span、token onset 映射 |
 | `src/clir_localization_evaluation.py` | path/token/onset 指标与 shortcut baselines |
+| `src/clir_frozen_h_probe.py` | 冻结 JP 表示上的独立 H probe、评分与采用指标 |
 | `train_clir.py` | 训练、恢复、健康证据与 checkpoint |
 | `score_clir.py` | 逐候选 reward scoring |
 | `evaluate_hallucination_localization.py` | localization held-out evaluation |
@@ -198,6 +205,8 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 | `scripts/materialize_dual_prior_original_scale_v2.py` | 排除 prior-dev queries，并把 48 条 Gold 嵌回 3968-row outcome train |
 | `scripts/run_dual_prior_original_scale_v2.py` | 原始 G0/G1 单 cell 训练、localization 评分与 500×16 ranking |
 | `scripts/summarize_dual_prior_original_scale_v2.py` | 原方法三种子 paired Best-of-N 与 localization 汇总 |
+| `scripts/run_jp_h_frozen_probe_v1.py` | 只读抽取 JP token features，并运行 4-fold × 3-seed 线性 H probe |
+| `scripts/summarize_jp_h_frozen_probe_v1.py` | base bit-identity、OOF span/claim 与采用门审计 |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
@@ -242,6 +251,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   JPH packing 对照、冻结负结果与 effective-budget 解释
 - [docs/joint_condition_routing_v1.md](docs/joint_condition_routing_v1.md)：H→condition 定向 stop-gradient 的
   实现契约、全 48-row no-update 审计和训练前证据边界
+- [docs/jp_h_frozen_probe_v1.md](docs/jp_h_frozen_probe_v1.md)：冻结 JP 的 H linear probe、多 seed OOF
+  负结果、claim 内抖动诊断与 temporal-smoother 下一门
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的

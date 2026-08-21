@@ -16,6 +16,7 @@ from src.clir_real_data import file_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = ROOT / "configs/jp_h_frozen_probe_v1/training_protocol_v1.json"
+RESULT_PATH = ROOT / "configs/jp_h_frozen_probe_v1/training_result_v1.json"
 
 
 def load_protocol():
@@ -194,3 +195,23 @@ def test_probe_scored_row_preserves_canonical_base_reward_fields():
     assert scored["clir_token_hallucination_probs"] == [0.25, 0.75]
     assert scored["frozen_h_probe_provenance"]["probe_enters_reward_score"] is False
     assert 0.0 <= scored["clir_path_hallucination_prob"] <= 1.0
+
+
+def test_frozen_probe_result_keeps_base_exact_and_rejects_plain_linear_head():
+    result = json.loads(RESULT_PATH.read_text(encoding="utf-8"))
+    assert result["status"] == "completed_frozen_linear_probe_not_supported"
+    assert result["protocol"]["sha256"] == file_sha256(PROTOCOL_PATH)
+    assert result["execution_gate"]["passed"] is True
+    assert result["base_invariance"]["passed"] is True
+    assert result["base_invariance"]["reward_score_max_absolute_difference"] == 0.0
+    assert result["base_invariance"]["token_value_max_absolute_difference"] == 0.0
+    assert result["decision"]["passed"] is False
+    assert result["decision"]["passing_seed_count"] == 0
+    for metrics in result["confirmatory_48_rows_by_seed"].values():
+        assert metrics["gate"] == {
+            "span_passed": False,
+            "claim_passed": True,
+            "both_localization_metrics_passed": False,
+        }
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False
