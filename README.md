@@ -17,7 +17,7 @@ SWIFT-style reward baseline，不调用 SWIFT 仓库代码。
 | correctness baseline | `strict_swift / encoded_swift / clir` 共用候选、split 和预算 | correctness 只监督 outcome，不伪造机制标签 |
 | semantics consistency | 主路线 Route A：同一原始 prompt 下挖掘 Phi on-policy 等价轨迹 | 由独立 relation verifier 判断 reasoning equivalence |
 | rewrite 备选 | Route B：Phi 自己 rewrite 自己的轨迹 | 外部 Qwen/Falcon rewrite 只保留为 off-policy control |
-| hallucination localization | T0 sparse labels；冻结 JP 的独立 H branch + fixed 3-token logit smoother 是下一验证候选 | smoother 工程门 3/3 seed 通过，但窗口在同一 64 条上选出，尚未采用、未接 reward；等待新盲标 validation |
+| hallucination localization | T0 sparse exact-token labels；冻结 JP 的 H 输出只作 diagnostic | fixed 3-token smoother 在 96 条 mixed-domain 盲测上 0/3 seed 通过，已拒绝且未接 reward；下一门是 H-v3 能否超越位置捷径 |
 | dual-prior localization | 保留项目原始 direct targets + 双向 stop-gradient mutual + shared-gradient reward gate | original-scale v2 已完整训练；localization 改善但未建立 ranking 增益，不以结果后架构替换覆盖该结论 |
 | progress | primary 暂时固定 `progress_weight=0` 且 `progress_score_weight=0` | 没有真实 `progress_targets`；稳定版 main 的 `progress_score_weight=.5` 只作 matched control，不解释为已学习的推理进度 |
 | complete reconstruction | primary 暂时固定 `reconstruction_weight=0` | 这是推迟而非删除；只有发布独立、冻结的 768-d 外部 target 和新版协议后才能重开，禁止 same-candidate pooling |
@@ -128,18 +128,29 @@ dual prior；pseudo/absolute/relative tail、progress 与 reconstruction 继续�
   `.366/.364/.332`；3/3 seed 同时超过 position 与各自 raw linear 的 span/claim 四门。状态为
   `completed_engineering_signal_supported`，但因 window=3 来自同一 64 条的事后诊断，仍是
   post-selection engineering evidence：`method_adopted=false`、`score_coupling_authorized=false`。
+- `JP→H mixed-domain blind validation v1` 已完成 96 条 Phi-native 新轨迹，GSM8K、ARC-Challenge、
+  CommonsenseQA、BoolQ 各 24 条，其中 72 条来自非数学领域。primary/secondary 的 path agreement 为
+  `70/96`、Cohen's kappa `.3882`；42 条会改变 positive token target 的分歧在看模型分数前完成盲裁决，
+  得到 61 clean / 35 hallucinated。裁决隐藏来源解封后为 secondary `41/42`、primary `1/42`，所以这批标签
+  是内部裁决 Silver reference，不是人工 Gold。
+- 预测、head、seed、3-token smoother、两种 metric unit 和 raw/position 比较门均在标签解封前冻结。两套
+  resolved views 都是 0/3 seed 通过：smoother 相对 raw 的 token AP 稳定提高约 `.0163–.0167`，但 claim AP
+  稳定下降约 `.0022–.0032`；更重要的是 smoother token/claim AP 仅 `.214–.242/.272–.288`，显著低于
+  absolute-position `.370–.382/.423–.425`。状态固定为 `blind_gate_failed_smoother_rejected`：不采用
+  smoother，不接 reward，也不在这 96 条上选择替代窗口或新 head。
 - base validation 仍没有 hallucination、progress、dual-prior 或 reconstruction supervision；当前没有
   formal mechanism-efficacy 结论。
 - `pilot_test` 和 `final_test` 尚未用于当前模块选择。
 
 ## 下一道门
 
-固定 3-token smoother 的现有数据工程门已经通过，下一步不再扫描窗口、加 MLP 或改共享梯度，而是新增一批
-未参与结构选择的 localization validation，并由独立第二标注者盲标，优先覆盖非数学领域。新批次必须在看
-标签前冻结：单个 final H head、fixed centered logit smoother、split、span/claim 指标和采用门；第二标注
-prompt 要求每完成一条立即 durable 落盘。新标签通过前不把 `p_hallucination` 接入 reward，也不重开 tail、
-exact onset、progress、reconstruction 或 consistency。完整边界见
-[JP → H Fixed Temporal Smoother v1](docs/jp_h_temporal_smoother_v1.md)。
+固定 3-token smoother 已在真正未见的 96 条 mixed-domain validation 上失败。下一步不再扫描窗口、MLP 或
+阈值，而是把旧 64 条和本轮 96 条明确降格为 H-v3 的 160 条 development/Silver 数据，预先冻结
+domain/query-balanced 交叉验证与位置控制，回答唯一问题：JP/H features 是否能在 absolute/normalized
+position 之外提供增量 localization 信号。候选在这 160 条上选定后，必须另采全新的 Phi-native blind-v2
+才能重新申请采用；本轮 96 条永久不能再充当新盲证据。期间 `p_hallucination` 不接 reward，tail、exact
+onset、progress 与 reconstruction 不重开。盲测协议、结果和边界见
+[JP → H Mixed-Domain Blind Validation v1](docs/jp_h_blind_validation_v1.md)。
 
 下一轮仍固定 `mil/token_reward/tail/relative_tail/pseudo_tail/progress/reconstruction=0`，不在结果后自动调
 权重或切换 multistream。complete reconstruction 继续等待独立、冻结的 768-d 外部 target，禁止
@@ -199,6 +210,7 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 | `src/clir_localization_evaluation.py` | path/token/onset 指标与 shortcut baselines |
 | `src/clir_frozen_h_probe.py` | 冻结 JP 表示上的独立 H probe、评分与采用指标 |
 | `src/clir_h_temporal_smoother.py` | 固定 masked centered logit smoother、协议与零参数评分 |
+| `src/clir_jp_h_blind_evaluation.py` | 双 resolved-view 的 exact-token / claim AP 与冻结采用门 |
 | `train_clir.py` | 训练、恢复、健康证据与 checkpoint |
 | `score_clir.py` | 逐候选 reward scoring |
 | `evaluate_hallucination_localization.py` | localization held-out evaluation |
@@ -215,6 +227,9 @@ same-candidate pooling。原始 dual-prior v2 完整结果见
 | `scripts/summarize_jp_h_frozen_probe_v1.py` | base bit-identity、OOF span/claim 与采用门审计 |
 | `scripts/run_jp_h_temporal_smoother_v1.py` | 复用 12 个 OOF head 输出，运行固定 3-token 零训练重评分 |
 | `scripts/summarize_jp_h_temporal_smoother_v1.py` | 配对 raw/position 四门、字段不变性与盲标下一门审计 |
+| `scripts/compare_jp_h_blind_annotations_v1.py` | 双标 exact-positive-token 比较与盲裁决包 |
+| `scripts/materialize_jp_h_blind_adjudication_v1.py` | 物化两套 resolved label views，保留 negative-coverage 敏感性 |
+| `scripts/evaluate_jp_h_blind_v1.py` | 对冻结预测执行 mixed-domain blind adoption gate |
 | `evaluate_clir.py` | ordered-prefix Best-of-N 与 ranking metrics |
 | `summarize_clir.py` | 多 seed 汇总与配对比较 |
 
@@ -263,6 +278,8 @@ P=/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python
   负结果、claim 内抖动诊断与 temporal-smoother 下一门
 - [docs/jp_h_temporal_smoother_v1.md](docs/jp_h_temporal_smoother_v1.md)：固定 3-token logit smoother 的
   3/3-seed 工程支持、cross-fold calibration 风险与新盲标门
+- [docs/jp_h_blind_validation_v1.md](docs/jp_h_blind_validation_v1.md)：96 条 mixed-domain 双标、盲裁决、
+  预冻结采用门、smoother 负结果与 H-v3 下一门
 - [docs/hallucination_localization_pilot_v1.md](docs/hallucination_localization_pilot_v1.md)：contaminated-tail 历史基线
 - [docs/on_policy_pilot0_reaudit_v1.md](docs/on_policy_pilot0_reaudit_v1.md)：Route A v1a 冻结结果
 - [docs/semantic_rewrite_v8_reasoning_equivalent.md](docs/semantic_rewrite_v8_reasoning_equivalent.md)：保留的
