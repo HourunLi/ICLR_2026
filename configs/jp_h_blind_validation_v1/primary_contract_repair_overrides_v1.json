@@ -1,0 +1,117 @@
+{
+  "schema_version": "clir-jp-h-blind-primary-contract-repair-overrides-v1",
+  "status": "frozen_primary_only_before_secondary_or_score_access",
+  "primary_protocol_sha256": "3fb69ad204a3f4849b8a4fb402aae3f7ca6ee074788f118caa480712c9eec934",
+  "blind_items_sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8",
+  "raw_primary_results_sha256": "801b392ec47960ef8ed476aae915b8c449c440f9552da4b55b001436e4b9b56b",
+  "policy": {
+    "semantic_fields_mutable": false,
+    "mutable_fields": [
+      "claim_text",
+      "occurrence",
+      "claim_review_order",
+      "earliest_problem_claim_index"
+    ],
+    "drop_allowed_only_for_byte_identical_duplicate_claim": true,
+    "case_insensitive_alignment_requires_unique_match": true,
+    "exact_replacement_must_be_unique_trajectory_substring": true,
+    "secondary_labels_accessed": false,
+    "model_predictions_accessed": false
+  },
+  "overrides": {
+    "JPHB-f7e6f5c4fd4dcb7f": [
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 3,
+        "original_claim_text_sha256": "97cf7284345300cf6e0b19f1a45548a693033126ffa82f356f88175e4aba9b5b"
+      }
+    ],
+    "JPHB-32f57af3773fb3ed": [
+      {
+        "operation": "set_exact_occurrence",
+        "claim_index": 9,
+        "original_claim_text_sha256": "bed9a9c4cff9646f8b9bd2cc6a5445775cae4295343a029e0eb1971aeeac1718",
+        "resolved_occurrence": 1
+      }
+    ],
+    "JPHB-ded1fee1520dc19f": [
+      {
+        "operation": "set_exact_occurrence",
+        "claim_index": 21,
+        "original_claim_text_sha256": "f7cf6af22d7a7f4e47bbc86516b85568c61849b7cf05bd7707d73dcf492bf16b",
+        "resolved_occurrence": 1
+      }
+    ],
+    "JPHB-a363662e8403268a": [
+      {
+        "operation": "drop_byte_identical_duplicate_claim",
+        "claim_index": 1,
+        "duplicate_of_claim_index": 0,
+        "original_claim_text_sha256": "a708b80b2e310ad5df4bd2a7b06ed5d0f41c8413b0daa9bf4fa732afb5b6c03c"
+      }
+    ],
+    "JPHB-d38f4b48f58a463f": [
+      {
+        "operation": "set_exact_occurrence",
+        "claim_index": 10,
+        "original_claim_text_sha256": "1514c4201c43a576d3676321ad7211cb0a3b13bc57166ec8530dbcc0bd69042a",
+        "resolved_occurrence": 0
+      }
+    ],
+    "JPHB-f1be318714612dd5": [
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 1,
+        "original_claim_text_sha256": "7b3c89f14348e1d64a7bf4ec9dc587c71f13397701bdf055bcef4232df29dc4f"
+      }
+    ],
+    "JPHB-1b3eca8abc5644bc": [
+      {
+        "operation": "unique_exact_quote_replacement",
+        "claim_index": 9,
+        "original_claim_text_sha256": "7168c36084110b173f91a5d04e62f8cf2f1d4997cb5f877b6072f33939d54344",
+        "resolved_claim_text": "primary purpose in providing assistance is to help others in need."
+      }
+    ],
+    "JPHB-7800d1a517eb78e8": [
+      {
+        "operation": "unique_exact_quote_replacement",
+        "claim_index": 6,
+        "original_claim_text_sha256": "38e6eaf72926f172825d141f1e14bddb81b496e395d99925a9f0bc7fb051597d",
+        "resolved_claim_text": "the most logical and fitting option is:\n\nA. care"
+      }
+    ],
+    "JPHB-855c937318853120": [
+      {
+        "operation": "stable_sort_claims_by_exact_character_start",
+        "expected_claim_count": 5
+      }
+    ],
+    "JPHB-4c02b919788d5369": [
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 6,
+        "original_claim_text_sha256": "a17edf30ad103cf64e9ad131c90fea1bb182e5fa7b2bc19be8f0a8034170859d"
+      }
+    ],
+    "JPHB-9999180a930c0f8d": [
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 3,
+        "original_claim_text_sha256": "4c3c3cd2d910d97cf107bf80c500879e677e7bed16df3f554e4cd1c71f121303"
+      },
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 7,
+        "original_claim_text_sha256": "fc90e1d382388a23aa279a85799b0aec331e6bd0d4943d45acdc29ef66c4a31a"
+      }
+    ],
+    "JPHB-3d580ff277e9af65": [
+      {
+        "operation": "case_insensitive_unique_quote_alignment",
+        "claim_index": 2,
+        "original_claim_text_sha256": "18b17a0db5325184f234eb81595816115d74b2c472ffe121c0ca280192da9905"
+      }
+    ]
+  }
+}
