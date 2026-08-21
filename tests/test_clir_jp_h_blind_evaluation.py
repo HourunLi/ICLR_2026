@@ -75,7 +75,11 @@ def test_protocol_binds_inputs_before_predictions_are_opened() -> None:
     assert protocol["prediction_values_accessed_when_protocol_frozen"] is False
     for spec in protocol["inputs"].values():
         assert file_sha256(ROOT / spec["path"]) == spec["sha256"]
-    assert not RESULT.exists()
+    if RESULT.exists():
+        result = json.loads(RESULT.read_text(encoding="utf-8"))
+        assert result["evaluation_protocol_sha256"] == file_sha256(PROTOCOL)
+        assert result["prediction_values_opened_after_protocol_commit"] is True
+        assert result["threshold_tuning_performed"] is False
 
 
 def test_sparse_mapping_masks_unreviewed_and_uncertain_tokens() -> None:
@@ -129,3 +133,20 @@ def test_toy_evaluation_has_both_units_and_three_paired_seeds() -> None:
         seed["token_average_precision"]["smoothed"] is not None
         for seed in result["seeds"].values()
     )
+
+
+def test_persisted_blind_result_is_not_overridden() -> None:
+    if not RESULT.exists():
+        pytest.skip("Blind evaluation has not been executed yet")
+    result = json.loads(RESULT.read_text(encoding="utf-8"))
+    assert result["status"] == "blind_gate_failed_smoother_rejected"
+    assert result["overall_adoption_gate_passed"] is False
+    assert result["view_passes"] == {
+        "resolved_primary": False,
+        "resolved_secondary": False,
+    }
+    assert all(
+        view["passing_seeds"] == 0
+        for view in result["pooled_primary_results"].values()
+    )
+    assert result["automatic_score_coupling"] is False
