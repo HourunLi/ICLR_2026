@@ -1,0 +1,152 @@
+{
+  "schema_version": "clir-jp-h-temporal-smoother-protocol-v1",
+  "experiment_id": "clir-jp-to-h-fixed-temporal-smoother-v1",
+  "status": "authorized_by_user",
+  "evidence_tier": "small-scale real",
+  "selection_status": "post_selection_exploratory",
+  "purpose": "Test the single engineering hypothesis that a fixed, zero-parameter 3-token logit smoother repairs within-claim token jitter in the already-trained frozen JP-to-H linear probes.",
+  "inputs": {
+    "linear_probe_protocol": {
+      "path": "configs/jp_h_frozen_probe_v1/training_protocol_v1.json",
+      "sha256": "f42fa15f084111921cdc1901339664bc9b46f730d15ad274f7433e2053cc3983"
+    },
+    "linear_probe_result": {
+      "path": "configs/jp_h_frozen_probe_v1/training_result_v1.json",
+      "sha256": "3c12fab6b864ed753485ddee1d03377417adeed49adbd089b4bb96a012015361"
+    },
+    "linear_probe_matrix": {
+      "path": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1/matrix_run.json",
+      "sha256": "c289bdcfc20593d181092fe209255a71dd35a67010985865f2c5334d3f5dd2ea"
+    },
+    "frozen_feature_cache_report": {
+      "path": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1/cache/cache_report.json",
+      "sha256": "7c1cd092596035c719bb4004077545c0e26baa39211ff070bbd1f1215c43b18e"
+    },
+    "frozen_feature_cache": {
+      "path": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1/cache/frozen_jp_token_features.pt",
+      "sha256": "dbe2c1f04f36f6b4c1244a23d8d6b094e1b0b352623e89706fe4bd4278a7d75c"
+    },
+    "jp_checkpoint": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+      "sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c"
+    }
+  },
+  "selection_history": {
+    "window_was_chosen_after_inspecting_same_64_rows": true,
+    "prior_diagnostic_smoothed_probabilities_not_logits": true,
+    "prior_windows_inspected": [
+      3,
+      5,
+      9,
+      17,
+      33,
+      65
+    ],
+    "current_run_scans_no_windows": true,
+    "scientific_role": "Implementation and mechanism-direction check only. It cannot retroactively validate the linear probe or adopt the smoother as a method."
+  },
+  "source_prediction_contract": {
+    "source": "Each cell's exact persisted clir_token_hallucination_probs from the immutable OOF dev_scored.jsonl bound by the frozen linear-probe result.",
+    "head_count": 12,
+    "head_architecture": "linear_768_to_1_with_bias",
+    "head_parameter_count_each": 769,
+    "head_checkpoints_verified_by_sha256": true,
+    "head_forward_recomputed": false,
+    "reason_not_recomputed": "Reusing persisted sigmoid outputs makes the comparison exact and device-independent; stable logit inversion is the scoring-time equivalent of recovering the frozen head logit up to the original float32 sigmoid round trip.",
+    "source_predictions_mutated": false
+  },
+  "smoother": {
+    "architecture": "fixed_masked_centered_logit_mean",
+    "window_tokens": 3,
+    "radius_tokens": 1,
+    "centered": true,
+    "boundary_rule": "mean_over_available_real_tokens_only",
+    "mask_role": "generated_token_validity_only_not_supervision_mask",
+    "input": "stable_float64_logit_of_persisted_frozen_linear_head_probability",
+    "output": "sigmoid_of_smoothed_logit",
+    "compute_dtype": "float64",
+    "trainable_parameter_count": 0,
+    "head_retraining": false,
+    "window_search_during_run": false
+  },
+  "protected_paths": {
+    "jp_checkpoint_read_only": true,
+    "linear_probe_checkpoints_read_only": true,
+    "base_reward_scores_unchanged": true,
+    "base_token_values_unchanged": true,
+    "smoother_enters_reward_score": false,
+    "tail_supervision_enabled": false,
+    "progress_supervision_enabled": false,
+    "reconstruction_supervision_enabled": false,
+    "consistency_supervision_enabled": false,
+    "direct_key_bce_weight_retained_in_source_jp": 1.0,
+    "direct_complete_bce_weight_retained_in_source_jp": 1.0,
+    "bidirectional_stop_gradient_mutual_distillation_weight_retained_in_source_jp": 0.25,
+    "shared_gradient_reward_gate_weight_retained_in_source_jp": 10.0,
+    "original_method_changed": false
+  },
+  "evaluation": {
+    "folds": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "cells": 12,
+    "primary_confirmatory_folds": [
+      1,
+      2,
+      3
+    ],
+    "primary_rows": 48,
+    "all_oof_rows": 64,
+    "fold_0_role": "Selection-exposed continuity diagnostic only.",
+    "metrics": [
+      "explicit_sparse_span_average_precision",
+      "claim_mean_probability_average_precision"
+    ],
+    "comparators": [
+      "same_rows_strongest_absolute_or_normalized_position",
+      "same_rows_paired_raw_frozen_linear_head"
+    ]
+  },
+  "engineering_decision_rules": {
+    "minimum_passing_seeds": 2,
+    "span_ap_strictly_above_same_rows_position": true,
+    "claim_ap_strictly_above_same_rows_position": true,
+    "span_ap_strictly_above_paired_raw_linear": true,
+    "claim_ap_strictly_above_paired_raw_linear": true,
+    "mean_all_four_advantages_strictly_positive": true,
+    "raw_source_predictions_bit_identical": true,
+    "base_reward_fields_bit_identical": true,
+    "automatic_method_adoption": false,
+    "automatic_score_coupling": false,
+    "passing_conclusion": "The fixed local-consistency operator is supported as the next H-localizer candidate; acquire a new blind localization validation set with independent secondary annotation before adoption.",
+    "failing_conclusion": "The observed probability-smoothing diagnostic does not transfer cleanly to a frozen logit smoother; reconsider the localizer or expand training labels before blind validation.",
+    "automatic_next_experiment_authorized": false
+  },
+  "execution": {
+    "runner": "scripts/run_jp_h_temporal_smoother_v1.py",
+    "summarizer": "scripts/summarize_jp_h_temporal_smoother_v1.py",
+    "output_root": "run_artifacts/jp_h_temporal_smoother_v1/matrix_v1",
+    "result": "configs/jp_h_temporal_smoother_v1/result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "limitations": [
+    "The 64 trajectories retain the existing Silver pipeline-pilot hallucination labels.",
+    "The 3-token window was selected after inspecting smoothing diagnostics on these same 64 rows, so this is post-selection exploratory evidence even though folds 1-3 remain OOF for head training.",
+    "The prior diagnostic averaged probabilities, while this frozen candidate averages reconstructed logits; this run tests that exact predeclared operator only.",
+    "Persisted float32 sigmoid outputs are inverted in float64 rather than recomputing device-dependent linear logits.",
+    "This run changes only H diagnostics, does not enter reward scoring, and cannot establish Best-of-N improvement.",
+    "No pilot-test or final-test data may be accessed."
+  ]
+}
