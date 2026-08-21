@@ -1,0 +1,139 @@
+{
+  "schema_version": "clir-jp-h-blind-validation-protocol-v1",
+  "evidence_tier": "blind_validation",
+  "purpose": "Validate the single frozen JP-to-H linear readout with the preselected three-token centered logit smoother on new Phi-native trajectories and predominantly non-math domains.",
+  "datasets": {
+    "gsm8k": {
+      "repo_id": "openai/gsm8k",
+      "subset": "main",
+      "revision": "740312add88f781978c0658806c59bc2815b9866",
+      "split": "train",
+      "allowed_membership": "reserve",
+      "split_manifest": "configs/splits/gsm8k_phi35_v2.json"
+    },
+    "arc_challenge": {
+      "repo_id": "allenai/ai2_arc",
+      "subset": "ARC-Challenge",
+      "revision": "210d026faf9955653af8916fad021475a3f00453",
+      "split": "validation"
+    },
+    "commonsense_qa": {
+      "repo_id": "tau/commonsense_qa",
+      "subset": null,
+      "revision": "94630fe30dad47192a8546eb75f094926d47e155",
+      "split": "validation"
+    },
+    "boolq": {
+      "repo_id": "google/boolq",
+      "subset": null,
+      "revision": "35b264d03638db9f4ce671b711558bf7ff0f80d5",
+      "split": "validation"
+    }
+  },
+  "source_sampling": {
+    "seed": 28171,
+    "queries_per_domain": 48,
+    "domains": [
+      "gsm8k",
+      "arc_challenge",
+      "commonsense_qa",
+      "boolq"
+    ],
+    "priority": "sha256(clir-jp-h-blind-source-v1:seed:domain:query_id)",
+    "gsm8k_scope": "rank only the pre-existing reserve membership; never read pilot_test or final_test",
+    "other_scope": "rank the frozen validation split",
+    "duplicate_problem_sha256_forbidden": true
+  },
+  "generation": {
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "model_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "trust_remote_code": true,
+    "dtype": "bfloat16",
+    "backend": "vllm",
+    "candidates_per_query": 4,
+    "temperature": 1.0,
+    "top_p": 0.9,
+    "max_new_tokens": 1024,
+    "max_model_length": 4096,
+    "base_seed": 42,
+    "seed_scope": "sha256(clir-vllm-query-seed-v1:base_seed:query_id)",
+    "candidate_index_policy": "vllm_completion_output_index",
+    "terminal_token_policy": "as_returned",
+    "exact_output_token_ids_required": true
+  },
+  "selection": {
+    "seed": 51721,
+    "item_id_salt": "clir-jp-h-blind-validation-v1",
+    "rows_per_domain": 24,
+    "correct_per_domain": 12,
+    "incorrect_per_domain": 12,
+    "one_row_per_query": true,
+    "length_bins_per_correctness_domain": 4,
+    "rows_per_length_bin": 3,
+    "minimum_output_tokens": 32,
+    "parsed_final_answer_required": true,
+    "max_token_truncation_excluded": true,
+    "priority": "sha256(clir-jp-h-blind-select-v1:seed:domain:correctness:length_bin:source_id)",
+    "blind_order": "sha256(clir-jp-h-blind-order-v1:seed:item_id)",
+    "correctness_role": "private_selection_stratum_only_never_annotation_evidence",
+    "model_score_role": "forbidden_for_selection",
+    "expected_rows": 96,
+    "expected_non_math_rows": 72
+  },
+  "blind_item_contract": {
+    "visible_fields": [
+      "schema_version",
+      "item_id",
+      "problem",
+      "trajectory"
+    ],
+    "forbidden_fields": [
+      "domain",
+      "correctness",
+      "source_id",
+      "query_id",
+      "candidate_index",
+      "parsed_answer",
+      "reference_answer",
+      "raw_reference",
+      "primary_annotation",
+      "raw_h_score",
+      "smoothed_h_score",
+      "reward_score"
+    ]
+  },
+  "annotation": {
+    "guide": "configs/jp_h_blind_validation_v1/annotation_guide_v1.md",
+    "secondary_items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+    "secondary_prompt": "configs/jp_h_blind_validation_v1/secondary_prompt_resumable_v1.md",
+    "secondary_output": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl",
+    "quote_contract": "exact non-empty trajectory substring plus zero-based occurrence",
+    "correctness_independence": true,
+    "one_validated_row_per_durable_checkpoint": true
+  },
+  "outputs": {
+    "source_questions": "run_artifacts/jp_h_blind_validation_v1/acquisition/source_questions_v1.jsonl",
+    "candidate_pool": "run_artifacts/jp_h_blind_validation_v1/acquisition/candidate_pool_v1.jsonl",
+    "private_selection": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_selection_v1.jsonl",
+    "private_lineage": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+    "annotation_items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+    "package_report": "configs/jp_h_blind_validation_v1/package_report_v1.json"
+  },
+  "frozen_candidate": {
+    "readout": "single final linear JP-to-H head trained only on the old adjudicated 64-row development set",
+    "smoother": "three-token masked centered arithmetic mean in logit space",
+    "window": 3,
+    "causal": false,
+    "new_label_access_before_scoring_forbidden": true,
+    "additional_window_or_architecture_sweep_forbidden": true
+  },
+  "prohibitions": {
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "score_coupling_authorized": false,
+    "method_adopted_before_blind_gate": false,
+    "primary_secondary_label_leakage_allowed": false
+  },
+  "status": "acquisition_and_independent_annotation_authorized"
+}
