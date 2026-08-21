@@ -1,0 +1,83 @@
+{
+  "adoption_gate_run": false,
+  "artifacts": {
+    "adjudication_items": "configs/jp_h_blind_validation_v1/adjudication_items_v1.jsonl",
+    "adjudication_items_sha256": "adae4b747507b13b399669f006b81624d4135730574157b3ca1565a1be9d1c38",
+    "adjudication_lineage": "configs/jp_h_blind_validation_v1/adjudication_lineage_v1.jsonl",
+    "adjudication_lineage_sha256": "b084c4a49c890bc0d0524625581e01807d901d8e7857949b2e66b3290ca577e4",
+    "adjudication_prompt": "configs/jp_h_blind_validation_v1/adjudication_prompt_v1.md",
+    "adjudication_prompt_sha256": "ff67fd34e389efbf69d73c01e0bf1e815424126e8d712e455fd7ae9fb5073c08",
+    "primary_mapped_labels": "configs/jp_h_blind_validation_v1/labels_primary_mapped_v1.jsonl",
+    "primary_mapped_labels_sha256": "32251928f2c449c49e9c806afcdbe0f418a82939c3a4901f5970ae8952cab849",
+    "row_comparisons": "configs/jp_h_blind_validation_v1/annotation_comparisons_v1.jsonl",
+    "row_comparisons_sha256": "5fe4c968869858bf2afbc7b712c8ff1762356c73aeb96f77561dd2ed0be5a0b9",
+    "secondary_mapped_labels": "configs/jp_h_blind_validation_v1/labels_secondary_mapped_v1.jsonl",
+    "secondary_mapped_labels_sha256": "a083821b5a9007cb40d78f8c51cbfe7fb8963d0af8af065ec037aca188df4270"
+  },
+  "automatic_score_coupling": false,
+  "blocking_policy": [
+    "path_status_mismatch",
+    "exact_positive_token_set_mismatch"
+  ],
+  "code": {
+    "commit": "575d7603f360c0286ab9fc4fae6cbae00236d069",
+    "dirty": false
+  },
+  "comparison_protocol": "configs/jp_h_blind_validation_v1/comparison_protocol_v1.json",
+  "comparison_protocol_sha256": "f445c02db0f97a22e3d35ce249f6b964d7541290eb401210b1c317a49ad889f9",
+  "correctness_or_answer_key_visible_to_adjudicator": false,
+  "disagreement_reason_counts": {
+    "exact_positive_token_set_mismatch": 42,
+    "onset_token_mismatch": 13,
+    "path_status_mismatch": 26,
+    "reviewed_negative_token_set_mismatch": 94
+  },
+  "evidence_tier": "blind_validation_annotation_audit",
+  "exact_positive_token_set_agreement_count": 54,
+  "path_agreement_count": 70,
+  "path_agreement_rate": 0.7291666666666666,
+  "path_cohen_kappa": 0.388235294117647,
+  "path_confusion_primary_to_secondary": {
+    "clean->clean": 52,
+    "clean->hallucinated": 18,
+    "hallucinated->clean": 8,
+    "hallucinated->hallucinated": 18
+  },
+  "path_status_counts": {
+    "primary": {
+      "clean": 70,
+      "hallucinated": 26
+    },
+    "secondary": {
+      "clean": 60,
+      "hallucinated": 36
+    }
+  },
+  "positive_token_jaccard": {
+    "mean": 0.6237373997386141,
+    "median": 1.0,
+    "minimum": 0.0
+  },
+  "post_adjudication_evaluation_views": {
+    "adoption_gate": "the complete predeclared seed/comparator/unit gate in scoring_protocol_v1 must pass independently under both resolved views",
+    "blocking_rows": "replace both independent views with the single blind adjudicated annotation",
+    "descriptive_consensus_or_union_metrics_may_replace_primary_gate": false,
+    "fusion": "none",
+    "nonblocking_rows": "retain each annotator's native complete claim annotation and token mask",
+    "reason_no_single_projection": "Always projecting one annotator's claim spans would make claim-level AP depend on an arbitrary author choice. Requiring the frozen result under both resolved views exposes annotation sensitivity.",
+    "views": [
+      "resolved_primary",
+      "resolved_secondary"
+    ]
+  },
+  "prediction_values_accessed": false,
+  "reviewed_negative_token_jaccard": {
+    "mean": 0.6431765884949673,
+    "median": 0.740811176205498,
+    "minimum": 0.0
+  },
+  "rows": 96,
+  "rows_requiring_adjudication": 42,
+  "schema_version": "clir-jp-h-blind-agreement-report-v1",
+  "status": "awaiting_score_blind_adjudication"
+}
