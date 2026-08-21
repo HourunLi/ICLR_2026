@@ -1,0 +1,72 @@
+{
+  "schema_version": "clir-jp-h-blind-scoring-completion-receipt-v1",
+  "status": "predictions_frozen_annotations_still_sealed",
+  "frozen_at_utc": "2026-08-21T10:37:31Z",
+  "evidence_tier": "blind_validation_pre_unseal_predictions",
+  "scoring_protocol": {
+    "path": "configs/jp_h_blind_validation_v1/scoring_protocol_v1.json",
+    "sha256": "741d2caa5b1dc5fee9ca68b2f0863bd57fa1e627e485dae591ab7e21679bfe76"
+  },
+  "execution": {
+    "commit": "be774d470adc85dc51919c0850f4fb1cc253f4f8",
+    "dirty": false,
+    "device": "cuda",
+    "rows": 96,
+    "queries": 96,
+    "total_output_tokens": 29148,
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  "artifacts": {
+    "completion_report": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/completion_report_v1.json",
+      "sha256": "acf18604a72291dd24f430c8de88e4850207dbf563e58bbd7f1a15a34aed9aed"
+    },
+    "predictions": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/predictions_v1.jsonl",
+      "sha256": "16057bd28d7c57a8f15ef2f490c6c44402926fd63449688d312dd4923c719345",
+      "rows": 96
+    },
+    "jp_token_feature_manifest": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/jp_token_feature_manifest_v1.jsonl",
+      "sha256": "528e1cae79164ce772deceba47c55d0ad05cd091621e1f676fcb535a9b769e86",
+      "rows": 96
+    },
+    "head_manifest": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/final_heads/head_manifest_v1.json",
+      "sha256": "caa92db29431469f5a514abb864c7b2c6274c1f0413fae623ffcf62cd78ceb37"
+    },
+    "head_seed_42": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/final_heads/seed_42/probe.pt",
+      "sha256": "0094e8a44b64e6cde97f7f120687da27650e92483db73b877da2e26d39fd95ae"
+    },
+    "head_seed_43": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/final_heads/seed_43/probe.pt",
+      "sha256": "48f8face0828c7a4060ca0a18f2f76b5711cc20efb537b46643872b7afb139fe"
+    },
+    "head_seed_44": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/final_heads/seed_44/probe.pt",
+      "sha256": "316fa5e06425ea6a10e53090872a85d24d6fa540a9636ecd0ae4d89e6b80ee42"
+    }
+  },
+  "invariance": {
+    "base_checkpoint_sha256_before": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+    "base_checkpoint_sha256_after": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c",
+    "base_checkpoint_unchanged": true,
+    "new_hallucination_labels_opened": false,
+    "selection_correctness_fed_to_model": false,
+    "smoother_enters_reward_score": false,
+    "pilot_test_accessed": false,
+    "final_test_accessed": false
+  },
+  "sealed_secondary_annotation": {
+    "path": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl",
+    "reported_rows": 96,
+    "reported_sha256": "118952a3200048675595c618476c75b2e7a4a8349573ccb4868150dd5e864b4b",
+    "content_accessed_before_this_receipt": false
+  },
+  "next_step": "Complete the independent primary annotation from annotation_items_v1.jsonl without opening predictions or the sealed secondary annotation."
+}
