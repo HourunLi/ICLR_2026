@@ -32,7 +32,7 @@
   },
   "source_sampling": {
     "seed": 28171,
-    "queries_per_domain": 48,
+    "queries_per_domain": 96,
     "domains": [
       "gsm8k",
       "arc_challenge",
