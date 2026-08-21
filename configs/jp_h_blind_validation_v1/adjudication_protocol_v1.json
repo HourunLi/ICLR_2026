@@ -1,0 +1,116 @@
+{
+  "schema_version": "clir-jp-h-blind-adjudication-protocol-v1",
+  "experiment_id": "clir-jp-to-h-mixed-domain-blind-validation-v1",
+  "status": "frozen_after_score_blind_decisions_and_before_prediction_value_access",
+  "evidence_tier": "blind_validation_annotation_audit",
+  "purpose": "Expand the frozen score-blind A/B decisions, replace every target-changing disagreement in both evaluation views, and preserve native nonblocking claim coverage for annotation-sensitivity evaluation.",
+  "inputs": {
+    "comparison_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/comparison_protocol_v1.json",
+      "sha256": "f445c02db0f97a22e3d35ce249f6b964d7541290eb401210b1c317a49ad889f9"
+    },
+    "agreement_report": {
+      "path": "configs/jp_h_blind_validation_v1/agreement_report_v1.json",
+      "sha256": "364f9ea0755d784076ff7c438cf6f7c0d664c34e7abbf85895ce320856a8d613"
+    },
+    "all_items": {
+      "path": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+      "sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8"
+    },
+    "primary_mapped_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_primary_mapped_v1.jsonl",
+      "sha256": "32251928f2c449c49e9c806afcdbe0f418a82939c3a4901f5970ae8952cab849"
+    },
+    "secondary_mapped_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_secondary_mapped_v1.jsonl",
+      "sha256": "a083821b5a9007cb40d78f8c51cbfe7fb8963d0af8af065ec037aca188df4270"
+    },
+    "row_comparisons": {
+      "path": "configs/jp_h_blind_validation_v1/annotation_comparisons_v1.jsonl",
+      "sha256": "5fe4c968869858bf2afbc7b712c8ff1762356c73aeb96f77561dd2ed0be5a0b9"
+    },
+    "adjudication_items": {
+      "path": "configs/jp_h_blind_validation_v1/adjudication_items_v1.jsonl",
+      "sha256": "adae4b747507b13b399669f006b81624d4135730574157b3ca1565a1be9d1c38"
+    },
+    "adjudication_lineage": {
+      "path": "configs/jp_h_blind_validation_v1/adjudication_lineage_v1.jsonl",
+      "sha256": "b084c4a49c890bc0d0524625581e01807d901d8e7857949b2e66b3290ca577e4"
+    },
+    "adjudication_selections": {
+      "path": "configs/jp_h_blind_validation_v1/adjudication_selections_v1.jsonl",
+      "sha256": "6507f3937f3283deb8d84cb8fb5753c6e182e608141c052d0f1bc3ea4d341b4c"
+    }
+  },
+  "adjudicator_disclosure": {
+    "identity": "codex_internal_score_blind_claim_review_v1",
+    "reviewer_type": "internal_model_review",
+    "independent_human_adjudicator": false,
+    "same_local_model_as_primary_annotator": false,
+    "secondary_annotator_identity_known": false,
+    "visible_during_decisions": [
+      "frozen_annotation_guide",
+      "problem",
+      "trajectory",
+      "deterministically_shuffled_annotation_a",
+      "deterministically_shuffled_annotation_b",
+      "blocking_disagreement_type"
+    ],
+    "not_visible_during_decisions": [
+      "A/B role lineage",
+      "source or query identity",
+      "domain",
+      "correctness",
+      "reference answer",
+      "parsed answer",
+      "raw or smoothed model predictions",
+      "position scores"
+    ],
+    "aggregate_agreement_statistics_seen_before_decisions": true,
+    "primary_model_identity_known_from_project_history": true,
+    "authorship_may_be_inferable_from_annotation_style": true,
+    "claim_level_status": "internally_adjudicated_evaluation_reference_not_human_gold"
+  },
+  "resolution_policy": {
+    "expected_all_rows": 96,
+    "expected_blocking_rows": 42,
+    "allowed_relations": [
+      "annotation_a",
+      "annotation_b",
+      "revised",
+      "unresolved"
+    ],
+    "frozen_selections_used": [
+      "annotation_a",
+      "annotation_b"
+    ],
+    "require_every_blocking_row_resolved": true,
+    "require_complete_valid_final_annotation": true,
+    "require_exact_mapped_token_identity": true,
+    "blocking_rows": "the selected A/B annotation replaces the row in both resolved views",
+    "nonblocking_rows": "each resolved view retains its own native mapped annotation",
+    "negative_claim_masks_fused": false,
+    "tail_targets_created": false
+  },
+  "adoption_gate_contract": {
+    "evaluation_views": [
+      "resolved_primary",
+      "resolved_secondary"
+    ],
+    "both_views_must_pass_complete_frozen_gate": true,
+    "single_view_success_is_sufficient": false,
+    "threshold_tuning_allowed": false,
+    "additional_smoother_or_head_selection_allowed": false
+  },
+  "outputs": {
+    "adjudication_resolutions_raw": "configs/jp_h_blind_validation_v1/adjudication_resolutions_raw_v1.jsonl",
+    "resolved_primary_labels": "configs/jp_h_blind_validation_v1/labels_resolved_primary_v1.jsonl",
+    "resolved_secondary_labels": "configs/jp_h_blind_validation_v1/labels_resolved_secondary_v1.jsonl",
+    "adjudication_report": "configs/jp_h_blind_validation_v1/adjudication_report_v1.json"
+  },
+  "prediction_values_accessed": false,
+  "adoption_gate_run": false,
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "automatic_score_coupling": false
+}
