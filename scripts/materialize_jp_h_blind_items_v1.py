@@ -59,6 +59,26 @@ def length_bins(rows: Sequence[Mapping[str, Any]], bins: int) -> dict[str, int]:
     }
 
 
+def exact_visible_token_alignment(row: Mapping[str, Any], tokenizer: Any) -> tuple[bool, tuple[int, ...]]:
+    encoded = tokenizer(
+        row["response"],
+        add_special_tokens=False,
+    )["input_ids"]
+    output = [int(value) for value in row["output_token_ids"]]
+    trailing = tuple(output[len(encoded) :])
+    aligned = output[: len(encoded)] == [int(value) for value in encoded]
+    invisible = bool(trailing) and all(
+        tokenizer.decode(
+            [token_id],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
+        )
+        == ""
+        for token_id in trailing
+    )
+    return aligned and invisible, trailing
+
+
 def select_domain(
     domain_rows: Sequence[Mapping[str, Any]],
     *,
@@ -73,6 +93,7 @@ def select_domain(
         row
         for row in domain_rows
         if bool(row["answer_parse_valid"])
+        and bool(row["exact_token_alignment"])
         and len(row["output_token_ids"]) >= minimum_tokens
         and str(row["generation"].get("finish_reason")) != "length"
     ]
@@ -179,6 +200,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", type=Path, default=DEFAULT_PROTOCOL)
     parser.add_argument("--candidate-pool", type=Path)
+    parser.add_argument("--cache-dir")
     return parser.parse_args()
 
 
@@ -201,6 +223,25 @@ def main() -> None:
         raise ValueError("Candidate IDs are not unique")
     if any(row["provenance"]["protocol_sha256"] != protocol_sha256 for row in candidates):
         raise ValueError("Candidate pool protocol provenance drifted")
+    generation = protocol["generation"]
+    from transformers import AutoTokenizer
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        generation["model_id"],
+        revision=generation["tokenizer_revision"],
+        cache_dir=args.cache_dir,
+        trust_remote_code=bool(generation["trust_remote_code"]),
+        use_fast=True,
+    )
+    alignment_failures = 0
+    trailing_patterns: Counter[tuple[int, ...]] = Counter()
+    for row in candidates:
+        aligned, trailing = exact_visible_token_alignment(row, tokenizer)
+        row["exact_token_alignment"] = aligned
+        if aligned:
+            trailing_patterns[trailing] += 1
+        else:
+            alignment_failures += 1
     selection_cfg = protocol["selection"]
     domains = list(protocol["source_sampling"]["domains"])
     selected: list[dict[str, Any]] = []
@@ -287,6 +328,7 @@ def main() -> None:
                 "trajectory": row["response"],
                 "prompt_token_ids": row["prompt_token_ids"],
                 "output_token_ids": row["output_token_ids"],
+                "exact_token_alignment": bool(row["exact_token_alignment"]),
                 "prompt_token_ids_sha256": canonical_sha256(row["prompt_token_ids"]),
                 "output_token_ids_sha256": canonical_sha256(row["output_token_ids"]),
                 "problem_sha256": hashlib.sha256(row["problem"].encode("utf-8")).hexdigest(),
@@ -338,6 +380,24 @@ def main() -> None:
         "blind_visible_fields": sorted(visible),
         "forbidden_field_leaks": 0,
         "model_score_used_for_selection": False,
+        "candidate_exact_token_alignment_passed": len(candidates) - alignment_failures,
+        "candidate_exact_token_alignment_rejected": alignment_failures,
+        "selected_exact_token_alignment_failures": sum(
+            not row["exact_token_alignment"] for row in selected
+        ),
+        "invisible_trailing_token_patterns": {
+            ",".join(str(value) for value in pattern): count
+            for pattern, count in sorted(trailing_patterns.items())
+        },
+        "backend_text_difference": {
+            "rows": sum(not row["decode_matches_backend_text"] for row in candidates),
+            "leading_ascii_space_only": sum(
+                row["backend_response_text"] == " " + row["response"]
+                for row in candidates
+                if not row["decode_matches_backend_text"]
+            ),
+            "role": "diagnostic_only; visible trajectory is exact-token decode",
+        },
         "pilot_test_accessed": False,
         "final_test_accessed": False,
     }

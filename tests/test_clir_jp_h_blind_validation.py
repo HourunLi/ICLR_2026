@@ -77,6 +77,7 @@ def test_domain_selection_is_balanced_and_query_unique() -> None:
                     "query_id": f"query-{index:02d}",
                     "correctness": correctness,
                     "answer_parse_valid": True,
+                    "exact_token_alignment": True,
                     "output_token_ids": list(range(32 + index)),
                     "generation": {"finish_reason": "stop"},
                 }
