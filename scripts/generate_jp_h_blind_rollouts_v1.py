@@ -280,9 +280,8 @@ def main() -> None:
         raise RuntimeError(f"Expected {expected_rows} candidates, got {len(rows)}")
     if any(not row["output_token_ids"] for row in rows):
         raise ValueError("Empty exact-token trajectory in candidate pool")
-    if any(not row["decode_matches_backend_text"] for row in rows):
-        raise ValueError("Tokenizer decode differs from vLLM backend text")
     atomic_write_jsonl(output_path, rows)
+    decode_mismatches = sum(not row["decode_matches_backend_text"] for row in rows)
     per_domain = {
         domain: {
             "rows": sum(row["domain"] == domain for row in rows),
@@ -305,7 +304,8 @@ def main() -> None:
         "rows": len(rows),
         "queries": len(sources),
         "per_domain": per_domain,
-        "decode_mismatches": 0,
+        "decode_mismatches": decode_mismatches,
+        "visible_trajectory_source": "decode(exact_output_token_ids)",
         "protocol_sha256": protocol_sha256,
         "source_questions_sha256": file_sha256(sources_path),
     }

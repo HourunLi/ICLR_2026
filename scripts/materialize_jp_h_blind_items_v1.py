@@ -73,7 +73,6 @@ def select_domain(
         row
         for row in domain_rows
         if bool(row["answer_parse_valid"])
-        and bool(row["decode_matches_backend_text"])
         and len(row["output_token_ids"]) >= minimum_tokens
         and str(row["generation"].get("finish_reason")) != "length"
     ]
