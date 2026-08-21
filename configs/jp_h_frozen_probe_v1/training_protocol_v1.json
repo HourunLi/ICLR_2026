@@ -1,0 +1,240 @@
+{
+  "schema_version": "clir-jp-h-frozen-probe-protocol-v1",
+  "experiment_id": "clir-jp-to-h-frozen-linear-probe-v1",
+  "status": "authorized_by_user",
+  "evidence_tier": "small-scale real",
+  "purpose": "Test whether the frozen epoch-5 JP conditioned token representation already linearly contains sparse hallucination-span signal without allowing hallucination supervision to change the original reward, dual-prior, mutual-distillation, or gate paths.",
+  "inputs": {
+    "jp_checkpoint": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/model.pt",
+      "sha256": "a392ad6ad8ccbe020e6a10835463c15829e3684f0a2b9213e6bcefe78666df5c"
+    },
+    "jp_cell_result": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/cell_result.json",
+      "sha256": "5b8c7e355256cfeeeaf711aeb8d8687b03a2f8ae6b0369f2282e9c6d2313bf32"
+    },
+    "jp_scored_train48": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/mechanism_train_scored.jsonl",
+      "sha256": "eb31dc86358953772916d072c4df19d3037d18c5110ba082975ba46d9157969f"
+    },
+    "jp_scored_dev16": {
+      "path": "run_artifacts/joint_training_pilot_v1/seed42_v1/seed_42/jp_original_prior/mechanism_dev_scored.jsonl",
+      "sha256": "8820311ed3d02f9349621fd84d0fc5b82affe8e74d68e052f8c0d41eeda09fcd"
+    },
+    "fold_audit": {
+      "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_audit_v2c.json",
+      "sha256": "4412efeca3ffe21a02e2ab3762ee1964b7d99d4842cc1516d4b76be89f95ebca"
+    },
+    "tail_cv_protocol": {
+      "path": "configs/hallucination_localization_v2/tail_cv_protocol_v2c.json",
+      "sha256": "a6d64ae8d6febf8c99d393fd62513972ab16377c8669052165a37c548e49e482"
+    },
+    "feature_integrity_report": {
+      "path": "run_artifacts/stage1b_v2/audits/feature_mirror_verification.json",
+      "sha256": "e38b14446dca77926d28361aa7cb3877a7970aa7114b8980ca3141fdc7354d25"
+    }
+  },
+  "protected_original_method": {
+    "base_cell": "jp_original_prior",
+    "base_training_seed": 42,
+    "base_checkpoint_epoch": 5,
+    "final_correctness_bce_weight": 1.0,
+    "direct_key_bce_weight": 1.0,
+    "direct_complete_bce_weight": 1.0,
+    "bidirectional_stop_gradient_mutual_distillation_weight": 0.25,
+    "shared_gradient_reward_gate_to_detached_half_key_half_complete_prior_weight": 10.0,
+    "prior_fusion_alpha": 0.5,
+    "hallucination_weight_in_base_checkpoint": 0.0,
+    "complete_reconstruction_weight": 0.0,
+    "progress_score_weight": 0.0,
+    "original_method_changed": false
+  },
+  "representation": {
+    "source": "jp_epoch5_conditioned_token_features",
+    "width": 768,
+    "definition": "The exact token_features tensor emitted after the frozen JP input encoder, token-specific condition fusion, and feature_norm.",
+    "base_model_frozen": true,
+    "base_checkpoint_read_only": true,
+    "base_parameters_in_optimizer": false,
+    "probe_input_detached": true,
+    "probe_enters_reward_score": false
+  },
+  "probe": {
+    "architecture": "linear_768_to_1_with_bias",
+    "parameter_count": 769,
+    "loss": "unweighted_explicit_sparse_token_bce",
+    "positive_weight": 1.0,
+    "target": "token_hallucination_target only where token_hallucination_mask is one",
+    "full_tail_target_used": false,
+    "path_mil_used": false,
+    "correctness_loss_used": false,
+    "prior_losses_used": false,
+    "consistency_loss_used": false
+  },
+  "feature_extraction": {
+    "source_manifests": [
+      "cross_validation.folds.0.train",
+      "cross_validation.folds.0.dev"
+    ],
+    "rows": 64,
+    "batch_size": 2,
+    "device": "cuda",
+    "amp_dtype": "none",
+    "storage_dtype": "float32",
+    "canonical_forward_comparison": "Current frozen JP reward_score and every token_value must be bit-identical to the retained canonical JP scored manifests before any probe is trained."
+  },
+  "training": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "epochs": 100,
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0,
+    "max_grad_norm": 1.0,
+    "batching": "one_full_batch_of_all_supervised_tokens_per_fold",
+    "checkpoint_selection": "fixed_final_epoch_100",
+    "early_stopping": false,
+    "automatic_hyperparameter_tuning": false,
+    "head_reinitialized_per_seed": true,
+    "base_checkpoint_reloaded_into_probe_optimizer": false
+  },
+  "cross_validation": {
+    "folds": {
+      "0": {
+        "selection_exposed": true,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/train48.jsonl",
+          "sha256": "3add84db6b06b115cf1f35048ffd723a12c411550c5c0105f1ca97c24121930a",
+          "rows": 48,
+          "supervised_tokens": 6681,
+          "positive_tokens": 922
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_0/dev16.jsonl",
+          "sha256": "537db849bab1f11aa9f84d9867b79c9778bac42e8b4802449e4e234fde249a36",
+          "rows": 16,
+          "supervised_tokens": 2451,
+          "positive_tokens": 528
+        }
+      },
+      "1": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_1/train48.jsonl",
+          "sha256": "fde8c6f5ebe3b2e7fb26603076be58088feb3156f01240561e8c036b5642e8b8",
+          "rows": 48,
+          "supervised_tokens": 6834,
+          "positive_tokens": 1205
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_1/dev16.jsonl",
+          "sha256": "a7f21b6eae19e08496662089867a01b9d7583a1ae0acddf110fe1fd3fdc38c11",
+          "rows": 16,
+          "supervised_tokens": 2298,
+          "positive_tokens": 245
+        }
+      },
+      "2": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_2/train48.jsonl",
+          "sha256": "73381a471ea98c2cfc5c722c7d342df520db584cd3d695f2f7f3940b64f29577",
+          "rows": 48,
+          "supervised_tokens": 6849,
+          "positive_tokens": 986
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_2/dev16.jsonl",
+          "sha256": "760cd6df65ce93f10b896118be559fa590952ee77afd471e4373124800f6c172",
+          "rows": 16,
+          "supervised_tokens": 2283,
+          "positive_tokens": 464
+        }
+      },
+      "3": {
+        "selection_exposed": false,
+        "train": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_3/train48.jsonl",
+          "sha256": "d844539122f692472fc513d4c4025c8deebce2785ebb10a10ac0ed26f119e215",
+          "rows": 48,
+          "supervised_tokens": 7032,
+          "positive_tokens": 1237
+        },
+        "dev": {
+          "path": "run_artifacts/hallucination_localization_v2/data_tail_cv_v2c/fold_3/dev16.jsonl",
+          "sha256": "ea07189cf9dc3539c43ed768a51fd638f7f73d954e8b862aabde41627ef9a08c",
+          "rows": 16,
+          "supervised_tokens": 2100,
+          "positive_tokens": 213
+        }
+      }
+    },
+    "primary_confirmatory_folds": [
+      1,
+      2,
+      3
+    ],
+    "primary_confirmatory_rows": 48,
+    "all_out_of_fold_rows": 64,
+    "fold_0_role": "Selection-exposed continuity diagnostic only; excluded from the primary decision."
+  },
+  "position_baselines": {
+    "confirmatory_48": {
+      "rows": 48,
+      "span_supervised_tokens": 6681,
+      "span_positive_tokens": 922,
+      "span_strongest_position_average_precision": 0.2599161435463814,
+      "claims": 314,
+      "positive_claims": 39,
+      "claim_strongest_position_average_precision": 0.30464116520259393
+    },
+    "all_oof_64": {
+      "rows": 64,
+      "span_supervised_tokens": 9132,
+      "span_positive_tokens": 1450,
+      "span_strongest_position_average_precision": 0.28681720276263245,
+      "claims": 426,
+      "positive_claims": 60,
+      "claim_strongest_position_average_precision": 0.32088261036805715
+    },
+    "historical_fold0_report_only": {
+      "reason_not_primary": "These thresholds were measured on the former 16-row development fold and are not the same-row baselines for the primary 48-row OOF pool.",
+      "span_absolute_position_average_precision": 0.39328067905143455,
+      "claim_absolute_position_average_precision": 0.42198767865054354
+    }
+  },
+  "decision_rules": {
+    "minimum_passing_seeds": 2,
+    "span_ap_strictly_above_same_rows_strongest_position": true,
+    "claim_ap_strictly_above_same_rows_strongest_position": true,
+    "mean_span_advantage_strictly_positive": true,
+    "mean_claim_advantage_strictly_positive": true,
+    "base_checkpoint_sha_unchanged": true,
+    "base_reward_scores_bit_identical": true,
+    "base_token_values_bit_identical": true,
+    "passing_conclusion": "The frozen JP representation supports a separate linear hallucination localizer; discuss explicit score coupling while retaining a frozen JP base.",
+    "failing_conclusion": "The frozen JP representation does not reliably support a linear localizer; discuss a detached H-specific adapter or more localization labels before score coupling.",
+    "automatic_score_coupling": false,
+    "automatic_adapter_training": false,
+    "automatic_label_expansion": false
+  },
+  "execution": {
+    "runner": "scripts/run_jp_h_frozen_probe_v1.py",
+    "summarizer": "scripts/summarize_jp_h_frozen_probe_v1.py",
+    "output_root": "run_artifacts/jp_h_frozen_probe_v1/matrix_v1",
+    "result": "configs/jp_h_frozen_probe_v1/training_result_v1.json",
+    "recommended_interpreter": "/prodcpfs/user/panzhixin/miniconda3/envs/SWIFT/bin/python",
+    "clean_committed_worktree_required": true,
+    "pilot_test_access_allowed": false,
+    "final_test_access_allowed": false,
+    "formal_mechanism_claim_allowed": false
+  },
+  "limitations": [
+    "The 64 trajectories retain the existing Silver pipeline-pilot hallucination labels.",
+    "Folds 1-3 are out-of-fold views of the former 48-row training pool, not a newly annotated external validation set.",
+    "The probe tests linear decodability only and does not enter the reward score or establish Best-of-N improvement."
+  ]
+}
