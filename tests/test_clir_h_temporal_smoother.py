@@ -16,6 +16,7 @@ from src.clir_real_data import file_sha256
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = ROOT / "configs/jp_h_temporal_smoother_v1/protocol_v1.json"
+RESULT_PATH = ROOT / "configs/jp_h_temporal_smoother_v1/result_v1.json"
 
 
 def load_protocol():
@@ -142,3 +143,21 @@ def test_smoothed_row_changes_only_h_diagnostics_and_adds_provenance():
     provenance = candidate["frozen_h_temporal_smoother_provenance"]
     assert provenance["trainable_parameter_count"] == 0
     assert provenance["smoother_enters_reward_score"] is False
+
+
+def test_temporal_smoother_result_passes_engineering_gate_without_adoption():
+    result = json.loads(RESULT_PATH.read_text(encoding="utf-8"))
+    assert result["status"] == "completed_engineering_signal_supported"
+    assert result["protocol"]["sha256"] == file_sha256(PROTOCOL_PATH)
+    assert result["execution_gate"]["passed"] is True
+    assert result["execution_gate"]["trainable_parameter_count"] == 0
+    assert result["execution_gate"]["head_retrained"] is False
+    assert result["execution_gate"]["protected_non_h_row_views_bit_identical"] == 192
+    assert result["decision"]["engineering_signal_supported"] is True
+    assert result["decision"]["passing_seeds"] == [42, 43, 44]
+    assert result["decision"]["method_adopted"] is False
+    assert result["decision"]["score_coupling_authorized"] is False
+    for seed_result in result["primary_48_rows_by_seed"].values():
+        assert seed_result["engineering_gate"]["all_four_passed"] is True
+    assert result["pilot_test_accessed"] is False
+    assert result["final_test_accessed"] is False

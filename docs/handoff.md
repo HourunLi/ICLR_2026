@@ -89,6 +89,21 @@ commit `17d0efa` 完成：
 - 完整协议、结果和下一门见 `docs/jp_h_frozen_probe_v1.md` 与
   `configs/jp_h_frozen_probe_v1/training_result_v1.json`。
 
+固定 `3-token` logit smoother 的后续工程 pilot 也已完成：
+
+- 协议与实现先冻结于 clean commit `9ad4268`；本轮直接复用 12 个不可变 OOF prediction files 和 head
+  checkpoints，不重训、不新增参数；
+- 192/192 个 row views 除 H 概率/path 派生字段与新增 smoother provenance 外逐字段完全一致，JP reward、
+  token values、原 direct/mutual/gate 均未改变；
+- 主要 48 条 OOF 上，span AP 从 `.236/.233/.234` 提至 `.280/.272/.268`，claim AP 从
+  `.358/.341/.325` 提至 `.366/.364/.332`；三个 seed 都同时超过 position 与各自 raw linear 的
+  span/claim 四门；
+- 状态为 `completed_engineering_signal_supported`，但 window=3 是看过同一 64 条的 post-hoc diagnostics 后
+  选出的，因此 `method_adopted=false`、`score_coupling_authorized=false`；
+- all-64 cross-fold diagnostic 虽比 raw linear 改善，仍低于 position，提示跨 head/domain calibration 风险；
+- 完整记录见 `docs/jp_h_temporal_smoother_v1.md` 与
+  `configs/jp_h_temporal_smoother_v1/result_v1.json`。
+
 当前三种监督和一种 reward shaping 不要混称：
 
 | 层级 | canonical 字段 | 含义 | 当前裁决 |
@@ -122,9 +137,10 @@ clean-matched positional control 的新协议。
    reasoning-equivalent pairs；Route B 的 Phi self-rewrite 只作后续对照。
 3. 错误 trajectory 不要求 rewrite。错误机制等价组只有在定向采样和独立 verifier 能稳定判断后才做。
 4. Localization 标签当前选择 T0/S1 sparse span。联合阶段不再让 H 更新 JP shared path：plain frozen
-   linear H probe 已确认 claim-level signal、但 token/span 门失败；下一候选是仍冻结 JP 的极小 masked
-   temporal smoother。absolute-margin T2、pre-onset-relative R1、exact onset 与 clean-matched tail repair
-   都保持独立，不与 smoother 混跑。
+   linear H probe 已确认 claim-level signal、但 token/span 门失败；固定 3-token masked centered logit
+   smoother 已获 3/3-seed 工程支持，作为新盲标 validation 的唯一候选，尚未采用且未接 reward。
+   absolute-margin T2、pre-onset-relative R1、exact onset 与 clean-matched tail repair 都保持独立，不与
+   smoother 混跑。
 5. Dual-prior 保留项目原方法：direct key/complete targets、symmetric stop-gradient mutual MSE，以及
    gate-to-detached-fused-prior 的 shared-gradient alignment。v1 的 key-AP 保护门失败按历史原样保留，但当前
    不换 head-only；先用 v2 mixed outcome data 和 query-grouped ranking 判断原方法的任务效果。containment
@@ -338,26 +354,24 @@ protocol/audit 中，不在本 handoff 重复展开。
 ## 4. 下一步
 
 不要重跑 v2c、扫描 tail weight、重跑 M0/M1、扩跑 packing/condition-stopgrad seeds，或放宽任何历史失败门。
-plain frozen linear probe 也已冻结失败，不能因为 post-hoc smoothing 看起来好就追溯改判。
+plain frozen linear probe 的历史失败也不能因 smoother 成功而追溯改判。
 
-下一格需要和用户逐项拍板，推荐只改变 H readout 的 temporal consistency：
+下一道阻塞门已经从“实现 smoother”推进为“新增真正未见的 localization validation”：
 
-1. JP checkpoint、conditioned token features、final score、direct key/complete、双向 stop-gradient mutual `.25`
-   和 shared-gradient gate `10` 全部冻结；
-2. H branch 仍从 detached JP `[T,768]` features 开始，先做 linear logits，再加极小、域无关的 masked local
-   smoother；不要先上大 MLP/Transformer adapter；
-3. 现有 64 条若继续使用，窗口或尺度只能在每个 fold 的 train48 内选择，dev16 只读；该结果仍明确标为
-   post-selection exploratory pipeline pilot；
-4. 真正采用 temporal smoother 需要新增、未参与本轮结构选择的 localization validation，优先覆盖非数学
-   领域。第二标注 AI 的 prompt 继续要求每判断一条立即落盘；
-5. smoother 未在新标签上同时通过 span/claim 前，不做 `p_hallucination→reward` coupling；通过后再单独冻结
-   一个透明 score-coupling 协议，最多学习非负标量 `alpha`，并直接测 500×16 ranking；
-6. consistency 继续独立，tail/exact onset/progress/reconstruction 不在该格中重开；不读取
-   `pilot_test/final_test`。
+1. 新 batch 的 row 来源、domain 构成、sample size、split 和 exact-token artifact 必须先冻结；优先加入
+   非数学领域，不能只从当前 64 条附近重采样；
+2. 先冻结一个单个 final H head 及其训练集/seed/checkpoint，再在新标签未打开前冻结 fixed 3-token centered
+   logit smoother；不再扫描 window、概率/日志空间、causal/centered 或 MLP；
+3. 主标和独立第二标注者都按 claim span 标注。第二标注 prompt 必须要求每完成一条立即 durable 落盘，
+   支持超时续跑；分歧在看模型分数前裁决；
+4. 采用门仍同时看 span AP 与 claim-mean AP，并同时对比 position 和 raw linear。跨 head calibration 必须在
+   协议中预先解决，不能看新标签后再选；
+5. 新盲标门通过前，`method_adopted=false` 且不做 `p_hallucination→reward` coupling；通过后才单独冻结一个
+   透明 score-coupling 协议，最多学习非负标量 `alpha`，直接测独立 500×16 ranking；
+6. consistency、tail/exact onset/progress/reconstruction 不在该格中重开；不读取 `pilot_test/final_test`。
 
-为什么先做 smoother 而不是 pointwise adapter：linear probe 的 claim AP 三 seed 全通过，而 annotated-claim oracle constant
-和最小 local mean 都显著修复 span AP，证据直接指向 claim 内概率抖动。一个仍逐 token 独立的 MLP 只增加
-容量，不直接处理这个失败机制。
+centered smoother 用到未来一个 token，只适用于完整 trajectory 的离线 scoring。若目标改成生成时实时拦截，
+causal smoother 是另一个方法，必须单独冻结和验证。
 
 原始 mutual 与 shared-gradient gate 不因联合或 probe 结果被静默替换；containment/head-only 仍只是历史
 候选。reconstruction 继续等待独立 768-d target；exact onset 与下一代 clean-matched tail repair 留在 backlog。
@@ -380,6 +394,8 @@ plain frozen linear probe 也已冻结失败，不能因为 post-hoc smoothing �
 - correctness-only Stage 1 是 `small-scale real`，没有稳定的 encoded→CLIR 增益。
 - Route A v1a、Localization v1/v2/v2b/v2c/v2d、Dual-prior direct-target/mutual-distillation/reward-gate v1 都是
   `pipeline pilot`。
+- fixed 3-token logit smoother 在同一 64 条上的工程门为 3/3 seed 通过，但结构选择已暴露；它只能作为新盲标
+  候选，不能称为已采用的 localization 方法或 Best-of-N 证据。
 - verifier selection 的 Mistral-24B 只获 Silver pilot 授权，不能自动迁移为 hallucination Gold。
 - T2 的 AP/ranking signal 在 v2c 仍存在，但 absolute-margin implementation 的 tail locality 0/3 seed 通过；
   R1 虽解决统一 shift，却没有 clean anchor，并明显损伤当前 sparse AP。只能选择 T0 并暂缓这两个实现，
@@ -410,6 +426,7 @@ docs/hallucination_tail_comparison_v2b.md         tail 撤销审计与 matched �
 docs/hallucination_tail_cross_validation_v2c.md   4-fold × 3-seed 最终复核
 docs/hallucination_relative_tail_pilot_v2d.md     relative R1 单-cell 修复试验
 docs/jp_h_frozen_probe_v1.md                      冻结 JP 的 H linear probe 与 temporal-smoother 下一门
+docs/jp_h_temporal_smoother_v1.md                 固定 3-token smoother 工程结果与新盲标门
 docs/dual_prior_evidence_pilot_v1.md              dual-prior gold、D0–D3 与下一门
 docs/dual_prior_mutual_distillation_pilot_v1.md   原始 mutual distillation 三种子结果
 docs/dual_prior_reward_gate_pilot_v1.md           shared-gradient gate 三种子结果与 head-only repair
@@ -428,6 +445,8 @@ scripts/summarize_hallucination_tail_cv_v2c.py        out-of-fold 多 seed 采�
 scripts/summarize_hallucination_relative_tail_v2d.py  relative R1 冻结裁决
 scripts/run_jp_h_frozen_probe_v1.py                   只读 JP feature cache 与 4-fold × 3-seed probe
 scripts/summarize_jp_h_frozen_probe_v1.py             base bit-identity 与 OOF span/claim 采用门
+scripts/run_jp_h_temporal_smoother_v1.py              12-cell 固定 logit smoother 只读重评分
+scripts/summarize_jp_h_temporal_smoother_v1.py        paired raw/position 工程门与不变性审计
 scripts/run_dual_prior_matrix_v1.py                   D0–D3 多 GPU launcher
 scripts/summarize_dual_prior_pilot_v1.py              direct-target 三种子采用门
 train_clir.py / score_clir.py / evaluate_clir.py     训练、打分、Best-of-N
