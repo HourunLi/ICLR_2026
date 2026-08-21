@@ -1,0 +1,62 @@
+{
+  "annotation_items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+  "annotation_items_sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8",
+  "backend_text_difference": {
+    "leading_ascii_space_only": 1536,
+    "role": "diagnostic_only; visible trajectory is exact-token decode",
+    "rows": 1536
+  },
+  "blind_visible_fields": [
+    "item_id",
+    "problem",
+    "schema_version",
+    "trajectory"
+  ],
+  "candidate_exact_token_alignment_passed": 1531,
+  "candidate_exact_token_alignment_rejected": 5,
+  "candidate_pool_sha256": "52502221cd038998787afee682dd1e4e02d3c24acf6fe1c17c97e86177c77bc3",
+  "final_test_accessed": false,
+  "forbidden_field_leaks": 0,
+  "invisible_trailing_token_patterns": {
+    "32000": 9,
+    "32007": 1522
+  },
+  "model_score_used_for_selection": false,
+  "non_math_rows": 72,
+  "per_domain": {
+    "arc_challenge": 24,
+    "boolq": 24,
+    "commonsense_qa": 24,
+    "gsm8k": 24
+  },
+  "per_domain_correctness": {
+    "arc_challenge": {
+      "correct": 12,
+      "incorrect": 12
+    },
+    "boolq": {
+      "correct": 12,
+      "incorrect": 12
+    },
+    "commonsense_qa": {
+      "correct": 12,
+      "incorrect": 12
+    },
+    "gsm8k": {
+      "correct": 12,
+      "incorrect": 12
+    }
+  },
+  "pilot_test_accessed": false,
+  "private_lineage": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+  "private_lineage_sha256": "60c20648fd5961146f3f9d4d604d54cf1b78d1d605f50a0918a8dd4df40bc52f",
+  "private_selection": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_selection_v1.jsonl",
+  "private_selection_sha256": "12230f988636ac490404996f9fcffe314f78c20bc4278217267d1cf87009f656",
+  "protocol": "configs/jp_h_blind_validation_v1/protocol_v1.json",
+  "protocol_sha256": "90cabecd4cc3f60f9218bfe4581b95fa1be9ba975ce0b996a9cf02984ed83411",
+  "queries": 96,
+  "rows": 96,
+  "schema_version": "clir-jp-h-blind-package-report-v1",
+  "selected_exact_token_alignment_failures": 0,
+  "status": "passed"
+}

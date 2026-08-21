@@ -1,0 +1,33 @@
+{
+  "schema_version": "clir-jp-h-blind-secondary-execution-contract-v1",
+  "role": "independent_secondary_blind_annotator",
+  "rows": 96,
+  "unit_of_durable_progress": "one validated annotation row",
+  "batch_only_write_forbidden": true,
+  "semantic_inputs": {
+    "protocol": "configs/jp_h_blind_validation_v1/protocol_v1.json",
+    "protocol_sha256": "90cabecd4cc3f60f9218bfe4581b95fa1be9ba975ce0b996a9cf02984ed83411",
+    "guide": "configs/jp_h_blind_validation_v1/annotation_guide_v1.md",
+    "guide_sha256": "43ec983ef1c980dcc6eb34a03831688bbc482f994d19bd969c99b8d79ab8507d",
+    "items": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+    "items_sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8"
+  },
+  "execution": {
+    "prompt": "configs/jp_h_blind_validation_v1/secondary_prompt_resumable_v1.md",
+    "prompt_sha256": "467c7c1d739276b8107ea9bc405c93ee51d2c8a98e7d1c51e55c03c1534ad72f",
+    "checkpoint_helper": "scripts/checkpoint_jp_h_blind_secondary_v1.py",
+    "checkpoint_helper_sha256": "7bb7d802379d9c5576cce2df079cbefd024043df4a00f69fab4f456bfd395c61",
+    "final_validator": "scripts/validate_hallucination_annotations_v1.py",
+    "final_validator_sha256": "44d07f66a00bdeb4665fe927db3d9c810eaa00e32d616aac968006f3e8466e56",
+    "output": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl"
+  },
+  "independence": {
+    "primary_labels_visible": false,
+    "answer_keys_visible": false,
+    "correctness_labels_visible": false,
+    "model_scores_visible": false,
+    "private_lineage_visible": false,
+    "web_search_allowed": false
+  },
+  "status": "ready_for_independent_secondary_annotation"
+}

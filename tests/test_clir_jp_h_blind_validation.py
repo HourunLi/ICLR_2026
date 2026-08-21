@@ -14,10 +14,17 @@ from scripts.generate_jp_h_blind_rollouts_v1 import (
 )
 from scripts.materialize_jp_h_blind_items_v1 import select_domain
 from scripts.prepare_jp_h_blind_sources_v1 import format_options, make_prompt
+from src.clir_hallucination_annotation import file_sha256, read_jsonl
 
 
 ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = ROOT / "configs/jp_h_blind_validation_v1/protocol_v1.json"
+ITEMS = ROOT / "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl"
+PACKAGE_REPORT = ROOT / "configs/jp_h_blind_validation_v1/package_report_v1.json"
+PROMPT = ROOT / "configs/jp_h_blind_validation_v1/secondary_prompt_resumable_v1.md"
+EXECUTION_CONTRACT = (
+    ROOT / "configs/jp_h_blind_validation_v1/secondary_execution_contract_v1.json"
+)
 
 
 def _item(item_id: str) -> dict:
@@ -135,3 +142,46 @@ def test_protocol_freezes_non_math_majority_and_single_smoother() -> None:
     assert protocol["frozen_candidate"]["window"] == 3
     assert protocol["frozen_candidate"]["additional_window_or_architecture_sweep_forbidden"] is True
     assert protocol["prohibitions"]["score_coupling_authorized"] is False
+
+
+def test_published_package_is_96_row_blind_view() -> None:
+    items = read_jsonl(ITEMS)
+    report = json.loads(PACKAGE_REPORT.read_text(encoding="utf-8"))
+    assert len(items) == 96
+    assert len({row["item_id"] for row in items}) == 96
+    assert all(
+        set(row) == {"schema_version", "item_id", "problem", "trajectory"}
+        for row in items
+    )
+    assert file_sha256(ITEMS) == report["annotation_items_sha256"]
+    assert report["non_math_rows"] == 72
+    assert report["selected_exact_token_alignment_failures"] == 0
+    assert report["forbidden_field_leaks"] == 0
+
+
+def test_secondary_prompt_requires_immediate_durable_checkpointing() -> None:
+    prompt = PROMPT.read_text(encoding="utf-8")
+    assert "judge one row, then save that row immediately" in prompt
+    assert "Do **not** keep multiple completed judgments only in memory" in prompt
+    assert "checkpoint_jp_h_blind_secondary_v1.py status" in prompt
+    assert "checkpoint_jp_h_blind_secondary_v1.py append" in prompt
+    assert "checkpoint_jp_h_blind_secondary_v1.py finalize" in prompt
+    assert "Do not browse the web" in prompt
+    assert "private lineage" in prompt and "answer keys" in prompt
+
+
+def test_secondary_execution_contract_binds_frozen_files() -> None:
+    contract = json.loads(EXECUTION_CONTRACT.read_text(encoding="utf-8"))
+    semantic = contract["semantic_inputs"]
+    execution = contract["execution"]
+    for section, path_key, hash_key in (
+        (semantic, "protocol", "protocol_sha256"),
+        (semantic, "guide", "guide_sha256"),
+        (semantic, "items", "items_sha256"),
+        (execution, "prompt", "prompt_sha256"),
+        (execution, "checkpoint_helper", "checkpoint_helper_sha256"),
+        (execution, "final_validator", "final_validator_sha256"),
+    ):
+        assert file_sha256(ROOT / section[path_key]) == section[hash_key]
+    assert contract["unit_of_durable_progress"] == "one validated annotation row"
+    assert contract["batch_only_write_forbidden"] is True
