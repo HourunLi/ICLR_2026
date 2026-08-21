@@ -1,0 +1,125 @@
+{
+  "schema_version": "clir-jp-h-blind-evaluation-protocol-v1",
+  "experiment_id": "clir-jp-to-h-mixed-domain-blind-validation-v1",
+  "status": "frozen_after_adjudication_and_before_prediction_value_access",
+  "evidence_tier": "blind_validation",
+  "purpose": "Run the predeclared adoption gate for the fixed three-token centered logit smoother against its paired raw JP-to-H heads and same-row position baselines under both resolved annotation views.",
+  "inputs": {
+    "scoring_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/scoring_protocol_v1.json",
+      "sha256": "741d2caa5b1dc5fee9ca68b2f0863bd57fa1e627e485dae591ab7e21679bfe76"
+    },
+    "scoring_completion_receipt": {
+      "path": "configs/jp_h_blind_validation_v1/scoring_completion_receipt_v1.json",
+      "sha256": "7d46ad04ff0140e51356c961596997fe9ac63f4f4dcb15a21849718779cf9501"
+    },
+    "frozen_predictions": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/frozen_scoring_v1/predictions_v1.jsonl",
+      "sha256": "16057bd28d7c57a8f15ef2f490c6c44402926fd63449688d312dd4923c719345"
+    },
+    "adjudication_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/adjudication_protocol_v1.json",
+      "sha256": "2473d386b3f60beb2095d3ebeafe6c868122964b3c49a670d98c4c919e8d8d4a"
+    },
+    "adjudication_report": {
+      "path": "configs/jp_h_blind_validation_v1/adjudication_report_v1.json",
+      "sha256": "4fcfca3b46386e75d94cfe8952c1a05e92f918c63d1111431cb5499c4ff5e9ae"
+    },
+    "resolved_primary_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_resolved_primary_v1.jsonl",
+      "sha256": "54d1506c1e9bf66ce3e7358c12341344ec44e2b9f77d7be40ac2a6e0fc1b97fa"
+    },
+    "resolved_secondary_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_resolved_secondary_v1.jsonl",
+      "sha256": "cd20827deda69a4ab22b5568fd180a118ec7550a92af7b30a22accb8da8ec665"
+    },
+    "private_lineage_for_domain_names_only": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+      "sha256": "60c20648fd5961146f3f9d4d604d54cf1b78d1d605f50a0918a8dd4df40bc52f"
+    }
+  },
+  "population": {
+    "rows": 96,
+    "total_output_tokens": 29148,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "pooled_96_is_primary": true,
+    "domains": [
+      "gsm8k",
+      "arc_challenge",
+      "commonsense_qa",
+      "boolq"
+    ],
+    "rows_per_domain": 24,
+    "correctness_used_in_evaluation": false,
+    "domain_used_only_for_descriptive_breakdown": true
+  },
+  "target_mapping": {
+    "positive_claim_statuses": [
+      "contradicted",
+      "unsupported"
+    ],
+    "negative_claim_statuses": [
+      "supported",
+      "non_claim"
+    ],
+    "masked_claim_statuses": [
+      "uncertain"
+    ],
+    "unreviewed_tokens_are_masked": true,
+    "overlapping_same-polarity_claim_tokens_are_deduplicated": true,
+    "overlapping_conflicting_claim_tokens_are_rejected": true,
+    "tail_targets_used": false
+  },
+  "metrics": {
+    "primary_units": [
+      "explicit_claim_span_token_average_precision",
+      "claim_mean_probability_average_precision"
+    ],
+    "average_precision": "stepwise AP at each distinct score threshold with deterministic index tie order",
+    "token_unit": "pool every explicitly reviewed non-uncertain claim token once; unreviewed tokens are absent",
+    "claim_unit": "one sample per non-uncertain reviewed claim, scored by arithmetic mean of its exact-span token probabilities",
+    "candidate": "smoothed_probabilities for the same frozen seed head",
+    "paired_raw_comparator": "raw_probabilities for that same seed head",
+    "position_comparator": "independently for each metric unit, the larger AP of absolute_position_scores and normalized_position_scores on the same rows",
+    "threshold_free": true,
+    "bootstrap_or_significance_test_predeclared": false
+  },
+  "adoption_gate": {
+    "strict_improvement_required": true,
+    "per_seed_four_advantages": [
+      "smoothed_token_ap_minus_raw_token_ap",
+      "smoothed_token_ap_minus_strongest_position_token_ap",
+      "smoothed_claim_ap_minus_raw_claim_ap",
+      "smoothed_claim_ap_minus_strongest_position_claim_ap"
+    ],
+    "seed_pass": "all four paired advantages are strictly positive and their arithmetic mean is positive",
+    "minimum_passing_seeds_per_view": 2,
+    "view_pass": "at least two of the three frozen seeds pass",
+    "overall_pass": "both resolved_primary and resolved_secondary views pass",
+    "single_view_pass_is_insufficient": true,
+    "per_domain_results_affect_gate": false,
+    "gate_failure_may_be_overridden": false
+  },
+  "interpretation": {
+    "pass_authorizes": "retain the fixed three-token centered smoother as an offline explicit-claim localization component",
+    "pass_does_not_authorize": [
+      "automatic coupling into the scalar reward score",
+      "tail supervision",
+      "threshold selection on these 96 rows",
+      "claims of human-gold localization accuracy",
+      "claims about causal mechanism"
+    ],
+    "failure_action": "retain raw H output for the project and record the smoother as rejected on blind transfer; do not tune a replacement on these 96 rows"
+  },
+  "outputs": {
+    "evaluation_result": "configs/jp_h_blind_validation_v1/evaluation_result_v1.json"
+  },
+  "prediction_values_accessed_when_protocol_frozen": false,
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "automatic_score_coupling": false
+}
