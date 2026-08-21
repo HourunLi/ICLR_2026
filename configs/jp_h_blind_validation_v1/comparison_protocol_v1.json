@@ -1,0 +1,129 @@
+{
+  "schema_version": "clir-jp-h-blind-comparison-protocol-v1",
+  "experiment_id": "clir-jp-to-h-mixed-domain-blind-validation-v1",
+  "status": "frozen_before_opening_primary_or_secondary_label_values",
+  "evidence_tier": "blind_validation",
+  "purpose": "Map both independent annotations to the exact saved Phi tokens, identify every disagreement that changes the positive hallucination target, and prepare score-blind A/B adjudication before opening frozen predictions.",
+  "inputs": {
+    "acquisition_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/protocol_v1.json",
+      "sha256": "90cabecd4cc3f60f9218bfe4581b95fa1be9ba975ce0b996a9cf02984ed83411"
+    },
+    "scoring_protocol": {
+      "path": "configs/jp_h_blind_validation_v1/scoring_protocol_v1.json",
+      "sha256": "741d2caa5b1dc5fee9ca68b2f0863bd57fa1e627e485dae591ab7e21679bfe76"
+    },
+    "annotation_guide": {
+      "path": "configs/jp_h_blind_validation_v1/annotation_guide_v1.md",
+      "sha256": "43ec983ef1c980dcc6eb34a03831688bbc482f994d19bd969c99b8d79ab8507d"
+    },
+    "items": {
+      "path": "configs/jp_h_blind_validation_v1/annotation_items_v1.jsonl",
+      "sha256": "47c93d44bb1c8ed005b9c1e6fbca2cd0b0040bcdc15236b2c2719c833297a9f8"
+    },
+    "private_lineage": {
+      "path": "run_artifacts/jp_h_blind_validation_v1/acquisition/private_lineage_v1.jsonl",
+      "sha256": "60c20648fd5961146f3f9d4d604d54cf1b78d1d605f50a0918a8dd4df40bc52f"
+    },
+    "primary_raw_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_primary_raw_v1.jsonl",
+      "sha256": "ef0f804e26bf31f6241ab53b7baf253742f2f39e9b22ac445e370ee5b04e3a34"
+    },
+    "secondary_raw_labels": {
+      "path": "configs/jp_h_blind_validation_v1/labels_secondary_raw_v1.jsonl",
+      "sha256": "118952a3200048675595c618476c75b2e7a4a8349573ccb4868150dd5e864b4b"
+    }
+  },
+  "token_mapping": {
+    "model_id": "microsoft/Phi-3.5-mini-instruct",
+    "tokenizer_revision": "2fe192450127e6a83f7441aef6e3ca586c338b77",
+    "trust_remote_code": true,
+    "require_fast_tokenizer": true,
+    "require_saved_output_token_identity": true,
+    "expected_rows": 96
+  },
+  "target_semantics": {
+    "positive_claim_statuses": [
+      "contradicted",
+      "unsupported"
+    ],
+    "negative_claim_statuses": [
+      "supported",
+      "non_claim"
+    ],
+    "masked_claim_statuses": [
+      "uncertain"
+    ],
+    "positive_token_set": "the union of exact Phi-token spans for all contradicted or unsupported claims",
+    "tail_target_used": false,
+    "unreviewed_tokens_assumed_negative": false
+  },
+  "comparison": {
+    "blocking_disagreements": [
+      "path_status_mismatch",
+      "exact_positive_token_set_mismatch"
+    ],
+    "why_positive_span_mismatch_is_blocking": "Both frozen adoption metrics use explicit problem-claim spans, so a disagreement in any positive token changes the evaluation target even when path status and first onset agree.",
+    "negative_claim_coverage_mismatch_is_reported_not_adjudicated": true,
+    "why_negative_coverage_is_not_fused": "Different supported-claim coverage is partly an annotation-unitization choice. Each independent view retains its own negative mask and the frozen adoption gate must pass under both views.",
+    "common_uncertain_rows_remain_excluded": true,
+    "claim_status_contradicted_vs_unsupported_is_nonblocking_when_positive_tokens_are_identical": true
+  },
+  "adjudication": {
+    "view_names": [
+      "annotation_a",
+      "annotation_b"
+    ],
+    "assignment": "sha256(clir-jp-h-blind-adjudication-view-v1:item_id) parity",
+    "visible_fields": [
+      "item_id",
+      "problem",
+      "trajectory",
+      "disagreement_reasons",
+      "annotation_a",
+      "annotation_b"
+    ],
+    "forbidden_fields": [
+      "domain",
+      "correctness",
+      "reference_answer",
+      "parsed_answer",
+      "source_id",
+      "query_id",
+      "annotator_identity",
+      "raw_scores",
+      "smoothed_scores",
+      "position_scores",
+      "predictions"
+    ],
+    "adjudicate_without_prediction_access": true,
+    "require_complete_final_annotation": true,
+    "require_one_row_durable_checkpoint_after_each_decision": true
+  },
+  "post_adjudication_evaluation_views": {
+    "views": [
+      "resolved_primary",
+      "resolved_secondary"
+    ],
+    "blocking_rows": "replace both independent views with the single blind adjudicated annotation",
+    "nonblocking_rows": "retain each annotator's native complete claim annotation and token mask",
+    "fusion": "none",
+    "reason_no_single_projection": "Always projecting one annotator's claim spans would make claim-level AP depend on an arbitrary author choice. Requiring the frozen result under both resolved views exposes annotation sensitivity.",
+    "adoption_gate": "the complete predeclared seed/comparator/unit gate in scoring_protocol_v1 must pass independently under both resolved views",
+    "descriptive_consensus_or_union_metrics_may_replace_primary_gate": false
+  },
+  "outputs": {
+    "primary_mapped_labels": "configs/jp_h_blind_validation_v1/labels_primary_mapped_v1.jsonl",
+    "secondary_mapped_labels": "configs/jp_h_blind_validation_v1/labels_secondary_mapped_v1.jsonl",
+    "row_comparisons": "configs/jp_h_blind_validation_v1/annotation_comparisons_v1.jsonl",
+    "agreement_report": "configs/jp_h_blind_validation_v1/agreement_report_v1.json",
+    "adjudication_items": "configs/jp_h_blind_validation_v1/adjudication_items_v1.jsonl",
+    "adjudication_lineage": "configs/jp_h_blind_validation_v1/adjudication_lineage_v1.jsonl",
+    "adjudication_prompt": "configs/jp_h_blind_validation_v1/adjudication_prompt_v1.md",
+    "adjudication_resolutions_raw": "configs/jp_h_blind_validation_v1/adjudication_resolutions_raw_v1.jsonl"
+  },
+  "prediction_values_may_be_opened_during_comparison": false,
+  "pilot_test_access_allowed": false,
+  "final_test_access_allowed": false,
+  "automatic_score_coupling": false
+}
